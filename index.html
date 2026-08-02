@@ -1,1 +1,1072 @@
 
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ExpliqueMoi</title>
+
+  <style>
+    :root{
+      --blue:#2563eb;
+      --bg:#f3f6fb;
+      --card:#fff;
+      --text:#172033;
+      --muted:#687386;
+      --border:#dde4ee;
+      --green:#168451;
+      --yellow:#9a6400;
+      --red:#b42318;
+    }
+
+    *{box-sizing:border-box}
+
+    body{
+      margin:0;
+      font-family:Arial,Helvetica,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    header{
+      position:sticky;
+      top:0;
+      z-index:10;
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:15px;
+      background:#ffffffee;
+      border-bottom:1px solid var(--border);
+      backdrop-filter:blur(12px);
+    }
+
+    .logo{
+      display:grid;
+      place-items:center;
+      width:48px;
+      height:48px;
+      border-radius:16px;
+      background:linear-gradient(145deg,#2563eb,#65a8ff);
+      color:white;
+      font-size:24px;
+      font-weight:bold;
+    }
+
+    h1{
+      margin:0;
+      font-size:23px;
+    }
+
+    header p{
+      margin:3px 0 0;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    main{
+      max-width:820px;
+      margin:auto;
+      padding:14px 14px 70px;
+    }
+
+    .panel,.card{
+      margin-bottom:14px;
+      padding:17px;
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:20px;
+      box-shadow:0 8px 25px rgba(20,40,80,.06);
+    }
+
+    .hero{
+      background:linear-gradient(145deg,#e9f2ff,#fff);
+    }
+
+    h2,h3{margin-top:0}
+
+    p,li{
+      line-height:1.55;
+    }
+
+    .muted{
+      color:var(--muted);
+    }
+
+    .upload-grid{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:9px;
+      margin-top:15px;
+    }
+
+    .upload{
+      display:block;
+      padding:15px 8px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:white;
+      text-align:center;
+      font-weight:bold;
+      cursor:pointer;
+    }
+
+    .upload span{
+      display:block;
+      margin-bottom:6px;
+      font-size:28px;
+    }
+
+    input[type=file]{
+      display:none;
+    }
+
+    textarea{
+      width:100%;
+      min-height:190px;
+      padding:14px;
+      border:1px solid var(--border);
+      border-radius:15px;
+      background:#fbfcfe;
+      font:inherit;
+      font-size:16px;
+      resize:vertical;
+    }
+
+    button{
+      border:0;
+      border-radius:13px;
+      padding:13px 16px;
+      font-size:15px;
+      font-weight:bold;
+      cursor:pointer;
+    }
+
+    .primary{
+      background:var(--blue);
+      color:white;
+    }
+
+    .secondary{
+      background:#eaf1ff;
+      color:#194fa9;
+    }
+
+    .buttons{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:11px;
+    }
+
+    #loading,#qualityWarning{
+      display:none;
+      margin-top:13px;
+      padding:13px;
+      border-radius:13px;
+    }
+
+    #loading{
+      background:#edf4ff;
+      color:#194fa9;
+      font-weight:bold;
+    }
+
+    #qualityWarning{
+      background:#fff5db;
+      border:1px solid #e6c36e;
+      color:#755000;
+    }
+
+    #results{
+      display:none;
+    }
+
+    .summary{
+      background:linear-gradient(145deg,#e9f9f1,#fff);
+      border-color:#c9ead6;
+    }
+
+    .summary h2{
+      color:var(--green);
+    }
+
+    .badge{
+      display:inline-block;
+      padding:9px 13px;
+      border-radius:999px;
+      font-weight:bold;
+    }
+
+    .green{
+      background:#e3f7ed;
+      color:var(--green);
+    }
+
+    .yellow{
+      background:#fff0cc;
+      color:var(--yellow);
+    }
+
+    .red{
+      background:#fee9e7;
+      color:var(--red);
+    }
+
+    ul{
+      padding-left:22px;
+    }
+
+    .tabs{
+      display:flex;
+      gap:7px;
+      margin:15px 0;
+      overflow-x:auto;
+    }
+
+    .tab{
+      white-space:nowrap;
+      background:#e7ebf2;
+      color:#596477;
+    }
+
+    .tab.active{
+      background:var(--blue);
+      color:white;
+    }
+
+    .hidden{
+      display:none;
+    }
+
+    .proof{
+      margin-bottom:12px;
+      padding:13px;
+      border-left:5px solid var(--blue);
+      border-radius:0 13px 13px 0;
+      background:#eef5ff;
+    }
+
+    mark{
+      background:#ffea84;
+      padding:2px;
+    }
+
+    #documentView{
+      max-height:550px;
+      overflow:auto;
+      padding:14px;
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:#fbfcfe;
+      white-space:pre-wrap;
+      line-height:1.6;
+    }
+
+    .question-row{
+      display:flex;
+      gap:8px;
+    }
+
+    .question-row input{
+      flex:1;
+      min-width:0;
+      padding:13px;
+      border:1px solid var(--border);
+      border-radius:13px;
+      font-size:16px;
+    }
+
+    #answer{
+      display:none;
+      margin-top:12px;
+      padding:13px;
+      border-radius:13px;
+      background:#edf4ff;
+      line-height:1.5;
+    }
+
+    .disclaimer{
+      color:var(--muted);
+      font-size:12px;
+    }
+
+    @media(max-width:650px){
+      .upload-grid{
+        grid-template-columns:1fr;
+      }
+
+      main{
+        padding:11px 11px 60px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <div class="logo">E</div>
+  <div>
+    <h1>ExpliqueMoi</h1>
+    <p>Comprendre sans stress — V1 mobile</p>
+  </div>
+</header>
+
+<main>
+  <section class="panel hero">
+    <h2>Que souhaitez-vous comprendre ?</h2>
+
+    <p class="muted">
+      Photographiez un document, importez un PDF ou collez directement son texte.
+    </p>
+
+    <div class="upload-grid">
+      <label class="upload" for="cameraInput">
+        <span>📷</span>
+        Photographier
+      </label>
+
+      <label class="upload" for="fileInput">
+        <span>📄</span>
+        Importer
+      </label>
+
+      <button class="upload" id="pasteBtn">
+        <span>✍️</span>
+        Coller un texte
+      </button>
+    </div>
+
+    <input id="cameraInput" type="file" accept="image/*" capture="environment">
+
+    <input
+      id="fileInput"
+      type="file"
+      accept="application/pdf,text/plain,image/*"
+    >
+  </section>
+
+  <section class="panel">
+    <textarea
+      id="sourceText"
+      placeholder="Le texte extrait du document apparaîtra ici…"
+    ></textarea>
+
+    <div class="buttons">
+      <button class="primary" id="analyzeBtn">
+        Analyser
+      </button>
+
+      <button class="secondary" id="exampleBtn">
+        Exemple
+      </button>
+
+      <button class="secondary" id="clearBtn">
+        Effacer
+      </button>
+    </div>
+
+    <div id="loading">Lecture du document…</div>
+    <div id="qualityWarning"></div>
+  </section>
+
+  <section id="results">
+    <div class="tabs">
+      <button class="tab active" data-target="analysisPage">Analyse</button>
+      <button class="tab" data-target="proofPage">Preuves</button>
+      <button class="tab" data-target="documentPage">Document</button>
+    </div>
+
+    <div id="analysisPage">
+      <section class="card summary">
+        <h2>🟢 En une phrase</h2>
+        <p id="summary"></p>
+        <p id="documentType" class="muted"></p>
+      </section>
+
+      <section class="card">
+        <h3>🚦 Niveau d’attention</h3>
+        <div id="attentionBadge"></div>
+        <p id="attentionReason" class="muted"></p>
+      </section>
+
+      <section class="card">
+        <h3>📖 Pourquoi ce document existe</h3>
+        <p id="purpose"></p>
+      </section>
+
+      <section class="card">
+        <h3>✅ Ce que vous devez faire</h3>
+        <ul id="actionsList"></ul>
+      </section>
+
+      <section class="card">
+        <h3>📅 Dates importantes</h3>
+        <ul id="datesList"></ul>
+      </section>
+
+      <section class="card">
+        <h3>💶 Montants détectés</h3>
+        <ul id="amountsList"></ul>
+      </section>
+
+      <section class="card">
+        <h3>⚠️ Points à vérifier</h3>
+        <ul id="warningsList"></ul>
+      </section>
+
+      <section class="card">
+        <h3>💬 Poser une question</h3>
+
+        <div class="question-row">
+          <input
+            id="questionInput"
+            placeholder="Ex. Que dois-je faire ?"
+          >
+
+          <button class="primary" id="askBtn">Demander</button>
+        </div>
+
+        <div id="answer"></div>
+      </section>
+    </div>
+
+    <div id="proofPage" class="hidden">
+      <section class="card">
+        <h3>🔍 Où trouve-t-on l’information ?</h3>
+
+        <p class="muted">
+          Les passages utilisés pour l’analyse sont affichés ici.
+        </p>
+
+        <div id="proofList"></div>
+      </section>
+    </div>
+
+    <div id="documentPage" class="hidden">
+      <section class="card">
+        <h3>📄 Texte du document</h3>
+        <div id="documentView"></div>
+      </section>
+    </div>
+  </section>
+
+  <p class="disclaimer">
+    ExpliqueMoi aide à comprendre un document. Cette version ne remplace pas un
+    comptable, un avocat, un médecin ou une administration.
+  </p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<script type="module">
+  const $ = id => document.getElementById(id);
+
+  let currentAnalysis = null;
+
+  function showLoading(message) {
+    $("loading").textContent = message;
+    $("loading").style.display = "block";
+  }
+
+  function hideLoading() {
+    $("loading").style.display = "none";
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, char => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    })[char]);
+  }
+
+  function splitSentences(text) {
+    return text
+      .replace(/\s+/g, " ")
+      .split(/(?<=[.!?;:])\s+/)
+      .map(sentence => sentence.trim())
+      .filter(sentence => sentence.length > 20);
+  }
+
+  function qualityScore(text) {
+    const clean = text.replace(/\s+/g, " ").trim();
+
+    const errors = (clean.match(/�/g) || []).length;
+
+    const strangeGroups = (
+      clean.match(/[|_]{3,}|ÿ{2,}|[A-Z]{1,2}(?:\s[A-Z]{1,2}){4,}/g) || []
+    ).length;
+
+    const words = clean.split(/\s+/);
+    const readableWords = clean.match(/[A-Za-zÀ-ÿ]{3,}/g) || [];
+
+    let score = 100;
+
+    score -= Math.min(50, errors * 6);
+    score -= Math.min(35, strangeGroups * 5);
+
+    if (readableWords.length / Math.max(1, words.length) < 0.42) {
+      score -= 25;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  function classifyDocument(text) {
+    const lower = text.toLowerCase();
+
+    if (
+      /2031[-\s]?sd|bénéfices industriels et commerciaux|liasse fiscale|régime réel d['’]imposition/.test(lower)
+    ) {
+      return {
+        type: "fiscal2031",
+        label: "Formulaire fiscal professionnel 2031-SD"
+      };
+    }
+
+    if (/2042|déclaration des revenus|impôt sur le revenu/.test(lower)) {
+      return {
+        type: "incomeTax",
+        label: "Déclaration de revenus"
+      };
+    }
+
+    if (/facture|total ttc|montant à payer|échéance de paiement/.test(lower)) {
+      return {
+        type: "invoice",
+        label: "Facture ou avis de paiement"
+      };
+    }
+
+    if (/contrat|conditions générales|résiliation|tacite reconduction/.test(lower)) {
+      return {
+        type: "contract",
+        label: "Contrat ou conditions contractuelles"
+      };
+    }
+
+    return {
+      type: "generic",
+      label: "Document administratif ou professionnel"
+    };
+  }
+
+  function uniqueMatches(text, regex, max = 8) {
+    return [...new Set(text.match(regex) || [])].slice(0, max);
+  }
+
+  function analyzeText(text) {
+    const quality = qualityScore(text);
+    const document = classifyDocument(text);
+    const sentences = splitSentences(text);
+
+    let summary =
+      sentences[0] ||
+      "Le document ne contient pas assez de texte lisible.";
+
+    let purpose =
+      "Ce document transmet une information ou demande une action.";
+
+    let attention = "Information";
+    let attentionClass = "green";
+    let attentionReason =
+      "Aucune urgence explicite n’a été détectée.";
+
+    let actions = sentences
+      .filter(sentence =>
+        /vous devez|veuillez|merci de|à retourner|à fournir|transmettre|envoyer|payer|répondre|compléter|cocher|renseigner|souscrire/i.test(sentence)
+      )
+      .slice(0, 6);
+
+    let warnings = sentences
+      .filter(sentence =>
+        /attention|pénalité|sanction|majoration|obligation|retard|mise en demeure|résiliation|sans réponse|défaut/i.test(sentence)
+      )
+      .slice(0, 6);
+
+    let dates = uniqueMatches(
+      text,
+      /\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b\d{1,2}\s+(?:janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s+\d{4}\b/gi
+    );
+
+    let amounts = uniqueMatches(
+      text,
+      /\b\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{2})?\s?(?:€|euros?)\b/gi
+    );
+
+    if (document.type === "fiscal2031") {
+      summary =
+        "Il s’agit d’un formulaire fiscal professionnel 2031-SD destiné à déclarer les résultats d’une activité relevant des bénéfices industriels et commerciaux.";
+
+      purpose =
+        "Ce formulaire sert à déclarer à l’administration fiscale le résultat imposable d’une entreprise soumise au régime réel BIC. Il contient des zones d’identification, des options fiscales et des renvois vers les tableaux de la liasse.";
+
+      attention = "À traiter avec attention";
+      attentionClass = "yellow";
+
+      attentionReason =
+        "Les informations saisies peuvent avoir des conséquences fiscales et doivent correspondre à la comptabilité.";
+
+      actions = [
+        "Vérifier l’identité de l’entreprise et les dates de l’exercice.",
+        "Identifier le régime fiscal applicable.",
+        "Compléter uniquement les rubriques correspondant à votre situation.",
+        "Reporter les montants issus de la comptabilité et des tableaux fiscaux.",
+        "Faire vérifier la déclaration par un comptable ou le service des impôts en cas de doute."
+      ];
+
+      warnings = [
+        "Les colonnes, cases et tableaux peuvent être mélangés pendant l’extraction automatique.",
+        "Une mauvaise case ou un montant incorrect peut modifier le résultat fiscal.",
+        "ExpliqueMoi peut expliquer ce formulaire, mais ne doit pas valider seul la déclaration."
+      ];
+
+      if (!dates.length) {
+        dates = [
+          "La date limite n’est pas clairement identifiable dans le texte extrait."
+        ];
+      }
+
+      if (!amounts.length) {
+        amounts = [
+          "Aucun montant fiable n’a été identifié dans l’extraction."
+        ];
+      }
+    } else {
+      if (
+        /mise en demeure|sous peine|saisie|contentieux|dernier rappel|immédiatement/i.test(text)
+      ) {
+        attention = "Urgent";
+        attentionClass = "red";
+        attentionReason =
+          "Le document contient une formulation pouvant entraîner des conséquences rapides.";
+      } else if (
+        /vous devez|veuillez|avant le|délai|échéance|répondre/i.test(text)
+      ) {
+        attention = "Action à prévoir";
+        attentionClass = "yellow";
+        attentionReason =
+          "Le document semble demander une action ou mentionner un délai.";
+      }
+
+      if (/facture|cotisation|montant à payer|prélèvement/i.test(text)) {
+        purpose =
+          "Ce document vous informe principalement d’une facture, d’un paiement ou d’une cotisation.";
+      }
+
+      if (/contrat|conditions générales|résiliation/i.test(text)) {
+        purpose =
+          "Ce document précise ou modifie des conditions contractuelles.";
+      }
+    }
+
+    if (quality < 60 && document.type !== "fiscal2031") {
+      summary =
+        "Le texte a été mal extrait. L’application ne peut pas fournir une explication suffisamment fiable.";
+
+      purpose =
+        "Le document doit être importé à nouveau ou photographié plus nettement.";
+
+      attention = "Lecture à refaire";
+      attentionClass = "yellow";
+
+      attentionReason =
+        "Le texte contient trop de caractères désordonnés ou illisibles.";
+
+      actions = [
+        "Utiliser le PDF original si possible.",
+        "Ou photographier chaque page bien à plat avec une bonne lumière."
+      ];
+
+      warnings = [
+        "L’analyse a été limitée pour éviter une conclusion incorrecte."
+      ];
+
+      dates = [
+        "Dates non analysées à cause de la qualité du texte."
+      ];
+
+      amounts = [
+        "Montants non analysés à cause de la qualité du texte."
+      ];
+    }
+
+    if (!actions.length) {
+      actions = [
+        "Aucune action explicite détectée. Vérifiez le document complet."
+      ];
+    }
+
+    if (!dates.length) {
+      dates = ["Aucune date précise détectée."];
+    }
+
+    if (!amounts.length) {
+      amounts = ["Aucun montant détecté."];
+    }
+
+    if (!warnings.length) {
+      warnings = ["Aucun avertissement explicite détecté."];
+    }
+
+    const proofs = sentences
+      .filter(sentence =>
+        /2031|déclaration|vous devez|veuillez|date|délai|montant|euros|obligation|attention|sanction|régime réel|bénéfices industriels/i.test(sentence)
+      )
+      .slice(0, 8);
+
+    return {
+      text,
+      quality,
+      documentLabel: document.label,
+      summary,
+      purpose,
+      attention,
+      attentionClass,
+      attentionReason,
+      actions,
+      dates,
+      amounts,
+      warnings,
+      proofs
+    };
+  }
+
+  function fillList(id, values) {
+    $(id).innerHTML = values
+      .map(value => `<li>${escapeHtml(value)}</li>`)
+      .join("");
+  }
+
+  function renderAnalysis(analysis) {
+    currentAnalysis = analysis;
+
+    $("results").style.display = "block";
+    $("summary").textContent = analysis.summary;
+
+    $("documentType").textContent =
+      "Type détecté : " + analysis.documentLabel;
+
+    $("attentionBadge").innerHTML =
+      `<span class="badge ${analysis.attentionClass}">
+        ${escapeHtml(analysis.attention)}
+      </span>`;
+
+    $("attentionReason").textContent =
+      analysis.attentionReason;
+
+    $("purpose").textContent = analysis.purpose;
+
+    fillList("actionsList", analysis.actions);
+    fillList("datesList", analysis.dates);
+    fillList("amountsList", analysis.amounts);
+    fillList("warningsList", analysis.warnings);
+
+    $("proofList").innerHTML = analysis.proofs.length
+      ? analysis.proofs.map(proof => `
+          <div class="proof">
+            <mark>${escapeHtml(proof)}</mark>
+            <p>Ce passage a contribué à l’analyse.</p>
+          </div>
+        `).join("")
+      : `<p class="muted">
+          Aucun passage suffisamment clair n’a été isolé.
+        </p>`;
+
+    let documentHtml = escapeHtml(analysis.text);
+
+    analysis.proofs.forEach(proof => {
+      const escaped = escapeHtml(proof);
+
+      documentHtml = documentHtml.replace(
+        escaped,
+        `<mark>${escaped}</mark>`
+      );
+    });
+
+    $("documentView").innerHTML = documentHtml;
+
+    if (analysis.quality < 75) {
+      $("qualityWarning").style.display = "block";
+      $("qualityWarning").innerHTML =
+        `<strong>⚠️ Qualité de lecture : ${analysis.quality}/100</strong>
+        <br>
+        Certaines colonnes, cases ou lignes peuvent être dans le mauvais ordre.`;
+    } else {
+      $("qualityWarning").style.display = "none";
+    }
+
+    window.scrollTo({
+      top: $("results").offsetTop - 65,
+      behavior: "smooth"
+    });
+  }
+
+  async function extractPdf(file) {
+    const pdfjs = await import(
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.mjs"
+    );
+
+    pdfjs.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.mjs";
+
+    const data = await file.arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data }).promise;
+
+    let output = "";
+
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      showLoading(
+        `Lecture du PDF — page ${pageNumber}/${pdf.numPages}`
+      );
+
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+
+      const items = content.items
+        .filter(item => item.str && item.str.trim())
+        .map(item => ({
+          text: item.str.trim(),
+          x: item.transform[4],
+          y: item.transform[5]
+        }));
+
+      items.sort((a, b) => {
+        if (Math.abs(b.y - a.y) > 4) {
+          return b.y - a.y;
+        }
+
+        return a.x - b.x;
+      });
+
+      const lines = [];
+      let currentLine = [];
+      let previousY = null;
+
+      for (const item of items) {
+        if (
+          previousY === null ||
+          Math.abs(item.y - previousY) <= 4
+        ) {
+          currentLine.push(item);
+        } else {
+          lines.push(
+            currentLine
+              .sort((a, b) => a.x - b.x)
+              .map(value => value.text)
+              .join(" ")
+          );
+
+          currentLine = [item];
+        }
+
+        previousY = item.y;
+      }
+
+      if (currentLine.length) {
+        lines.push(
+          currentLine
+            .sort((a, b) => a.x - b.x)
+            .map(value => value.text)
+            .join(" ")
+        );
+      }
+
+      output +=
+        `\n\n--- Page ${pageNumber} ---\n` +
+        lines.join("\n");
+    }
+
+    if (output.replace(/\s/g, "").length < 40) {
+      throw new Error(
+        "Ce PDF semble être scanné. Essayez de photographier les pages."
+      );
+    }
+
+    return output;
+  }
+
+  async function extractImage(file) {
+    showLoading("Reconnaissance du texte…");
+
+    const result = await Tesseract.recognize(file, "fra", {
+      logger: info => {
+        if (info.status) {
+          const percent = Math.round((info.progress || 0) * 100);
+
+          showLoading(
+            `Reconnaissance du texte : ${percent} %`
+          );
+        }
+      }
+    });
+
+    return result.data.text;
+  }
+
+  async function readFile(file) {
+    if (file.type === "text/plain") {
+      return file.text();
+    }
+
+    if (
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf")
+    ) {
+      return extractPdf(file);
+    }
+
+    if (file.type.startsWith("image/")) {
+      return extractImage(file);
+    }
+
+    throw new Error("Format de fichier non pris en charge.");
+  }
+
+  async function handleFile(file) {
+    try {
+      showLoading("Lecture du document…");
+
+      const text = await readFile(file);
+
+      $("sourceText").value = text.trim();
+    } catch (error) {
+      alert(error.message || "Impossible de lire ce document.");
+    } finally {
+      hideLoading();
+    }
+  }
+
+  $("fileInput").addEventListener("change", event => {
+    const file = event.target.files[0];
+
+    if (file) {
+      handleFile(file);
+    }
+  });
+
+  $("cameraInput").addEventListener("change", event => {
+    const file = event.target.files[0];
+
+    if (file) {
+      handleFile(file);
+    }
+  });
+
+  $("pasteBtn").addEventListener("click", async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+
+      if (text) {
+        $("sourceText").value = text;
+      } else {
+        $("sourceText").focus();
+      }
+    } catch {
+      $("sourceText").focus();
+    }
+  });
+
+  $("clearBtn").addEventListener("click", () => {
+    $("sourceText").value = "";
+    $("results").style.display = "none";
+    $("qualityWarning").style.display = "none";
+  });
+
+  $("exampleBtn").addEventListener("click", () => {
+    $("sourceText").value =
+      `Objet : évolution de votre cotisation annuelle
+
+Madame, Monsieur,
+
+Nous vous informons qu'à compter du 1er janvier 2027,
+votre cotisation annuelle d'assurance habitation sera portée
+à 642 euros.
+
+Vous disposez d'un délai de 30 jours à compter de la réception
+de ce courrier pour demander des explications.
+
+Sans réponse de votre part, le nouveau tarif s'appliquera
+automatiquement.`;
+  });
+
+  $("analyzeBtn").addEventListener("click", () => {
+    const text = $("sourceText").value.trim();
+
+    if (text.length < 40) {
+      alert("Ajoutez un document ou un texte plus long.");
+      return;
+    }
+
+    showLoading("Analyse du document…");
+
+    setTimeout(() => {
+      renderAnalysis(analyzeText(text));
+      hideLoading();
+    }, 350);
+  });
+
+  $("askBtn").addEventListener("click", () => {
+    if (!currentAnalysis) {
+      alert("Analysez d’abord un document.");
+      return;
+    }
+
+    const question = $("questionInput")
+      .value
+      .trim()
+      .toLowerCase();
+
+    let response =
+      "Je n’ai pas trouvé une réponse suffisamment claire dans le document.";
+
+    if (/date|quand|délai|avant/.test(question)) {
+      response =
+        "Dates détectées : " +
+        currentAnalysis.dates.join(" ; ");
+    } else if (/montant|payer|combien|prix|coût/.test(question)) {
+      response =
+        "Montants détectés : " +
+        currentAnalysis.amounts.join(" ; ");
+    } else if (/faire|action|répondre|dois/.test(question)) {
+      response =
+        "Actions détectées : " +
+        currentAnalysis.actions.join(" ; ");
+    } else if (/urgent|grave|risque|inquiéter/.test(question)) {
+      response =
+        currentAnalysis.attention +
+        " — " +
+        currentAnalysis.attentionReason;
+    } else if (/document|type|quoi/.test(question)) {
+      response =
+        "Type détecté : " +
+        currentAnalysis.documentLabel +
+        ". " +
+        currentAnalysis.summary;
+    }
+
+    $("answer").textContent = response;
+    $("answer").style.display = "block";
+  });
+
+  document.querySelectorAll(".tab").forEach(button => {
+    button.addEventListener("click", () => {
+      document
+        .querySelectorAll(".tab")
+        .forEach(tab => tab.classList.remove("active"));
+
+      button.classList.add("active");
+
+      ["analysisPage", "proofPage", "documentPage"].forEach(id => {
+        $(id).classList.add("hidden");
+      });
+
+      $(button.dataset.target).classList.remove("hidden");
+    });
+  });
+</script>
+</body>
+</html>
