@@ -15,7 +15,7 @@
   <style>
     :root {
       --background: #f7f8ff;
-      --surface: rgba(255, 255, 255, 0.94);
+      --surface: rgba(255, 255, 255, 0.95);
       --solid: #ffffff;
       --text: #17213f;
       --muted: #68738f;
@@ -42,7 +42,7 @@
 
     body.dark {
       --background: #111624;
-      --surface: rgba(27, 35, 53, 0.94);
+      --surface: rgba(27, 35, 53, 0.95);
       --solid: #1b2335;
       --text: #f5f6ff;
       --muted: #b6bfd7;
@@ -124,14 +124,14 @@
 
     .screen {
       display: none;
-      animation: screenArrival 0.4s ease;
+      animation: screenEntrance 0.4s ease;
     }
 
     .screen.active {
       display: block;
     }
 
-    @keyframes screenArrival {
+    @keyframes screenEntrance {
       from {
         opacity: 0;
         transform: translateY(12px);
@@ -149,7 +149,6 @@
 
       border-radius: 50%;
       opacity: 0.45;
-      filter: blur(3px);
 
       animation: shapeMove 14s ease-in-out infinite;
     }
@@ -269,14 +268,11 @@
 
     .brand strong {
       display: block;
-
       font-size: 20px;
-      letter-spacing: -0.03em;
     }
 
     .brand span {
       display: block;
-
       color: var(--muted);
       font-size: 12px;
     }
@@ -379,15 +375,6 @@
         0 8px 23px rgba(45, 56, 112, 0.08);
 
       text-align: center;
-
-      transition:
-        transform 0.2s ease,
-        box-shadow 0.2s ease;
-    }
-
-    .feature:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--shadow);
     }
 
     .feature-icon {
@@ -434,15 +421,12 @@
       color: var(--purple);
       background: var(--solid);
 
-      box-shadow:
-        0 9px 25px rgba(45, 56, 112, 0.1);
-
       font-size: 31px;
 
-      animation: uploadFloat 3s ease-in-out infinite;
+      animation: float 3s ease-in-out infinite;
     }
 
-    @keyframes uploadFloat {
+    @keyframes float {
       0%,
       100% {
         transform: translateY(0) rotate(0deg);
@@ -455,9 +439,7 @@
 
     .upload-card h2 {
       margin: 0;
-
       font-size: 26px;
-      letter-spacing: -0.035em;
     }
 
     .upload-card > p {
@@ -716,11 +698,6 @@
         );
     }
 
-    .loading-avatar .character-image {
-      position: relative;
-      z-index: 2;
-    }
-
     .loading-ring {
       position: absolute;
       inset: -7px;
@@ -739,12 +716,15 @@
       }
     }
 
+    .loading-avatar .character-image {
+      position: relative;
+      z-index: 2;
+    }
+
     .loading-card h2,
     .error-card h2 {
       margin: 0;
-
       font-size: 26px;
-      letter-spacing: -0.035em;
     }
 
     .loading-card > p,
@@ -796,11 +776,6 @@
 
       color: var(--muted);
       background: var(--solid);
-
-      transition:
-        transform 0.2s ease,
-        color 0.2s ease,
-        background 0.2s ease;
     }
 
     .loading-step.active {
@@ -849,20 +824,6 @@
           var(--green-soft),
           var(--solid)
         );
-
-      animation: successArrival 0.6s ease;
-    }
-
-    @keyframes successArrival {
-      from {
-        opacity: 0;
-        transform: scale(0.96) translateY(10px);
-      }
-
-      to {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-      }
     }
 
     .success-check {
@@ -891,12 +852,9 @@
     }
 
     .understanding-card {
-      position: relative;
-      overflow: hidden;
-
       padding: 16px;
 
-      border: 1px solid var(--understanding-border);
+      border: 1px solid var(--border);
       border-radius: 23px;
 
       background:
@@ -908,56 +866,29 @@
 
       box-shadow:
         0 10px 28px rgba(45, 56, 112, 0.08);
-
-      animation:
-        understandingArrival 0.65s
-        cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .understanding-card[data-level="excellent"] {
       --understanding-color: var(--green);
       --understanding-background: var(--green-soft);
-      --understanding-border: rgba(52, 173, 130, 0.25);
     }
 
     .understanding-card[data-level="good"] {
       --understanding-color: var(--blue);
       --understanding-background: var(--blue-soft);
-      --understanding-border: rgba(77, 128, 245, 0.25);
     }
 
     .understanding-card[data-level="medium"] {
       --understanding-color: var(--orange);
       --understanding-background: var(--orange-soft);
-      --understanding-border: rgba(255, 159, 61, 0.3);
     }
 
     .understanding-card[data-level="low"] {
       --understanding-color: var(--red);
       --understanding-background: var(--red-soft);
-      --understanding-border: rgba(230, 101, 112, 0.28);
-    }
-
-    @keyframes understandingArrival {
-      from {
-        opacity: 0;
-        transform: translateY(12px) scale(0.96);
-      }
-
-      70% {
-        transform: translateY(-2px) scale(1.015);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
     }
 
     .understanding-content {
-      position: relative;
-      z-index: 2;
-
       display: grid;
       grid-template-columns: auto 1fr;
       align-items: center;
@@ -975,31 +906,13 @@
 
       background: var(--solid);
 
-      box-shadow:
-        0 8px 20px rgba(45, 56, 112, 0.1);
-
       font-size: 29px;
 
-      animation:
-        understandingFaceMove 3.2s
-        ease-in-out infinite;
-    }
-
-    @keyframes understandingFaceMove {
-      0%,
-      100% {
-        transform: translateY(0) rotate(-2deg);
-      }
-
-      50% {
-        transform: translateY(-4px) rotate(2deg);
-      }
+      animation: float 3s ease-in-out infinite;
     }
 
     .understanding-label {
       display: block;
-
-      margin-bottom: 3px;
 
       color: var(--muted);
 
@@ -1012,11 +925,12 @@
     .understanding-title {
       display: block;
 
+      margin-top: 3px;
+
       color: var(--understanding-color);
 
       font-size: 19px;
       font-weight: 900;
-      line-height: 1.25;
     }
 
     .understanding-message {
@@ -1041,7 +955,7 @@
       width: 7px;
       height: 7px;
 
-      border-radius: 999px;
+      border-radius: 50%;
 
       background: var(--understanding-color);
 
@@ -1050,9 +964,6 @@
 
     .understanding-dot.active {
       opacity: 1;
-
-      box-shadow:
-        0 0 0 4px rgba(118, 89, 243, 0.09);
     }
 
     .document-hero {
@@ -1119,7 +1030,6 @@
 
       font-size: clamp(25px, 5vw, 36px);
       line-height: 1.17;
-      letter-spacing: -0.04em;
     }
 
     .issuer {
@@ -1173,24 +1083,8 @@
       color: var(--purple);
       background: var(--solid);
 
-      box-shadow:
-        0 7px 20px rgba(40, 50, 100, 0.08);
-
       font-size: 12px;
       font-weight: 750;
-
-      animation: bubbleMove 3s ease-in-out infinite;
-    }
-
-    @keyframes bubbleMove {
-      0%,
-      100% {
-        transform: translateY(0) rotate(-2deg);
-      }
-
-      50% {
-        transform: translateY(-5px) rotate(-1deg);
-      }
     }
 
     .summary-card {
@@ -1226,9 +1120,6 @@
       border-radius: 14px;
 
       background: var(--solid);
-
-      box-shadow:
-        0 7px 20px rgba(40, 50, 100, 0.08);
 
       font-size: 21px;
     }
@@ -1279,8 +1170,6 @@
       background: var(--green-soft);
 
       font-size: 62px;
-
-      animation: uploadFloat 3s ease-in-out infinite;
     }
 
     .quick-facts {
@@ -1295,9 +1184,6 @@
 
       border: 1px solid var(--border);
       border-radius: 21px;
-
-      box-shadow:
-        0 8px 24px rgba(47, 58, 112, 0.08);
     }
 
     .quick-fact:nth-child(1) {
@@ -1614,11 +1500,8 @@
 
     .premium-action small {
       display: block;
-
       margin-top: 5px;
-
       color: var(--muted);
-      line-height: 1.4;
     }
 
     .assistant-panel {
@@ -1859,16 +1742,6 @@
         align-items: center;
       }
     }
-
-    @media (prefers-reduced-motion: reduce) {
-      *,
-      *::before,
-      *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-      }
-    }
   </style>
 </head>
 
@@ -1891,7 +1764,6 @@
       id="themeButton"
       class="theme-button"
       type="button"
-      aria-label="Changer le thème"
     >
       ☾
     </button>
@@ -2529,7 +2401,9 @@
       selectedFile: null,
       analysis: null,
       progressTimer: null,
-      summaryExpanded: false
+      summaryExpanded: false,
+      requestNumber: 0,
+      activeController: null
     };
 
     const MAX_DIRECT_FILE_SIZE =
@@ -2546,10 +2420,21 @@
     function initializeApplication() {
       restoreTheme();
       bindEvents();
+      resetLoadingDisplay();
       showScreen("homeScreen");
     }
 
     function bindEvents() {
+      $("cameraInput").addEventListener(
+        "click",
+        prepareFileInput
+      );
+
+      $("fileInput").addEventListener(
+        "click",
+        prepareFileInput
+      );
+
       $("cameraInput").addEventListener(
         "change",
         handleFileSelection
@@ -2616,6 +2501,10 @@
         });
     }
 
+    function prepareFileInput(event) {
+      event.currentTarget.value = "";
+    }
+
     function showScreen(screenId) {
       document
         .querySelectorAll(".screen")
@@ -2647,6 +2536,8 @@
       ];
 
       if (!allowedTypes.includes(file.type)) {
+        event.target.value = "";
+
         showError(
           "Format non compatible",
           "Choisissez un PDF, JPG, PNG ou WebP."
@@ -2654,6 +2545,8 @@
 
         return;
       }
+
+      clearPreviousAnalysis();
 
       state.selectedFile = file;
 
@@ -2666,6 +2559,8 @@
         file.size > MAX_DIRECT_FILE_SIZE
       ) {
         if (file.size > MAX_IMAGE_SIZE) {
+          event.target.value = "";
+
           showError(
             "Image trop volumineuse",
             "Cette image dépasse 30 Mo."
@@ -2873,6 +2768,96 @@
       $("compressionMessage").classList.add(
         "hidden"
       );
+
+      $("selectedFileName").textContent = "";
+      $("selectedFileDetails").textContent = "";
+    }
+
+    function clearPreviousAnalysis() {
+      state.analysis = null;
+      state.summaryExpanded = false;
+
+      clearRenderedResults();
+
+      $("assistantPanel").classList.add(
+        "hidden"
+      );
+
+      $("assistantOutput").innerHTML = "";
+
+      $("copyAssistantButton").classList.add(
+        "hidden"
+      );
+    }
+
+    function clearRenderedResults() {
+      $("documentType").textContent =
+        "Document analysé";
+
+      $("issuer").textContent = "";
+
+      $("documentCategoryTag").textContent =
+        "Document";
+
+      $("summaryText").textContent = "";
+
+      $("summaryText").classList.add(
+        "collapsed"
+      );
+
+      $("readMoreButton").classList.add(
+        "hidden"
+      );
+
+      $("requestTitle").textContent =
+        "Les prochaines étapes";
+
+      $("actionList").innerHTML = "";
+      $("proofList").innerHTML = "";
+
+      $("mainDate").textContent =
+        "Non trouvée";
+
+      $("mainDateMeaning").textContent =
+        "Aucune date certaine";
+
+      $("mainAmount").textContent =
+        "Non trouvé";
+
+      $("mainAmountMeaning").textContent =
+        "Aucun montant certain";
+
+      $("attentionIcon").textContent = "?";
+      $("attentionIcon").style.background =
+        "var(--purple)";
+
+      $("attentionTitle").textContent =
+        "À vérifier";
+
+      $("attentionMessage").textContent =
+        "Vérifiez les informations";
+
+      $("actionCount").textContent =
+        "0 action";
+
+      $("whyReceived").textContent = "";
+
+      $("understandingCard").dataset.level =
+        "good";
+
+      $("understandingFace").textContent =
+        "😌";
+
+      $("understandingTitle").textContent =
+        "J’ai compris l’essentiel";
+
+      $("understandingMessage").textContent =
+        "Je peux vous expliquer les informations principales.";
+
+      $("understandingDots").innerHTML = "";
+
+      $("speechBubble").textContent =
+        "J’ai compris l’essentiel !";
     }
 
     async function analyzeFile() {
@@ -2902,7 +2887,8 @@
 
       formData.append(
         "file",
-        state.selectedFile
+        state.selectedFile,
+        state.selectedFile.name
       );
 
       await sendAnalysis(formData);
@@ -2933,15 +2919,38 @@
     }
 
     async function sendAnalysis(formData) {
+      if (state.activeController) {
+        state.activeController.abort();
+      }
+
+      state.activeController =
+        new AbortController();
+
+      state.requestNumber += 1;
+
+      const currentRequestNumber =
+        state.requestNumber;
+
+      clearPreviousAnalysis();
+      resetLoadingDisplay();
+
       showScreen("loadingScreen");
       startProgress();
 
       try {
         const response = await fetch(
-          "/api/analyze",
+          `/api/analyze?request=${currentRequestNumber}&time=${Date.now()}`,
           {
             method: "POST",
-            body: formData
+            body: formData,
+            cache: "no-store",
+            signal:
+              state.activeController.signal,
+
+            headers: {
+              "X-ExpliqueMoi-Request":
+                String(currentRequestNumber)
+            }
           }
         );
 
@@ -2956,6 +2965,13 @@
           );
         }
 
+        if (
+          currentRequestNumber !==
+          state.requestNumber
+        ) {
+          return;
+        }
+
         if (!response.ok) {
           throw new Error(
             data?.error ||
@@ -2963,23 +2979,61 @@
           );
         }
 
-        state.analysis =
+        const newAnalysis =
           normalizeAnalysis(data);
+
+        if (
+          currentRequestNumber !==
+          state.requestNumber
+        ) {
+          return;
+        }
+
+        state.analysis =
+          newAnalysis;
 
         finishProgress();
 
         await wait(450);
 
+        if (
+          currentRequestNumber !==
+          state.requestNumber
+        ) {
+          return;
+        }
+
         renderAnalysis(
-          state.analysis
+          newAnalysis
         );
 
         showScreen("resultScreen");
       } catch (error) {
+        if (
+          error.name === "AbortError"
+        ) {
+          return;
+        }
+
+        if (
+          currentRequestNumber !==
+          state.requestNumber
+        ) {
+          return;
+        }
+
         showError(
           "Impossible d’analyser le document",
-          error.message
+          error.message ||
+          "Une erreur inattendue est survenue."
         );
+      } finally {
+        if (
+          currentRequestNumber ===
+          state.requestNumber
+        ) {
+          state.activeController = null;
+        }
       }
     }
 
@@ -3147,6 +3201,8 @@
     }
 
     function renderAnalysis(analysis) {
+      clearRenderedResults();
+
       $("documentType").textContent =
         analysis.documentType;
 
@@ -3195,10 +3251,6 @@
 
       updateUnderstandingDisplay(
         analysis
-      );
-
-      $("assistantPanel").classList.add(
-        "hidden"
       );
     }
 
@@ -3319,7 +3371,7 @@
       );
     }
 
-    function getUnderstandingStatus(
+    function updateUnderstandingDisplay(
       analysis
     ) {
       const score =
@@ -3327,8 +3379,10 @@
           analysis
         );
 
+      let status;
+
       if (score >= 82) {
-        return {
+        status = {
           level: "excellent",
           face: "😊",
           title: "J’ai tout compris !",
@@ -3336,10 +3390,8 @@
             "Le document est clair. J’ai retrouvé les informations principales et les actions à réaliser.",
           dots: 4
         };
-      }
-
-      if (score >= 62) {
-        return {
+      } else if (score >= 62) {
+        status = {
           level: "good",
           face: "😌",
           title: "J’ai compris l’essentiel",
@@ -3347,10 +3399,8 @@
             "Je peux bien vous expliquer le document. Quelques détails secondaires peuvent rester à confirmer.",
           dots: 3
         };
-      }
-
-      if (score >= 38) {
-        return {
+      } else if (score >= 38) {
+        status = {
           level: "medium",
           face: "🤔",
           title:
@@ -3359,26 +3409,17 @@
             "J’ai compris le sujet général, mais certaines informations sont absentes ou difficiles à lire.",
           dots: 2
         };
+      } else {
+        status = {
+          level: "low",
+          face: "😕",
+          title:
+            "J’ai besoin d’un document plus lisible",
+          message:
+            "Je n’ai pas retrouvé assez d’informations certaines. Essayez une photo plus nette ou le PDF d’origine.",
+          dots: 1
+        };
       }
-
-      return {
-        level: "low",
-        face: "😕",
-        title:
-          "J’ai besoin d’un document plus lisible",
-        message:
-          "Je n’ai pas retrouvé assez d’informations certaines. Essayez une photo plus nette ou le PDF d’origine.",
-        dots: 1
-      };
-    }
-
-    function updateUnderstandingDisplay(
-      analysis
-    ) {
-      const status =
-        getUnderstandingStatus(
-          analysis
-        );
 
       $("understandingCard").dataset.level =
         status.level;
@@ -3692,9 +3733,11 @@
 
       try {
         const response = await fetch(
-          "/api/assist",
+          `/api/assist?time=${Date.now()}`,
           {
             method: "POST",
+
+            cache: "no-store",
 
             headers: {
               "Content-Type":
@@ -4070,6 +4113,29 @@
         });
     }
 
+    function resetLoadingDisplay() {
+      stopProgress();
+
+      $("progressBar").style.width =
+        "12%";
+
+      $("loadingMessage").textContent =
+        "Identification du document…";
+
+      document
+        .querySelectorAll(".loading-step")
+        .forEach((step, index) => {
+          step.classList.remove(
+            "active",
+            "done"
+          );
+
+          if (index === 0) {
+            step.classList.add("active");
+          }
+        });
+    }
+
     function stopProgress() {
       if (state.progressTimer) {
         clearInterval(
@@ -4114,17 +4180,19 @@
     }
 
     function resetApplication() {
+      state.requestNumber += 1;
+
+      if (state.activeController) {
+        state.activeController.abort();
+        state.activeController = null;
+      }
+
       stopProgress();
       clearFile();
-
-      state.analysis = null;
-      state.summaryExpanded = false;
+      clearPreviousAnalysis();
+      resetLoadingDisplay();
 
       $("manualText").value = "";
-
-      $("assistantPanel").classList.add(
-        "hidden"
-      );
 
       showScreen("homeScreen");
     }
