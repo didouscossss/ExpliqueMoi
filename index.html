@@ -1,152 +1,647 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
 
-<title>ExpliqueMoi</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
 
-<link rel="stylesheet" href="style.css">
+  <meta
+    name="theme-color"
+    content="#f5f7fb"
+  >
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <meta
+    name="description"
+    content="ExpliqueMoi transforme vos documents complexes en explications simples et concrètes."
+  >
 
+  <title>ExpliqueMoi</title>
+
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+  <div class="app-shell">
 
-<header>
+    <!-- En-tête -->
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Accueil ExpliqueMoi">
+        <div class="brand-logo" aria-hidden="true">
+          E
+        </div>
 
-<div class="logo">
-🧠
-</div>
+        <div class="brand-text">
+          <strong>ExpliqueMoi</strong>
+          <span>Comprendre sans stress</span>
+        </div>
+      </a>
 
-<div>
-<h1>ExpliqueMoi</h1>
-<p>Comprendre vos documents simplement</p>
-</div>
+      <button
+        id="themeButton"
+        class="icon-button"
+        type="button"
+        aria-label="Changer le thème"
+      >
+        <span id="themeIcon">☾</span>
+      </button>
+    </header>
 
-</header>
+    <main>
 
+      <!-- Écran d’accueil -->
+      <section id="homeScreen" class="screen active">
 
-<main>
+        <div class="hero">
+          <div class="hero-badge">
+            Assistant de compréhension
+          </div>
 
-<section class="card">
+          <h1>
+            Comprenez vos documents
+            <span>en moins d’une minute.</span>
+          </h1>
 
-<h2>Importer un document</h2>
+          <p>
+            Importez un courrier, une facture, un contrat ou un document
+            administratif. ExpliqueMoi vous indique clairement ce que c’est,
+            ce qu’on vous demande et ce que vous devez faire.
+          </p>
+        </div>
 
-<div class="buttons">
+        <!-- Zone d’import -->
+        <section class="upload-card">
 
-<label class="upload">
+          <div class="upload-icon" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width="32"
+              height="32"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 16V4"></path>
+              <path d="m7 9 5-5 5 5"></path>
+              <path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"></path>
+            </svg>
+          </div>
 
-📷 Scanner
+          <h2>Ajouter un document</h2>
 
-<input
-type="file"
-accept="image/*"
-capture="environment"
-id="camera">
+          <p>
+            Prenez une photo ou choisissez un fichier sur votre téléphone.
+          </p>
 
-</label>
+          <div class="upload-actions">
 
-<label class="upload">
+            <label class="primary-button" for="cameraInput">
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M14.5 4h-5L8 6H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3z"></path>
+                <circle cx="12" cy="13" r="3"></circle>
+              </svg>
 
-📄 PDF
+              Prendre une photo
+            </label>
 
-<input
-type="file"
-accept="application/pdf,image/*"
-id="file">
+            <label class="secondary-button" for="fileInput">
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <path d="M14 2v6h6"></path>
+              </svg>
 
-</label>
+              Importer un fichier
+            </label>
+          </div>
 
-</div>
+          <input
+            id="cameraInput"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            capture="environment"
+            hidden
+          >
 
-<textarea
-id="text"
-placeholder="Ou collez directement le texte ici..."></textarea>
+          <input
+            id="fileInput"
+            type="file"
+            accept="application/pdf,image/jpeg,image/png,image/webp"
+            hidden
+          >
 
-<button id="analyse">
+          <p class="file-help">
+            PDF, JPG, PNG ou WebP — 50 Mo maximum
+          </p>
+        </section>
 
-Analyser le document
+        <!-- Fichier sélectionné -->
+        <section id="selectedFileCard" class="selected-file-card hidden">
 
-</button>
+          <div class="file-preview">
+            <div class="file-type-icon" id="fileTypeIcon">
+              PDF
+            </div>
 
-</section>
+            <div class="file-information">
+              <strong id="fileName">
+                document.pdf
+              </strong>
 
+              <span id="fileDetails">
+                PDF · 1,4 Mo
+              </span>
+            </div>
 
-<section id="resultats" class="hidden">
+            <button
+              id="removeFileButton"
+              class="remove-file-button"
+              type="button"
+              aria-label="Supprimer le fichier"
+            >
+              ×
+            </button>
+          </div>
 
-<div class="bloc">
+          <button
+            id="analyzeButton"
+            class="analyze-button"
+            type="button"
+          >
+            <span>Analyser le document</span>
 
-<h3>📄 C'est quoi ?</h3>
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14"></path>
+              <path d="m13 6 6 6-6 6"></path>
+            </svg>
+          </button>
+        </section>
 
-<p id="type"></p>
+        <!-- Texte manuel -->
+        <details class="text-import">
+          <summary>
+            Coller du texte à la place
+          </summary>
 
-</div>
+          <div class="text-import-content">
+            <textarea
+              id="manualText"
+              placeholder="Collez ici le contenu de votre document..."
+            ></textarea>
 
-<div class="bloc">
+            <button
+              id="analyzeTextButton"
+              class="secondary-button full-width"
+              type="button"
+            >
+              Analyser ce texte
+            </button>
+          </div>
+        </details>
 
-<h3>😊 Dois-je m'inquiéter ?</h3>
+        <!-- Confidentialité -->
+        <div class="privacy-note">
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
 
-<p id="stress"></p>
+          <span>
+            Votre document est uniquement utilisé pour produire l’analyse.
+          </span>
+        </div>
+      </section>
 
-</div>
+      <!-- Écran de chargement -->
+      <section id="loadingScreen" class="screen">
 
-<div class="bloc">
+        <div class="loading-card">
 
-<h3>👉 Ce que tu dois faire</h3>
+          <div class="analysis-animation">
+            <div class="document-animation">
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
 
-<ul id="todo"></ul>
+            <div class="scanner-line"></div>
+          </div>
 
-</div>
+          <h2>Je lis votre document</h2>
 
-<div class="bloc">
+          <p id="loadingMessage">
+            Identification du document…
+          </p>
 
-<h3>📅 Dates importantes</h3>
+          <div class="progress-track">
+            <div id="progressBar" class="progress-bar"></div>
+          </div>
 
-<ul id="dates"></ul>
+          <div class="analysis-steps">
 
-</div>
+            <div class="analysis-step active" data-step="identify">
+              <span class="step-icon">1</span>
+              <span>Identification du document</span>
+            </div>
 
-<div class="bloc">
+            <div class="analysis-step" data-step="request">
+              <span class="step-icon">2</span>
+              <span>Recherche de la demande</span>
+            </div>
 
-<h3>❓ Pourquoi tu l'as reçu ?</h3>
+            <div class="analysis-step" data-step="dates">
+              <span class="step-icon">3</span>
+              <span>Vérification des dates</span>
+            </div>
 
-<p id="why"></p>
+            <div class="analysis-step" data-step="proofs">
+              <span class="step-icon">4</span>
+              <span>Recherche des preuves</span>
+            </div>
+          </div>
 
-</div>
+        </div>
+      </section>
 
-<div class="bloc">
+      <!-- Écran de résultat -->
+      <section id="resultScreen" class="screen">
 
-<h3>📍 Où je vois ça ?</h3>
+        <div class="result-header">
+          <button
+            id="newAnalysisButton"
+            class="back-button"
+            type="button"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="19"
+              height="19"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m15 18-6-6 6-6"></path>
+            </svg>
 
-<div id="proofs"></div>
+            Nouveau document
+          </button>
 
-</div>
+          <div id="confidenceBadge" class="confidence-badge">
+            Confiance élevée
+          </div>
+        </div>
 
-<div class="bloc">
+        <!-- Type de document -->
+        <section class="document-identity-card">
 
-<h3>💬 Poser une question</h3>
+          <div class="document-identity-icon">
+            <svg
+              viewBox="0 0 24 24"
+              width="28"
+              height="28"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <path d="M14 2v6h6"></path>
+              <path d="M8 13h8"></path>
+              <path d="M8 17h6"></path>
+            </svg>
+          </div>
 
-<input
-id="question"
-placeholder="Ex : Dois-je payer ?">
+          <div>
+            <span class="section-label">Ce document est</span>
 
-<button id="ask">
+            <h1 id="documentType">
+              Document non identifié
+            </h1>
 
-Poser la question
+            <p id="documentIssuer" class="document-issuer"></p>
+          </div>
+        </section>
 
-</button>
+        <!-- Résumé principal -->
+        <section class="main-answer-card">
+          <span class="section-label">
+            En clair
+          </span>
 
-<p id="answer"></p>
+          <p id="plainSummary" class="main-answer">
+            L’explication apparaîtra ici.
+          </p>
+        </section>
 
-</div>
+        <!-- Demande -->
+        <section class="result-card important-card">
 
-</section>
+          <div class="result-card-heading">
+            <div class="result-card-icon action-icon">
+              ✓
+            </div>
 
-</main>
+            <div>
+              <span class="section-label">Ce qu’on vous demande</span>
+              <h2>À faire</h2>
+            </div>
+          </div>
 
-<script type="module" src="script.js"></script>
+          <p id="documentRequest" class="result-main-text"></p>
 
-</body>
-</html>
+          <ol id="actionsList" class="action-list"></ol>
+        </section>
+
+        <!-- Date et montant -->
+        <div class="result-grid">
+
+          <section class="result-card compact-card">
+            <div class="compact-icon date-icon">
+              <svg
+                viewBox="0 0 24 24"
+                width="22"
+                height="22"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+                <path d="M16 3v4"></path>
+                <path d="M8 3v4"></path>
+                <path d="M3 11h18"></path>
+              </svg>
+            </div>
+
+            <span class="section-label">Date principale</span>
+
+            <strong id="mainDate">
+              Non trouvée
+            </strong>
+
+            <p id="mainDateMeaning">
+              Aucune échéance certaine.
+            </p>
+          </section>
+
+          <section class="result-card compact-card">
+            <div class="compact-icon amount-icon">
+              €
+            </div>
+
+            <span class="section-label">Montant principal</span>
+
+            <strong id="mainAmount">
+              Non trouvé
+            </strong>
+
+            <p id="mainAmountMeaning">
+              Aucun montant certain.
+            </p>
+          </section>
+
+        </div>
+
+        <!-- Niveau d’attention -->
+        <section id="urgencyCard" class="result-card urgency-card">
+
+          <div class="result-card-heading">
+            <div id="urgencyIcon" class="result-card-icon urgency-icon">
+              !
+            </div>
+
+            <div>
+              <span class="section-label">Niveau d’attention</span>
+
+              <h2 id="urgencyTitle">
+                À vérifier
+              </h2>
+            </div>
+          </div>
+
+          <p id="urgencyMessage"></p>
+        </section>
+
+        <!-- Pourquoi reçu -->
+        <section class="result-card">
+          <div class="result-card-heading">
+            <div class="result-card-icon why-icon">
+              ?
+            </div>
+
+            <div>
+              <span class="section-label">Pourquoi vous l’avez reçu</span>
+              <h2>Explication</h2>
+            </div>
+          </div>
+
+          <p id="whyReceived"></p>
+        </section>
+
+        <!-- Boutons -->
+        <div class="result-actions">
+          <button
+            id="detailsButton"
+            class="primary-button full-width"
+            type="button"
+          >
+            Voir l’explication complète
+          </button>
+
+          <button
+            id="evidenceButton"
+            class="secondary-button full-width"
+            type="button"
+          >
+            Voir où c’est écrit
+          </button>
+        </div>
+
+        <!-- Explication détaillée -->
+        <section id="detailsSection" class="expandable-section hidden">
+          <div class="expandable-header">
+            <div>
+              <span class="section-label">Comprendre en détail</span>
+              <h2>Explication complète</h2>
+            </div>
+
+            <button
+              id="closeDetailsButton"
+              class="close-button"
+              type="button"
+              aria-label="Fermer"
+            >
+              ×
+            </button>
+          </div>
+
+          <div id="fullExplanation" class="full-explanation"></div>
+        </section>
+
+        <!-- Preuves -->
+        <section id="evidenceSection" class="expandable-section hidden">
+          <div class="expandable-header">
+            <div>
+              <span class="section-label">Sources du document</span>
+              <h2>Où trouve-t-on ces informations ?</h2>
+            </div>
+
+            <button
+              id="closeEvidenceButton"
+              class="close-button"
+              type="button"
+              aria-label="Fermer"
+            >
+              ×
+            </button>
+          </div>
+
+          <div id="evidenceList" class="evidence-list"></div>
+        </section>
+
+      </section>
+
+      <!-- Écran d’erreur -->
+      <section id="errorScreen" class="screen">
+
+        <div class="error-card">
+          <div class="error-icon">
+            !
+          </div>
+
+          <h2 id="errorTitle">
+            Impossible d’analyser ce document
+          </h2>
+
+          <p id="errorMessage">
+            Une erreur est survenue.
+          </p>
+
+          <button
+            id="retryButton"
+            class="primary-button full-width"
+            type="button"
+          >
+            Réessayer
+          </button>
+
+          <button
+            id="errorNewDocumentButton"
+            class="text-button"
+            type="button"
+          >
+            Choisir un autre document
+          </button>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Navigation mobile -->
+    <nav class="bottom-navigation" aria-label="Navigation principale">
+
+      <button class="navigation-item active" type="button">
+        <svg
+          viewBox="0 0 24 24"
+          width="22"
+          height="22"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m3 11 9-8 9 8"></path>
+          <path d="M5 10v10h14V10"></path>
+        </svg>
+
+        <span>Accueil</span>
+      </button>
+
+      <button class="navigation-item" type="button" disabled>
+        <svg
+          viewBox="0 0 24 24"
+          width="22"
+          height="22"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 6h18"></path>
+          <path d="M3 12h18"></path>
+          <path d="M3 18h18"></path>
+        </svg>
+
+        <span>Documents</span>
+      </button>
+
+      <button class="navigation-item" type="button" disabled>
+        <svg
+          viewBox="0 0 24 24"
+          width="22"
+          height="22"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V20h-3v
