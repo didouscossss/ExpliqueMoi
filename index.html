@@ -2,10 +2,12 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
+
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1, viewport-fit=cover"
   >
+
   <meta name="theme-color" content="#f7f8ff">
 
   <title>ExpliqueMoi</title>
@@ -236,7 +238,7 @@
 
       border-radius: 17px;
 
-      color: white;
+      color: #ffffff;
 
       background:
         linear-gradient(
@@ -276,7 +278,6 @@
       display: block;
 
       color: var(--muted);
-
       font-size: 12px;
     }
 
@@ -315,11 +316,8 @@
       -webkit-backdrop-filter: blur(16px);
     }
 
-    /* ACCUEIL */
-
     .hero {
       padding: 25px 8px 28px;
-
       text-align: center;
     }
 
@@ -348,7 +346,6 @@
 
     .hero h1 span {
       display: block;
-
       color: var(--purple);
     }
 
@@ -395,29 +392,23 @@
 
     .feature-icon {
       display: block;
-
       margin-bottom: 5px;
-
       font-size: 23px;
     }
 
     .feature strong {
       display: block;
-
       margin-bottom: 3px;
-
       font-size: 14px;
     }
 
     .feature small {
       color: var(--muted);
-
       font-size: 11px;
     }
 
     .upload-card {
       padding: 26px 20px;
-
       text-align: center;
 
       background:
@@ -471,7 +462,6 @@
 
     .upload-card > p {
       color: var(--muted);
-
       line-height: 1.5;
     }
 
@@ -506,7 +496,7 @@
     }
 
     .primary-button {
-      color: white;
+      color: #ffffff;
 
       background:
         linear-gradient(
@@ -585,7 +575,6 @@
 
     .file-information span {
       color: var(--muted);
-
       font-size: 12px;
     }
 
@@ -636,7 +625,6 @@
       color: var(--muted);
 
       font-weight: 700;
-
       cursor: pointer;
     }
 
@@ -672,8 +660,6 @@
       text-align: center;
     }
 
-    /* PERSONNAGE */
-
     .character-image {
       display: block;
 
@@ -701,8 +687,6 @@
         transform: translateY(-6px) rotate(1deg);
       }
     }
-
-    /* CHARGEMENT */
 
     .loading-card,
     .error-card {
@@ -768,7 +752,6 @@
       margin: 10px 0 20px;
 
       color: var(--muted);
-
       line-height: 1.55;
     }
 
@@ -778,7 +761,6 @@
       height: 10px;
 
       border-radius: 999px;
-
       background: var(--border);
     }
 
@@ -833,8 +815,6 @@
       background: var(--green-soft);
     }
 
-    /* RÉSULTATS */
-
     .results {
       display: grid;
       gap: 14px;
@@ -854,7 +834,7 @@
 
     .success-banner {
       display: grid;
-      grid-template-columns: auto 1fr auto;
+      grid-template-columns: auto 1fr;
       align-items: center;
       gap: 12px;
 
@@ -894,7 +874,7 @@
 
       border-radius: 50%;
 
-      color: white;
+      color: #ffffff;
       background: var(--green);
 
       font-size: 24px;
@@ -907,25 +887,172 @@
       margin-top: 4px;
 
       color: var(--muted);
-
       font-size: 13px;
     }
 
-    .confidence {
-      padding: 9px 12px;
+    .understanding-card {
+      position: relative;
+      overflow: hidden;
 
-      border-radius: 14px;
+      padding: 16px;
 
-      color: var(--green);
-      background: var(--solid);
+      border: 1px solid var(--understanding-border);
+      border-radius: 23px;
 
-      text-align: center;
+      background:
+        linear-gradient(
+          145deg,
+          var(--understanding-background),
+          var(--solid)
+        );
+
+      box-shadow:
+        0 10px 28px rgba(45, 56, 112, 0.08);
+
+      animation:
+        understandingArrival 0.65s
+        cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    .confidence small {
+    .understanding-card[data-level="excellent"] {
+      --understanding-color: var(--green);
+      --understanding-background: var(--green-soft);
+      --understanding-border: rgba(52, 173, 130, 0.25);
+    }
+
+    .understanding-card[data-level="good"] {
+      --understanding-color: var(--blue);
+      --understanding-background: var(--blue-soft);
+      --understanding-border: rgba(77, 128, 245, 0.25);
+    }
+
+    .understanding-card[data-level="medium"] {
+      --understanding-color: var(--orange);
+      --understanding-background: var(--orange-soft);
+      --understanding-border: rgba(255, 159, 61, 0.3);
+    }
+
+    .understanding-card[data-level="low"] {
+      --understanding-color: var(--red);
+      --understanding-background: var(--red-soft);
+      --understanding-border: rgba(230, 101, 112, 0.28);
+    }
+
+    @keyframes understandingArrival {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.96);
+      }
+
+      70% {
+        transform: translateY(-2px) scale(1.015);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .understanding-content {
+      position: relative;
+      z-index: 2;
+
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 13px;
+    }
+
+    .understanding-face {
+      display: grid;
+      place-items: center;
+
+      width: 55px;
+      height: 55px;
+
+      border-radius: 18px;
+
+      background: var(--solid);
+
+      box-shadow:
+        0 8px 20px rgba(45, 56, 112, 0.1);
+
+      font-size: 29px;
+
+      animation:
+        understandingFaceMove 3.2s
+        ease-in-out infinite;
+    }
+
+    @keyframes understandingFaceMove {
+      0%,
+      100% {
+        transform: translateY(0) rotate(-2deg);
+      }
+
+      50% {
+        transform: translateY(-4px) rotate(2deg);
+      }
+    }
+
+    .understanding-label {
       display: block;
 
+      margin-bottom: 3px;
+
       color: var(--muted);
+
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .understanding-title {
+      display: block;
+
+      color: var(--understanding-color);
+
+      font-size: 19px;
+      font-weight: 900;
+      line-height: 1.25;
+    }
+
+    .understanding-message {
+      display: block;
+
+      margin-top: 5px;
+
+      color: var(--muted);
+
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .understanding-dots {
+      display: flex;
+      gap: 5px;
+
+      margin-top: 10px;
+    }
+
+    .understanding-dot {
+      width: 7px;
+      height: 7px;
+
+      border-radius: 999px;
+
+      background: var(--understanding-color);
+
+      opacity: 0.2;
+    }
+
+    .understanding-dot.active {
+      opacity: 1;
+
+      box-shadow:
+        0 0 0 4px rgba(118, 89, 243, 0.09);
     }
 
     .document-hero {
@@ -962,7 +1089,7 @@
 
       border-radius: 23px;
 
-      color: white;
+      color: #ffffff;
 
       background:
         linear-gradient(
@@ -997,7 +1124,6 @@
 
     .issuer {
       color: var(--muted);
-
       font-size: 14px;
     }
 
@@ -1021,7 +1147,6 @@
 
     .hero-character {
       position: relative;
-
       min-height: 245px;
     }
 
@@ -1040,7 +1165,7 @@
       top: 8px;
       right: 0;
 
-      max-width: 140px;
+      max-width: 150px;
       padding: 11px;
 
       border-radius: 17px 17px 3px 17px;
@@ -1110,7 +1235,6 @@
 
     .heading h2 {
       margin: 0;
-
       font-size: 20px;
     }
 
@@ -1221,7 +1345,7 @@
 
       border-radius: 13px;
 
-      color: white;
+      color: #ffffff;
       background: var(--purple);
 
       font-size: 18px;
@@ -1233,7 +1357,6 @@
       margin-top: 11px;
 
       color: var(--muted);
-
       font-size: 12px;
     }
 
@@ -1308,7 +1431,7 @@
 
       border-radius: 10px;
 
-      color: white;
+      color: #ffffff;
 
       background:
         linear-gradient(
@@ -1336,7 +1459,6 @@
 
     .action-item strong {
       display: block;
-
       font-size: 14px;
     }
 
@@ -1362,7 +1484,6 @@
 
     .why-card p {
       color: var(--muted);
-
       line-height: 1.65;
     }
 
@@ -1413,11 +1534,8 @@
 
     .proof p {
       color: var(--muted);
-
       font-size: 11px;
     }
-
-    /* PREMIUM */
 
     .premium-zone {
       padding: 21px;
@@ -1451,7 +1569,7 @@
 
       border-radius: 999px;
 
-      color: white;
+      color: #ffffff;
       background: var(--orange);
 
       font-size: 10px;
@@ -1488,14 +1606,19 @@
 
       border-radius: 14px;
 
-      color: white;
+      color: #ffffff;
       background: var(--purple);
 
       font-size: 20px;
     }
 
     .premium-action small {
+      display: block;
+
+      margin-top: 5px;
+
       color: var(--muted);
+      line-height: 1.4;
     }
 
     .assistant-panel {
@@ -1567,7 +1690,7 @@
 
       border-radius: 9px;
 
-      color: white;
+      color: #ffffff;
       background: var(--purple);
 
       font-weight: 900;
@@ -1581,7 +1704,6 @@
 
     .assistant-step p {
       color: var(--muted);
-
       line-height: 1.5;
     }
 
@@ -1612,7 +1734,6 @@
 
     .assistant-source {
       border: 0;
-
       background: var(--solid);
     }
 
@@ -1620,13 +1741,11 @@
       padding: 8px;
 
       color: var(--muted);
-
       font-size: 11px;
     }
 
     .assistant-source p {
       padding: 0 8px 8px;
-
       font-size: 11px;
     }
 
@@ -1645,7 +1764,6 @@
     .assistant-warning,
     .assistant-missing {
       padding: 13px;
-
       border-radius: 15px;
     }
 
@@ -1709,14 +1827,6 @@
       .quick-facts,
       .premium-grid {
         grid-template-columns: 1fr;
-      }
-
-      .success-banner {
-        grid-template-columns: auto 1fr;
-      }
-
-      .confidence {
-        grid-column: 1 / -1;
       }
 
       .document-information {
@@ -1788,7 +1898,6 @@
   </header>
 
   <main>
-    <!-- ACCUEIL -->
     <section id="homeScreen" class="screen active">
       <div class="hero">
         <span class="hero-badge">
@@ -1938,7 +2047,6 @@
       </div>
     </section>
 
-    <!-- CHARGEMENT -->
     <section id="loadingScreen" class="screen">
       <div class="card loading-card">
         <div class="loading-avatar">
@@ -1984,7 +2092,6 @@
       </div>
     </section>
 
-    <!-- RÉSULTATS -->
     <section
       id="resultScreen"
       class="screen results"
@@ -2011,10 +2118,45 @@
             Votre document a été compris.
           </span>
         </div>
+      </section>
 
-        <div class="confidence">
-          <small>Confiance</small>
-          <strong id="confidenceValue">—</strong>
+      <section
+        id="understandingCard"
+        class="understanding-card"
+        data-level="good"
+      >
+        <div class="understanding-content">
+          <div
+            id="understandingFace"
+            class="understanding-face"
+          >
+            😌
+          </div>
+
+          <div>
+            <span class="understanding-label">
+              Niveau de compréhension
+            </span>
+
+            <strong
+              id="understandingTitle"
+              class="understanding-title"
+            >
+              J’ai compris l’essentiel
+            </strong>
+
+            <span
+              id="understandingMessage"
+              class="understanding-message"
+            >
+              Je peux vous expliquer les informations principales.
+            </span>
+
+            <div
+              id="understandingDots"
+              class="understanding-dots"
+            ></div>
+          </div>
         </div>
       </section>
 
@@ -2052,8 +2194,11 @@
         </div>
 
         <div class="hero-character">
-          <div class="speech-bubble">
-            Je t’explique tout clairement !
+          <div
+            id="speechBubble"
+            class="speech-bubble"
+          >
+            J’ai compris l’essentiel !
           </div>
 
           <img
@@ -2345,7 +2490,6 @@
       </section>
     </section>
 
-    <!-- ERREUR -->
     <section id="errorScreen" class="screen">
       <div class="card error-card">
         <div class="error-icon">!</div>
@@ -2378,7 +2522,8 @@
   </main>
 
   <script>
-    const $ = (id) => document.getElementById(id);
+    const $ = (id) =>
+      document.getElementById(id);
 
     const state = {
       selectedFile: null,
@@ -2586,6 +2731,12 @@
 
       const context =
         canvas.getContext("2d");
+
+      if (!context) {
+        throw new Error(
+          "Compression indisponible."
+        );
+      }
 
       context.fillStyle = "#ffffff";
 
@@ -3038,13 +3189,12 @@
       $("whyReceived").textContent =
         analysis.whyReceived;
 
-      $("confidenceValue").textContent =
-        analysis.confidence
-          ? `${analysis.confidence} %`
-          : "À vérifier";
-
       renderEvidence(
         analysis.evidence
+      );
+
+      updateUnderstandingDisplay(
+        analysis
       );
 
       $("assistantPanel").classList.add(
@@ -3086,6 +3236,179 @@
       }
 
       return "Document officiel";
+    }
+
+    function calculateUnderstandingScore(
+      analysis
+    ) {
+      let score = 0;
+
+      if (
+        analysis.documentType &&
+        !/non identifié/i.test(
+          analysis.documentType
+        )
+      ) {
+        score += 20;
+      }
+
+      if (analysis.issuer) {
+        score += 10;
+      }
+
+      if (analysis.summary.length >= 70) {
+        score += 25;
+      } else if (
+        analysis.summary.length >= 30
+      ) {
+        score += 15;
+      }
+
+      if (
+        analysis.request &&
+        !/aucune demande|à vérifier/i.test(
+          analysis.request
+        )
+      ) {
+        score += 12;
+      }
+
+      if (analysis.actions.length >= 2) {
+        score += 15;
+      } else if (
+        analysis.actions.length === 1
+      ) {
+        score += 8;
+      }
+
+      if (analysis.dates.length > 0) {
+        score += 6;
+      }
+
+      if (
+        analysis.amount.value &&
+        !/non trouvé|aucun/i.test(
+          analysis.amount.value
+        )
+      ) {
+        score += 4;
+      }
+
+      if (
+        analysis.evidence.length >= 2
+      ) {
+        score += 6;
+      } else if (
+        analysis.evidence.length === 1
+      ) {
+        score += 3;
+      }
+
+      if (
+        analysis.whyReceived &&
+        !/raison non indiquée/i.test(
+          analysis.whyReceived
+        )
+      ) {
+        score += 2;
+      }
+
+      return Math.min(
+        100,
+        score
+      );
+    }
+
+    function getUnderstandingStatus(
+      analysis
+    ) {
+      const score =
+        calculateUnderstandingScore(
+          analysis
+        );
+
+      if (score >= 82) {
+        return {
+          level: "excellent",
+          face: "😊",
+          title: "J’ai tout compris !",
+          message:
+            "Le document est clair. J’ai retrouvé les informations principales et les actions à réaliser.",
+          dots: 4
+        };
+      }
+
+      if (score >= 62) {
+        return {
+          level: "good",
+          face: "😌",
+          title: "J’ai compris l’essentiel",
+          message:
+            "Je peux bien vous expliquer le document. Quelques détails secondaires peuvent rester à confirmer.",
+          dots: 3
+        };
+      }
+
+      if (score >= 38) {
+        return {
+          level: "medium",
+          face: "🤔",
+          title:
+            "Quelques points sont à vérifier",
+          message:
+            "J’ai compris le sujet général, mais certaines informations sont absentes ou difficiles à lire.",
+          dots: 2
+        };
+      }
+
+      return {
+        level: "low",
+        face: "😕",
+        title:
+          "J’ai besoin d’un document plus lisible",
+        message:
+          "Je n’ai pas retrouvé assez d’informations certaines. Essayez une photo plus nette ou le PDF d’origine.",
+        dots: 1
+      };
+    }
+
+    function updateUnderstandingDisplay(
+      analysis
+    ) {
+      const status =
+        getUnderstandingStatus(
+          analysis
+        );
+
+      $("understandingCard").dataset.level =
+        status.level;
+
+      $("understandingFace").textContent =
+        status.face;
+
+      $("understandingTitle").textContent =
+        status.title;
+
+      $("understandingMessage").textContent =
+        status.message;
+
+      $("speechBubble").textContent =
+        status.title;
+
+      $("understandingDots").innerHTML =
+        [1, 2, 3, 4]
+          .map(
+            (number) => `
+              <span
+                class="understanding-dot ${
+                  number <= status.dots
+                    ? "active"
+                    : ""
+                }"
+              ></span>
+            `
+          )
+          .join("");
     }
 
     function prepareSummary() {
@@ -3795,6 +4118,7 @@
       clearFile();
 
       state.analysis = null;
+      state.summaryExpanded = false;
 
       $("manualText").value = "";
 
