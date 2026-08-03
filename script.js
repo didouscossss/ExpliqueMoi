@@ -1,211 +1,279 @@
 const $ = (id) => document.getElementById(id);
 
-let selectedFile = null;
+const state = {
+  selectedFile: null,
+  lastAnalysis: null,
+  progressTimer: null,
+  currentProgress: 0
+};
 
-$("camera").addEventListener("change", (event) => {
-  selectedFile = event.target.files[0] || null;
-  showSelectedFile();
-});
+const MAX_STANDARD_FILE_SIZE = 4 * 1024 * 1024;
+const MAX_DISPLAYED_FILE_SIZE = 50 * 1024 * 1024;
 
-$("file").addEventListener("change", (event) => {
-  selectedFile = event.target.files[0] || null;
-  showSelectedFile();
-});
+document.addEventListener("DOMContentLoaded", initializeApp);
 
-$("analyse").addEventListener("click", analyseDocument);
-$("ask").addEventListener("click", answerSimpleQuestion);
-
-function showSelectedFile() {
-  if (!selectedFile) return;
-
-  $("text").value =
-    `Document sélectionné : ${selectedFile.name}\n\n` +
-    "Appuie sur « Analyser le document ».";
+function initializeApp() {
+  initializeTheme();
+  initializeEvents();
+  showScreen("homeScreen");
 }
 
-async function analyseDocument() {
-  const pastedText = $("text").value.trim();
+function initializeEvents() {
+  $("cameraInput").addEventListener("change", handleFileSelection);
+  $("fileInput").addEventListener("change", handleFileSelection);
 
-  if (!selectedFile && pastedText.length < 20) {
-    alert("Ajoute un document ou colle son texte.");
+  $("removeFileButton").addEventListener("click", removeSelectedFile);
+  $("analyzeButton").addEventListener("click", analyzeSelectedFile);
+  $("analyzeTextButton").addEventListener("click", analyzeManualText);
+
+  $("newAnalysisButton").addEventListener("click", resetApplication);
+  $("retryButton").addEventListener("click", retryAnalysis);
+  $("errorNewDocumentButton").addEventListener("click", resetApplication);
+
+  $("detailsButton").addEventListener("click", showDetails);
+  $("closeDetailsButton").addEventListener("click", hideDetails);
+
+  $("evidenceButton").addEventListener("click", showEvidence);
+  $("closeEvidenceButton").addEventListener("click", hideEvidence);
+
+  $("themeButton").addEventListener("click", toggleTheme);
+}
+
+/* =========================================================
+   Navigation entre les écrans
+========================================================= */
+
+function showScreen(screenId) {
+  document.querySelectorAll(".screen").forEach((screen) => {
+    screen.classList.remove("active");
+  });
+
+  const target = $(screenId);
+
+  if (target) {
+    target.classList.add("active");
+  }
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
+
+/* =========================================================
+   Sélection du fichier
+========================================================= */
+
+function handleFileSelection(event) {
+  const file = event.target.files?.[0];
+
+  if (!file) {
     return;
   }
 
-  setLoading(true);
+  if (!isSupportedFile(file)) {
+    showError(
+      "Format non compatible",
+      "Utilisez un fichier PDF, JPG, PNG ou WebP."
+    );
+
+    event.target.value = "";
+    return;
+  }
+
+  if (file.size > MAX_DISPLAYED_FILE_SIZE) {
+    showError(
+      "Fichier trop volumineux",
+      "Le fichier dépasse la limite maximale de 50 Mo."
+    );
+
+    event.target.value = "";
+    return;
+  }
+
+  state.selectedFile = file;
+
+  updateSelectedFileCard(file);
+}
+
+function isSupportedFile(file) {
+  const supportedTypes = [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ];
+
+  return supportedTypes.includes(file.type);
+}
+
+function updateSelectedFileCard(file) {
+  $("fileName").textContent = file.name;
+
+  $("fileDetails").textContent =
+    `${getReadableFileType(file)} · ${formatFileSize(file.size)}`;
+
+  $("fileTypeIcon").textContent =
+    file.type === "application/pdf" ? "PDF" : "IMG";
+
+  $("selectedFileCard").classList.remove("hidden");
+}
+
+function getReadableFileType(file) {
+  if (file.type === "application/pdf") {
+    return "Document PDF";
+  }
+
+  if (file.type === "image/jpeg") {
+    return "Photo JPG";
+  }
+
+  if (file.type === "image/png") {
+    return "Image PNG";
+  }
+
+  if (file.type === "image/webp") {
+    return "Image WebP";
+  }
+
+  return "Document";
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) {
+    return `${bytes} octets`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} Ko`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
+function removeSelectedFile() {
+  state.selectedFile = null;
+
+  $("cameraInput").value = "";
+  $("fileInput").value = "";
+
+  $("selectedFileCard").classList.add("hidden");
+}
+
+/* =========================================================
+   Analyse d’un fichier
+========================================================= */
+
+async function analyzeSelectedFile() {
+  if (!state.selectedFile) {
+    showError(
+      "Aucun document sélectionné",
+      "Prenez une photo ou choisissez un fichier avant de lancer l’analyse."
+    );
+
+    return;
+  }
+
+  /*
+   * L’envoi direct actuel vers une fonction Vercel reste limité.
+   * L’upload jusqu’à 50 Mo sera ajouté dans l’étape suivante.
+   */
+  if (state.selectedFile.size > MAX_STANDARD_FILE_SIZE) {
+    showError(
+      "Upload lourd pas encore activé",
+      `Ce document fait ${formatFileSize(state.selectedFile.size)}. ` +
+      "La version actuelle accepte environ 4 Mo. " +
+      "Le prochain fichier activera l’envoi jusqu’à 50 Mo."
+    );
+
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", state.selectedFile);
+
+  await sendAnalysisRequest(formData);
+}
+
+/* =========================================================
+   Analyse d’un texte collé
+========================================================= */
+
+async function analyzeManualText() {
+  const text = $("manualText").value.trim();
+
+  if (text.length < 30) {
+    showError(
+      "Texte trop court",
+      "Collez au moins quelques phrases du document."
+    );
+
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("text", text);
+
+  await sendAnalysisRequest(formData);
+}
+
+/* =========================================================
+   Requête vers l’API
+========================================================= */
+
+async function sendAnalysisRequest(formData) {
+  showScreen("loadingScreen");
+  startProgressAnimation();
 
   try {
-    const formData = new FormData();
-
-    if (selectedFile) {
-      formData.append("file", selectedFile);
-    }
-
-    if (!selectedFile || !pastedText.startsWith("Document sélectionné :")) {
-      formData.append("text", pastedText);
-    }
-
     const response = await fetch("/api/analyze", {
       method: "POST",
       body: formData
     });
 
-    const data = await response.json();
+    let data;
 
-    if (!response.ok) {
-      throw new Error(data.error || "L’analyse a échoué.");
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(
+        "Le serveur a renvoyé une réponse illisible."
+      );
     }
 
-    displayResult(data);
+    if (!response.ok) {
+      throw new Error(
+        data?.error ||
+        "L’intelligence artificielle n’a pas pu analyser ce document."
+      );
+    }
+
+    state.lastAnalysis = normalizeAnalysis(data);
+
+    finishProgressAnimation();
+
+    await wait(450);
+
+    renderAnalysis(state.lastAnalysis);
+    showScreen("resultScreen");
   } catch (error) {
-    alert(error.message);
-  } finally {
-    setLoading(false);
+    stopProgressAnimation();
+
+    showError(
+      "Impossible d’analyser ce document",
+      getFriendlyErrorMessage(error)
+    );
   }
 }
 
-function displayResult(data) {
-  window.currentAnalysis = data;
+function getFriendlyErrorMessage(error) {
+  const message = String(error?.message || "");
 
-  $("resultats").classList.remove("hidden");
-
-  $("type").textContent =
-    data.document_type || "Document non identifié";
-
-  $("stress").textContent =
-    data.urgency?.message || "Niveau d’urgence non déterminé";
-
-  $("stress").className = "";
-
-  const urgencyLevel = data.urgency?.level;
-
-  if (urgencyLevel === "urgent") {
-    $("stress").classList.add("red");
-  } else if (urgencyLevel === "soon") {
-    $("stress").classList.add("orange");
-  } else {
-    $("stress").classList.add("green");
+  if (/failed to fetch|network|connexion/i.test(message)) {
+    return (
+      "Impossible de contacter le serveur. " +
+      "Vérifiez votre connexion Internet puis réessayez."
+    );
   }
 
-  fillList(
-    "todo",
-    data.actions?.length
-      ? data.actions.map((action) => {
-          const detail = action.how ? ` — ${action.how}` : "";
-          return `${action.action}${detail}`;
-        })
-      : ["Aucune action certaine n’a été identifiée."]
-  );
-
-  fillList(
-    "dates",
-    data.dates?.length
-      ? data.dates.map((item) =>
-          `${item.label} : ${item.date}` +
-          (item.meaning ? ` — ${item.meaning}` : "")
-        )
-      : ["Aucune date importante clairement identifiée."]
-  );
-
-  $("why").textContent =
-    data.why_received || "La raison n’est pas clairement indiquée.";
-
-  $("proofs").innerHTML = "";
-
-  const proofs = data.evidence || [];
-
-  if (!proofs.length) {
-    $("proofs").innerHTML =
-      "<p>Aucun passage suffisamment clair n’a été trouvé.</p>";
-  } else {
-    proofs.forEach((proof) => {
-      const block = document.createElement("div");
-      block.className = "proof";
-
-      const page = proof.page
-        ? `<strong>${escapeHtml(proof.page)}</strong><br>`
-        : "";
-
-      block.innerHTML = `
-        ${page}
-        « ${escapeHtml(proof.quote || "")} »
-        <br><br>
-        <em>${escapeHtml(proof.explanation || "")}</em>
-      `;
-
-      $("proofs").appendChild(block);
-    });
-  }
-
-  $("answer").style.display = "none";
-
-  $("resultats").scrollIntoView({
-    behavior: "smooth",
-    block: "start"
-  });
-}
-
-function fillList(id, values) {
-  const element = $(id);
-  element.innerHTML = "";
-
-  values.forEach((value) => {
-    const li = document.createElement("li");
-    li.textContent = value;
-    element.appendChild(li);
-  });
-}
-
-function answerSimpleQuestion() {
-  const data = window.currentAnalysis;
-  const question = $("question").value.trim().toLowerCase();
-
-  if (!data) {
-    alert("Analyse d’abord un document.");
-    return;
-  }
-
-  let answer =
-    "Cette question nécessite une future fonction de conversation avec l’IA.";
-
-  if (/quoi|document|c'est quoi/.test(question)) {
-    answer = `${data.document_type}. ${data.plain_summary}`;
-  } else if (/faire|dois|action/.test(question)) {
-    answer = data.actions?.length
-      ? data.actions
-          .map((item) =>
-            `${item.action}${item.how ? ` : ${item.how}` : ""}`
-          )
-          .join(" ")
-      : "Aucune action certaine n’a été identifiée.";
-  } else if (/quand|date|délai|avant/.test(question)) {
-    answer = data.dates?.length
-      ? data.dates
-          .map((item) => `${item.label} : ${item.date}.`)
-          .join(" ")
-      : "Aucune date importante n’a été clairement identifiée.";
-  } else if (/urgent|grave|inquiéter/.test(question)) {
-    answer =
-      data.urgency?.message ||
-      "Le niveau d’urgence n’a pas été déterminé.";
-  }
-
-  $("answer").textContent = answer;
-  $("answer").style.display = "block";
-}
-
-function setLoading(active) {
-  $("analyse").disabled = active;
-  $("analyse").textContent = active
-    ? "Analyse par l’IA en cours…"
-    : "Analyser le document";
-}
-
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;"
-  })[character]);
-}
+  if (/payload|too large
