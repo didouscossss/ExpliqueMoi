@@ -2,56 +2,80 @@ const $ = (id) => document.getElementById(id);
 
 const state = {
   selectedFile: null,
+  lastFormData: null,
   lastAnalysis: null,
-  progressTimer: null,
-  currentProgress: 0
+  progressTimer: null
 };
 
-const MAX_STANDARD_FILE_SIZE = 4 * 1024 * 1024;
-const MAX_DISPLAYED_FILE_SIZE = 50 * 1024 * 1024;
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
 
-document.addEventListener("DOMContentLoaded", initializeApp);
-
-function initializeApp() {
+document.addEventListener("DOMContentLoaded", () => {
+  bindEvents();
   initializeTheme();
-  initializeEvents();
   showScreen("homeScreen");
+});
+
+function bindEvents() {
+  bind("cameraInput", "change", handleFileSelection);
+  bind("fileInput", "change", handleFileSelection);
+
+  bind("removeFileButton", "click", removeSelectedFile);
+  bind("analyzeButton", "click", analyzeSelectedFile);
+  bind("analyzeTextButton", "click", analyzeManualText);
+
+  bind("newAnalysisButton", "click", resetApplication);
+  bind("retryButton", "click", retryAnalysis);
+  bind("errorNewDocumentButton", "click", resetApplication);
+
+  bind("detailsButton", "click", () => {
+    $("detailsSection")?.classList.remove("hidden");
+    $("detailsSection")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  });
+
+  bind("closeDetailsButton", "click", () => {
+    $("detailsSection")?.classList.add("hidden");
+  });
+
+  bind("evidenceButton", "click", () => {
+    $("evidenceSection")?.classList.remove("hidden");
+    $("evidenceSection")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  });
+
+  bind("closeEvidenceButton", "click", () => {
+    $("evidenceSection")?.classList.add("hidden");
+  });
+
+  bind("themeButton", "click", toggleTheme);
 }
 
-function initializeEvents() {
-  $("cameraInput").addEventListener("change", handleFileSelection);
-  $("fileInput").addEventListener("change", handleFileSelection);
+function bind(id, eventName, handler) {
+  const element = $(id);
 
-  $("removeFileButton").addEventListener("click", removeSelectedFile);
-  $("analyzeButton").addEventListener("click", analyzeSelectedFile);
-  $("analyzeTextButton").addEventListener("click", analyzeManualText);
+  if (!element) {
+    console.warn(`Élément introuvable : #${id}`);
+    return;
+  }
 
-  $("newAnalysisButton").addEventListener("click", resetApplication);
-  $("retryButton").addEventListener("click", retryAnalysis);
-  $("errorNewDocumentButton").addEventListener("click", resetApplication);
-
-  $("detailsButton").addEventListener("click", showDetails);
-  $("closeDetailsButton").addEventListener("click", hideDetails);
-
-  $("evidenceButton").addEventListener("click", showEvidence);
-  $("closeEvidenceButton").addEventListener("click", hideEvidence);
-
-  $("themeButton").addEventListener("click", toggleTheme);
+  element.addEventListener(eventName, handler);
 }
 
-/* =========================================================
-   Navigation entre les écrans
-========================================================= */
+/* ÉCRANS */
 
 function showScreen(screenId) {
   document.querySelectorAll(".screen").forEach((screen) => {
     screen.classList.remove("active");
   });
 
-  const target = $(screenId);
+  const screen = $(screenId);
 
-  if (target) {
-    target.classList.add("active");
+  if (screen) {
+    screen.classList.add("active");
   }
 
   window.scrollTo({
@@ -60,9 +84,7 @@ function showScreen(screenId) {
   });
 }
 
-/* =========================================================
-   Sélection du fichier
-========================================================= */
+/* SÉLECTION DU FICHIER */
 
 function handleFileSelection(event) {
   const file = event.target.files?.[0];
@@ -71,55 +93,100 @@ function handleFileSelection(event) {
     return;
   }
 
-  if (!isSupportedFile(file)) {
-    showError(
-      "Format non compatible",
-      "Utilisez un fichier PDF, JPG, PNG ou WebP."
-    );
-
-    event.target.value = "";
-    return;
-  }
-
-  if (file.size > MAX_DISPLAYED_FILE_SIZE) {
-    showError(
-      "Fichier trop volumineux",
-      "Le fichier dépasse la limite maximale de 50 Mo."
-    );
-
-    event.target.value = "";
-    return;
-  }
-
-  state.selectedFile = file;
-
-  updateSelectedFileCard(file);
-}
-
-function isSupportedFile(file) {
-  const supportedTypes = [
+  const acceptedTypes = [
     "application/pdf",
     "image/jpeg",
     "image/png",
     "image/webp"
   ];
 
-  return supportedTypes.includes(file.type);
+  if (!acceptedTypes.includes(file.type)) {
+    event.target.value = "";
+
+    showError(
+      "Format non compatible",
+      "Choisissez un PDF, une image JPG, PNG ou WebP."
+    );
+
+    return;
+  }
+
+  state.selectedFile = file;
+
+  displaySelectedFile(file);
+
+  showScreen("homeScreen");
 }
 
-function updateSelectedFileCard(file) {
-  $("fileName").textContent = file.name;
+function displaySelectedFile(file) {
+  const card = $("selectedFileCard");
+  const fileName = $("fileName");
+  const fileDetails = $("fileDetails");
+  const fileTypeIcon = $("fileTypeIcon");
+  const analyzeButton = $("analyzeButton");
 
-  $("fileDetails").textContent =
-    `${getReadableFileType(file)} · ${formatFileSize(file.size)}`;
+  if (fileName) {
+    fileName.textContent = file.name;
+  }
 
-  $("fileTypeIcon").textContent =
-    file.type === "application/pdf" ? "PDF" : "IMG";
+  if (fileDetails) {
+    fileDetails.textContent =
+      `${getFileLabel(file)} · ${formatFileSize(file.size)}`;
+  }
 
-  $("selectedFileCard").classList.remove("hidden");
+  if (fileTypeIcon) {
+    fileTypeIcon.textContent =
+      file.type === "application/pdf" ? "PDF" : "IMG";
+  }
+
+  if (card) {
+    card.classList.remove("hidden");
+    card.style.display = "block";
+
+    setTimeout(() => {
+      card.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+      });
+    }, 150);
+  }
+
+  if (analyzeButton) {
+    analyzeButton.disabled = false;
+    analyzeButton.innerHTML = `
+      <span>Analyser le document</span>
+      <svg
+        viewBox="0 0 24 24"
+        width="20"
+        height="20"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M5 12h14"></path>
+        <path d="m13 6 6 6-6 6"></path>
+      </svg>
+    `;
+  }
 }
 
-function getReadableFileType(file) {
+function removeSelectedFile() {
+  state.selectedFile = null;
+
+  if ($("cameraInput")) {
+    $("cameraInput").value = "";
+  }
+
+  if ($("fileInput")) {
+    $("fileInput").value = "";
+  }
+
+  $("selectedFileCard")?.classList.add("hidden");
+}
+
+function getFileLabel(file) {
   if (file.type === "application/pdf") {
     return "Document PDF";
   }
@@ -148,42 +215,27 @@ function formatFileSize(bytes) {
     return `${(bytes / 1024).toFixed(1)} Ko`;
   }
 
-  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} Mo`;
 }
 
-function removeSelectedFile() {
-  state.selectedFile = null;
-
-  $("cameraInput").value = "";
-  $("fileInput").value = "";
-
-  $("selectedFileCard").classList.add("hidden");
-}
-
-/* =========================================================
-   Analyse d’un fichier
-========================================================= */
+/* ANALYSE */
 
 async function analyzeSelectedFile() {
   if (!state.selectedFile) {
     showError(
       "Aucun document sélectionné",
-      "Prenez une photo ou choisissez un fichier avant de lancer l’analyse."
+      "Choisissez d’abord un document ou prenez une photo."
     );
 
     return;
   }
 
-  /*
-   * L’envoi direct actuel vers une fonction Vercel reste limité.
-   * L’upload jusqu’à 50 Mo sera ajouté dans l’étape suivante.
-   */
-  if (state.selectedFile.size > MAX_STANDARD_FILE_SIZE) {
+  if (state.selectedFile.size > MAX_FILE_SIZE) {
     showError(
-      "Upload lourd pas encore activé",
+      "Document trop volumineux",
       `Ce document fait ${formatFileSize(state.selectedFile.size)}. ` +
-      "La version actuelle accepte environ 4 Mo. " +
-      "Le prochain fichier activera l’envoi jusqu’à 50 Mo."
+      "Pour le moment, la limite est d’environ 4 Mo. " +
+      "L’envoi jusqu’à 50 Mo sera ajouté ensuite."
     );
 
     return;
@@ -192,15 +244,13 @@ async function analyzeSelectedFile() {
   const formData = new FormData();
   formData.append("file", state.selectedFile);
 
-  await sendAnalysisRequest(formData);
+  state.lastFormData = formData;
+
+  await sendAnalysis(formData);
 }
 
-/* =========================================================
-   Analyse d’un texte collé
-========================================================= */
-
 async function analyzeManualText() {
-  const text = $("manualText").value.trim();
+  const text = $("manualText")?.value.trim() || "";
 
   if (text.length < 30) {
     showError(
@@ -214,16 +264,14 @@ async function analyzeManualText() {
   const formData = new FormData();
   formData.append("text", text);
 
-  await sendAnalysisRequest(formData);
+  state.lastFormData = formData;
+
+  await sendAnalysis(formData);
 }
 
-/* =========================================================
-   Requête vers l’API
-========================================================= */
-
-async function sendAnalysisRequest(formData) {
+async function sendAnalysis(formData) {
   showScreen("loadingScreen");
-  startProgressAnimation();
+  startProgress();
 
   try {
     const response = await fetch("/api/analyze", {
@@ -243,148 +291,127 @@ async function sendAnalysisRequest(formData) {
 
     if (!response.ok) {
       throw new Error(
-        data?.error ||
+        data.error ||
         "L’intelligence artificielle n’a pas pu analyser ce document."
       );
     }
 
     state.lastAnalysis = normalizeAnalysis(data);
 
-    finishProgressAnimation();
+    finishProgress();
 
-    await wait(450);
+    await wait(500);
 
     renderAnalysis(state.lastAnalysis);
     showScreen("resultScreen");
   } catch (error) {
-    stopProgressAnimation();
+    stopProgress();
 
     showError(
       "Impossible d’analyser ce document",
-      getFriendlyErrorMessage(error)
+      getFriendlyError(error)
     );
   }
 }
 
-function getFriendlyErrorMessage(error) {
+function getFriendlyError(error) {
   const message = String(error?.message || "");
 
   if (/failed to fetch|network|connexion/i.test(message)) {
-    return (
-      "Impossible de contacter le serveur. " +
-      "Vérifiez votre connexion Internet puis réessayez."
-    );
+    return "Vérifiez votre connexion Internet puis réessayez.";
   }
 
-  if (/payload|too large|413|volumineux/i.test(message)) {
-    return (
-      "Ce document est trop volumineux pour le mode d’envoi actuel."
-    );
+  if (/too large|payload|413|volumineux/i.test(message)) {
+    return "Ce document dépasse la taille actuellement acceptée.";
   }
 
   if (/quota|429|resource exhausted/i.test(message)) {
-    return (
-      "Le quota temporaire de l’intelligence artificielle est atteint. " +
-      "Réessayez dans quelques minutes."
-    );
+    return "Le quota de l’IA est temporairement atteint. Réessayez plus tard.";
   }
 
-  if (/api key|clé|unauthorized|permission/i.test(message)) {
-    return (
-      "La connexion à l’intelligence artificielle n’est pas correctement configurée."
-    );
+  if (/model|not found|404/i.test(message)) {
+    return "Le modèle Gemini configuré n’est pas disponible.";
   }
 
   return message || "Une erreur inattendue est survenue.";
 }
 
-/* =========================================================
-   Normalisation de la réponse Gemini
-========================================================= */
+/* DONNÉES */
 
 function normalizeAnalysis(data) {
-  const urgency = data?.urgency || {};
-  const amount = data?.amount || {};
+  const urgency = data.urgency || {};
+  const amount = data.amount || {};
 
   return {
     documentType:
-      cleanText(data?.document_type) ||
-      "Document non identifié avec certitude",
+      clean(data.document_type) ||
+      "Document non identifié",
 
     issuer:
-      cleanText(data?.issuer || data?.organisme || ""),
+      clean(data.issuer || data.organisme),
 
     summary:
-      cleanText(data?.plain_summary) ||
-      "Je n’ai pas pu produire une explication suffisamment précise.",
+      clean(data.plain_summary) ||
+      "L’explication principale n’a pas pu être produite.",
 
     request:
-      cleanText(data?.request) ||
+      clean(data.request) ||
       "Aucune demande certaine n’a été identifiée.",
 
     whyReceived:
-      cleanText(data?.why_received) ||
-      "La raison n’est pas clairement indiquée dans le document.",
-
-    urgency: {
-      level: normalizeUrgencyLevel(urgency.level),
-      message:
-        cleanText(urgency.message) ||
-        "Le niveau d’attention n’a pas été déterminé."
-    },
+      clean(data.why_received) ||
+      "La raison n’est pas clairement indiquée.",
 
     actions:
-      normalizeActions(data?.actions),
+      normalizeActions(data.actions),
 
     dates:
-      normalizeDates(data?.dates),
+      normalizeDates(data.dates),
 
     amount: {
       value:
-        cleanText(amount.value) ||
-        "Non trouvé avec certitude",
+        clean(amount.value) ||
+        "Non trouvé",
 
       meaning:
-        cleanText(amount.meaning) ||
-        "Aucun montant principal clairement identifié."
+        clean(amount.meaning) ||
+        "Aucun montant principal identifié."
+    },
+
+    urgency: {
+      level:
+        ["none", "soon", "urgent", "uncertain"].includes(
+          urgency.level
+        )
+          ? urgency.level
+          : "uncertain",
+
+      message:
+        clean(urgency.message) ||
+        "Le niveau d’attention reste à vérifier."
     },
 
     evidence:
-      normalizeEvidence(data?.evidence),
+      normalizeEvidence(data.evidence),
 
     confidence:
-      normalizeConfidence(data?.confidence),
+      Math.max(
+        0,
+        Math.min(100, Number(data.confidence) || 0)
+      ),
 
     fullExplanation:
-      cleanText(
-        data?.full_explanation ||
-        data?.explication_complete ||
-        ""
+      clean(
+        data.full_explanation ||
+        data.explication_complete
       )
   };
 }
 
-function cleanText(value) {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return value
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function normalizeUrgencyLevel(level) {
-  const acceptedLevels = [
-    "none",
-    "soon",
-    "urgent",
-    "uncertain"
-  ];
-
-  return acceptedLevels.includes(level)
-    ? level
-    : "uncertain";
+function clean(value) {
+  return typeof value === "string"
+    ? value.replace(/\s+/g, " ").trim()
+    : "";
 }
 
 function normalizeActions(actions) {
@@ -397,21 +424,20 @@ function normalizeActions(actions) {
     .map((item) => {
       if (typeof item === "string") {
         return {
-          action: cleanText(item),
+          action: clean(item),
           how: ""
         };
       }
 
       return {
         action:
-          cleanText(item?.action) ||
+          clean(item.action) ||
           "Action à vérifier",
 
         how:
-          cleanText(item?.how)
+          clean(item.how)
       };
-    })
-    .filter((item) => item.action);
+    });
 }
 
 function normalizeDates(dates) {
@@ -421,16 +447,12 @@ function normalizeDates(dates) {
 
   return dates
     .map((item) => ({
-      date:
-        cleanText(item?.date),
-
+      date: clean(item.date),
       label:
-        cleanText(item?.label) ||
+        clean(item.label) ||
         "Date mentionnée",
-
       meaning:
-        cleanText(item?.meaning) ||
-        cleanText(item?.explication)
+        clean(item.meaning || item.explication)
     }))
     .filter((item) => item.date);
 }
@@ -444,95 +466,73 @@ function normalizeEvidence(evidence) {
     .slice(0, 8)
     .map((item) => ({
       page:
-        cleanText(item?.page) ||
+        clean(item.page) ||
         "Emplacement non précisé",
 
       quote:
-        cleanText(item?.quote || item?.texte),
+        clean(item.quote || item.texte),
 
       explanation:
-        cleanText(
-          item?.explanation ||
-          item?.explication
-        )
+        clean(item.explanation || item.explication)
     }))
     .filter((item) => item.quote);
 }
 
-function normalizeConfidence(value) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number)) {
-    return 0;
-  }
-
-  return Math.max(
-    0,
-    Math.min(100, Math.round(number))
-  );
-}
-
-/* =========================================================
-   Affichage des résultats
-========================================================= */
+/* AFFICHAGE DU RÉSULTAT */
 
 function renderAnalysis(analysis) {
-  $("documentType").textContent =
-    analysis.documentType;
+  setText("documentType", analysis.documentType);
+  setText("plainSummary", analysis.summary);
+  setText("documentRequest", analysis.request);
+  setText("whyReceived", analysis.whyReceived);
 
   if (analysis.issuer) {
-    $("documentIssuer").textContent =
-      `Organisme : ${analysis.issuer}`;
-
-    $("documentIssuer").classList.remove("hidden");
+    setText("documentIssuer", `Organisme : ${analysis.issuer}`);
+    $("documentIssuer")?.classList.remove("hidden");
   } else {
-    $("documentIssuer").textContent = "";
-    $("documentIssuer").classList.add("hidden");
+    $("documentIssuer")?.classList.add("hidden");
   }
-
-  $("plainSummary").textContent =
-    analysis.summary;
-
-  $("documentRequest").textContent =
-    analysis.request;
 
   renderActions(analysis.actions);
   renderMainDate(analysis.dates);
 
-  $("mainAmount").textContent =
-    analysis.amount.value;
-
-  $("mainAmountMeaning").textContent =
-    analysis.amount.meaning;
+  setText("mainAmount", analysis.amount.value);
+  setText("mainAmountMeaning", analysis.amount.meaning);
 
   renderUrgency(analysis.urgency);
-
-  $("whyReceived").textContent =
-    analysis.whyReceived;
-
   renderConfidence(analysis.confidence);
-  renderFullExplanation(analysis);
+  renderExplanation(analysis);
   renderEvidence(analysis.evidence);
 
-  hideDetails();
-  hideEvidence();
+  $("detailsSection")?.classList.add("hidden");
+  $("evidenceSection")?.classList.add("hidden");
+}
+
+function setText(id, value) {
+  const element = $(id);
+
+  if (element) {
+    element.textContent = value;
+  }
 }
 
 function renderActions(actions) {
   const list = $("actionsList");
-  list.innerHTML = "";
 
-  if (!actions.length) {
-    const item = document.createElement("li");
-
-    item.textContent =
-      "Aucune action certaine n’a été identifiée.";
-
-    list.appendChild(item);
+  if (!list) {
     return;
   }
 
-  actions.forEach((action) => {
+  list.innerHTML = "";
+
+  const values = actions.length
+    ? actions
+    : [{
+        action: "Aucune action certaine n’a été identifiée.",
+        how: ""
+      }];
+
+  values.forEach((action) => {
     const item = document.createElement("li");
 
     item.textContent = action.how
@@ -545,11 +545,8 @@ function renderActions(actions) {
 
 function renderMainDate(dates) {
   if (!dates.length) {
-    $("mainDate").textContent =
-      "Non trouvée";
-
-    $("mainDateMeaning").textContent =
-      "Aucune échéance certaine.";
+    setText("mainDate", "Non trouvée");
+    setText("mainDateMeaning", "Aucune échéance certaine.");
     return;
   }
 
@@ -560,19 +557,14 @@ function renderMainDate(dates) {
       )
     ) || dates[0];
 
-  $("mainDate").textContent =
-    mainDate.date;
-
-  $("mainDateMeaning").textContent =
-    mainDate.meaning ||
-    mainDate.label;
+  setText("mainDate", mainDate.date);
+  setText(
+    "mainDateMeaning",
+    mainDate.meaning || mainDate.label
+  );
 }
 
 function renderUrgency(urgency) {
-  const card = $("urgencyCard");
-
-  card.dataset.level = urgency.level;
-
   const titles = {
     none: "Rien d’urgent",
     soon: "À faire prochainement",
@@ -587,247 +579,161 @@ function renderUrgency(urgency) {
     uncertain: "?"
   };
 
-  $("urgencyTitle").textContent =
-    titles[urgency.level];
+  const card = $("urgencyCard");
 
-  $("urgencyIcon").textContent =
-    icons[urgency.level];
+  if (card) {
+    card.dataset.level = urgency.level;
+  }
 
-  $("urgencyMessage").textContent =
-    urgency.message;
+  setText("urgencyTitle", titles[urgency.level]);
+  setText("urgencyIcon", icons[urgency.level]);
+  setText("urgencyMessage", urgency.message);
 }
 
 function renderConfidence(confidence) {
   const badge = $("confidenceBadge");
 
-  badge.classList.remove(
-    "confidence-medium",
-    "confidence-low"
-  );
+  if (!badge) {
+    return;
+  }
 
   if (confidence >= 80) {
     badge.textContent =
       `Confiance élevée · ${confidence} %`;
-
-    return;
-  }
-
-  if (confidence >= 55) {
+  } else if (confidence >= 55) {
     badge.textContent =
       `Confiance moyenne · ${confidence} %`;
-
-    badge.classList.add("confidence-medium");
-    return;
+  } else {
+    badge.textContent =
+      `À vérifier · ${confidence} %`;
   }
-
-  badge.textContent =
-    `À vérifier · ${confidence} %`;
-
-  badge.classList.add("confidence-low");
 }
 
-function renderFullExplanation(analysis) {
-  let explanation =
-    analysis.fullExplanation;
-
-  if (!explanation) {
-    explanation = [
+function renderExplanation(analysis) {
+  const text =
+    analysis.fullExplanation ||
+    [
       analysis.summary,
       "",
       `Pourquoi vous l’avez reçu : ${analysis.whyReceived}`,
       "",
-      `Ce que le document demande : ${analysis.request}`
+      `Ce qui est demandé : ${analysis.request}`
     ].join("\n");
-  }
 
-  $("fullExplanation").textContent =
-    explanation;
+  setText("fullExplanation", text);
 }
 
 function renderEvidence(evidence) {
   const container = $("evidenceList");
+
+  if (!container) {
+    return;
+  }
+
   container.innerHTML = "";
 
   if (!evidence.length) {
-    const empty = document.createElement("p");
+    const message = document.createElement("p");
 
-    empty.textContent =
+    message.textContent =
       "Aucun passage suffisamment clair n’a été identifié.";
 
-    container.appendChild(empty);
+    container.appendChild(message);
     return;
   }
 
   evidence.forEach((proof) => {
-    const item = document.createElement("article");
-    item.className = "evidence-item";
+    const article = document.createElement("article");
+    article.className = "evidence-item";
 
-    const location = document.createElement("strong");
-    location.textContent = proof.page;
+    const page = document.createElement("strong");
+    page.textContent = proof.page;
 
     const quote = document.createElement("blockquote");
     quote.textContent = `« ${proof.quote} »`;
 
-    item.appendChild(location);
-    item.appendChild(quote);
+    article.appendChild(page);
+    article.appendChild(quote);
 
     if (proof.explanation) {
       const explanation = document.createElement("p");
       explanation.textContent = proof.explanation;
-      item.appendChild(explanation);
+      article.appendChild(explanation);
     }
 
-    container.appendChild(item);
+    container.appendChild(article);
   });
 }
 
-/* =========================================================
-   Sections dépliables
-========================================================= */
+/* PROGRESSION */
 
-function showDetails() {
-  $("detailsSection").classList.remove("hidden");
+function startProgress() {
+  stopProgress();
 
-  $("detailsSection").scrollIntoView({
-    behavior: "smooth",
-    block: "start"
-  });
-}
-
-function hideDetails() {
-  $("detailsSection").classList.add("hidden");
-}
-
-function showEvidence() {
-  $("evidenceSection").classList.remove("hidden");
-
-  $("evidenceSection").scrollIntoView({
-    behavior: "smooth",
-    block: "start"
-  });
-}
-
-function hideEvidence() {
-  $("evidenceSection").classList.add("hidden");
-}
-
-/* =========================================================
-   Progression visuelle
-========================================================= */
-
-function startProgressAnimation() {
-  stopProgressAnimation();
-
-  state.currentProgress = 8;
-
-  updateProgress(
-    8,
-    "Identification du document…",
-    0
-  );
-
-  const progressSequence = [
-    {
-      progress: 28,
-      message: "Identification du document…",
-      step: 0
-    },
-    {
-      progress: 48,
-      message: "Recherche de ce qu’on vous demande…",
-      step: 1
-    },
-    {
-      progress: 68,
-      message: "Vérification des dates et montants…",
-      step: 2
-    },
-    {
-      progress: 84,
-      message: "Recherche des passages importants…",
-      step: 3
-    }
+  const stages = [
+    [18, "Identification du document…", 0],
+    [42, "Recherche de ce qu’on vous demande…", 1],
+    [67, "Vérification des dates et montants…", 2],
+    [86, "Recherche des passages importants…", 3]
   ];
 
   let index = 0;
 
+  updateProgress(...stages[index]);
+
   state.progressTimer = setInterval(() => {
-    if (index >= progressSequence.length) {
-      clearInterval(state.progressTimer);
-      state.progressTimer = null;
+    index += 1;
+
+    if (index >= stages.length) {
+      stopProgress();
       return;
     }
 
-    const item = progressSequence[index];
-
-    updateProgress(
-      item.progress,
-      item.message,
-      item.step
-    );
-
-    index += 1;
-  }, 1050);
+    updateProgress(...stages[index]);
+  }, 1100);
 }
 
 function updateProgress(progress, message, activeStep) {
-  state.currentProgress = progress;
+  if ($("progressBar")) {
+    $("progressBar").style.width = `${progress}%`;
+  }
 
-  $("progressBar").style.width =
-    `${progress}%`;
+  setText("loadingMessage", message);
 
-  $("loadingMessage").textContent =
-    message;
-
-  const steps =
-    [...document.querySelectorAll(".analysis-step")];
-
-  steps.forEach((step, index) => {
-    step.classList.remove("active", "complete");
-
-    if (index < activeStep) {
-      step.classList.add("complete");
+  document.querySelectorAll(".analysis-step").forEach(
+    (step, index) => {
+      step.classList.remove("active", "complete");
 
       const icon = step.querySelector(".step-icon");
 
-      if (icon) {
-        icon.textContent = "✓";
+      if (index < activeStep) {
+        step.classList.add("complete");
+
+        if (icon) {
+          icon.textContent = "✓";
+        }
+      } else if (index === activeStep) {
+        step.classList.add("active");
+
+        if (icon) {
+          icon.textContent = String(index + 1);
+        }
       }
-
-      return;
     }
-
-    if (index === activeStep) {
-      step.classList.add("active");
-
-      const icon = step.querySelector(".step-icon");
-
-      if (icon) {
-        icon.textContent = String(index + 1);
-      }
-
-      return;
-    }
-
-    const icon = step.querySelector(".step-icon");
-
-    if (icon) {
-      icon.textContent = String(index + 1);
-    }
-  });
+  );
 }
 
-function finishProgressAnimation() {
-  stopProgressAnimation();
+function finishProgress() {
+  stopProgress();
 
-  $("progressBar").style.width = "100%";
+  if ($("progressBar")) {
+    $("progressBar").style.width = "100%";
+  }
 
-  $("loadingMessage").textContent =
-    "Analyse terminée.";
+  setText("loadingMessage", "Analyse terminée.");
 
-  document
-    .querySelectorAll(".analysis-step")
-    .forEach((step) => {
+  document.querySelectorAll(".analysis-step").forEach(
+    (step) => {
       step.classList.remove("active");
       step.classList.add("complete");
 
@@ -836,25 +742,24 @@ function finishProgressAnimation() {
       if (icon) {
         icon.textContent = "✓";
       }
-    });
+    }
+  );
 }
 
-function stopProgressAnimation() {
+function stopProgress() {
   if (state.progressTimer) {
     clearInterval(state.progressTimer);
     state.progressTimer = null;
   }
 }
 
-/* =========================================================
-   Erreurs et réinitialisation
-========================================================= */
+/* ERREURS ET RETOUR */
 
 function showError(title, message) {
-  stopProgressAnimation();
+  stopProgress();
 
-  $("errorTitle").textContent = title;
-  $("errorMessage").textContent = message;
+  setText("errorTitle", title);
+  setText("errorMessage", message);
 
   showScreen("errorScreen");
 }
@@ -865,9 +770,7 @@ function retryAnalysis() {
     return;
   }
 
-  const text = $("manualText").value.trim();
-
-  if (text.length >= 30) {
+  if (($("manualText")?.value.trim() || "").length >= 30) {
     analyzeManualText();
     return;
   }
@@ -876,66 +779,36 @@ function retryAnalysis() {
 }
 
 function resetApplication() {
-  stopProgressAnimation();
-
   state.selectedFile = null;
+  state.lastFormData = null;
   state.lastAnalysis = null;
-  state.currentProgress = 0;
 
-  $("cameraInput").value = "";
-  $("fileInput").value = "";
-  $("manualText").value = "";
+  if ($("cameraInput")) {
+    $("cameraInput").value = "";
+  }
 
-  $("selectedFileCard").classList.add("hidden");
+  if ($("fileInput")) {
+    $("fileInput").value = "";
+  }
 
-  hideDetails();
-  hideEvidence();
+  if ($("manualText")) {
+    $("manualText").value = "";
+  }
 
-  resetProgressDisplay();
+  $("selectedFileCard")?.classList.add("hidden");
+  $("detailsSection")?.classList.add("hidden");
+  $("evidenceSection")?.classList.add("hidden");
 
   showScreen("homeScreen");
 }
 
-function resetProgressDisplay() {
-  $("progressBar").style.width = "8%";
-
-  $("loadingMessage").textContent =
-    "Identification du document…";
-
-  document
-    .querySelectorAll(".analysis-step")
-    .forEach((step, index) => {
-      step.classList.remove("complete", "active");
-
-      if (index === 0) {
-        step.classList.add("active");
-      }
-
-      const icon = step.querySelector(".step-icon");
-
-      if (icon) {
-        icon.textContent = String(index + 1);
-      }
-    });
-}
-
-/* =========================================================
-   Thème sombre
-========================================================= */
+/* THÈME */
 
 function initializeTheme() {
   const savedTheme =
     localStorage.getItem("expliqueMoiTheme");
 
-  const systemPrefersDark =
-    window.matchMedia?.(
-      "(prefers-color-scheme: dark)"
-    ).matches;
-
-  if (
-    savedTheme === "dark" ||
-    (!savedTheme && systemPrefersDark)
-  ) {
+  if (savedTheme === "dark") {
     document.body.classList.add("dark-theme");
   }
 
@@ -945,30 +818,24 @@ function initializeTheme() {
 function toggleTheme() {
   document.body.classList.toggle("dark-theme");
 
-  const theme =
-    document.body.classList.contains("dark-theme")
-      ? "dark"
-      : "light";
-
   localStorage.setItem(
     "expliqueMoiTheme",
-    theme
+    document.body.classList.contains("dark-theme")
+      ? "dark"
+      : "light"
   );
 
   updateThemeIcon();
 }
 
 function updateThemeIcon() {
-  const isDark =
-    document.body.classList.contains("dark-theme");
-
-  $("themeIcon").textContent =
-    isDark ? "☀" : "☾";
+  setText(
+    "themeIcon",
+    document.body.classList.contains("dark-theme")
+      ? "☀"
+      : "☾"
+  );
 }
-
-/* =========================================================
-   Utilitaire
-========================================================= */
 
 function wait(milliseconds) {
   return new Promise((resolve) => {
