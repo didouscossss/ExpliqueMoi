@@ -8,73 +8,69 @@
     content="width=device-width, initial-scale=1, viewport-fit=cover"
   >
 
-  <meta name="theme-color" content="#f7f3ff">
+  <meta name="theme-color" content="#f6f4ee">
 
   <title>ExpliqueMoi</title>
 
   <style>
     :root {
-      --ink: #25253b;
-      --muted: #77768b;
-      --white: rgba(255, 255, 255, 0.82);
-      --solid-white: #ffffff;
-      --border: rgba(111, 102, 145, 0.14);
+      --background: #f7f5ef;
+      --surface: rgba(255, 255, 255, 0.9);
+      --surface-solid: #ffffff;
+      --text: #202438;
+      --muted: #6c7080;
+      --border: rgba(66, 70, 100, 0.12);
 
-      --blue: #6d91f7;
-      --blue-soft: #e8f0ff;
+      --blue: #667eea;
+      --blue-soft: #e8edff;
 
-      --purple: #9a7fe4;
-      --purple-soft: #f0eaff;
+      --sage: #72a98f;
+      --sage-soft: #e7f3ed;
 
-      --pink: #e991b3;
-      --pink-soft: #ffe8f1;
+      --coral: #e88972;
+      --coral-soft: #fae8e1;
 
-      --mint: #67c6a1;
-      --mint-soft: #e5f8f0;
+      --lavender: #9579c9;
+      --lavender-soft: #eee8fa;
 
-      --peach: #f2ad79;
-      --peach-soft: #fff0e3;
+      --sand: #d6ae58;
+      --sand-soft: #f8efd9;
 
-      --yellow: #e8c968;
-      --yellow-soft: #fff8d9;
-
-      --red: #df6f7d;
-      --red-soft: #ffe9ec;
+      --danger: #c95e62;
+      --danger-soft: #fae6e7;
 
       --shadow:
-        0 22px 60px rgba(86, 75, 123, 0.13);
+        0 22px 60px rgba(42, 47, 75, 0.1);
 
       --small-shadow:
-        0 9px 28px rgba(86, 75, 123, 0.09);
+        0 10px 28px rgba(42, 47, 75, 0.07);
     }
 
     body.dark {
-      --ink: #f8f5ff;
-      --muted: #bbb5cc;
-      --white: rgba(35, 31, 53, 0.86);
-      --solid-white: #251f38;
-      --border: rgba(223, 214, 255, 0.12);
+      --background: #121620;
+      --surface: rgba(29, 34, 48, 0.92);
+      --surface-solid: #1d2230;
+      --text: #f5f4fa;
+      --muted: #b4b4c3;
+      --border: rgba(236, 235, 255, 0.12);
 
-      --blue: #93adff;
-      --blue-soft: #26375f;
+      --blue: #91a4ff;
+      --blue-soft: #27345c;
 
-      --purple: #baa4ff;
-      --purple-soft: #3a305c;
+      --sage: #8ac5a9;
+      --sage-soft: #213d31;
 
-      --pink: #f0a9c6;
-      --pink-soft: #4c2f3e;
+      --coral: #f1a08b;
+      --coral-soft: #482f2a;
 
-      --mint: #84d9b7;
-      --mint-soft: #20483a;
+      --lavender: #b8a0e8;
+      --lavender-soft: #372d50;
 
-      --peach: #f6bf96;
-      --peach-soft: #4d382c;
+      --sand: #e5c579;
+      --sand-soft: #443b24;
 
-      --yellow: #efd981;
-      --yellow-soft: #4b4427;
-
-      --red: #f496a0;
-      --red-soft: #4c2b31;
+      --danger: #ef9497;
+      --danger-soft: #472a2d;
     }
 
     * {
@@ -91,30 +87,25 @@
       min-height: 100vh;
       overflow-x: hidden;
 
-      color: var(--ink);
+      color: var(--text);
 
       background:
         radial-gradient(
-          circle at 8% 12%,
-          rgba(233, 145, 179, 0.28),
+          circle at 7% 9%,
+          rgba(232, 137, 114, 0.18),
+          transparent 25%
+        ),
+        radial-gradient(
+          circle at 92% 12%,
+          rgba(102, 126, 234, 0.2),
+          transparent 28%
+        ),
+        radial-gradient(
+          circle at 20% 88%,
+          rgba(114, 169, 143, 0.15),
           transparent 27%
         ),
-        radial-gradient(
-          circle at 88% 9%,
-          rgba(109, 145, 247, 0.3),
-          transparent 30%
-        ),
-        radial-gradient(
-          circle at 15% 82%,
-          rgba(103, 198, 161, 0.22),
-          transparent 29%
-        ),
-        linear-gradient(
-          145deg,
-          #fff9fc,
-          #f5f2ff 48%,
-          #eef7ff
-        );
+        var(--background);
 
       font-family:
         -apple-system,
@@ -128,31 +119,26 @@
     body.dark {
       background:
         radial-gradient(
-          circle at 8% 12%,
-          rgba(233, 145, 179, 0.15),
+          circle at 7% 9%,
+          rgba(232, 137, 114, 0.09),
+          transparent 25%
+        ),
+        radial-gradient(
+          circle at 92% 12%,
+          rgba(102, 126, 234, 0.13),
+          transparent 28%
+        ),
+        radial-gradient(
+          circle at 20% 88%,
+          rgba(114, 169, 143, 0.08),
           transparent 27%
         ),
-        radial-gradient(
-          circle at 88% 9%,
-          rgba(109, 145, 247, 0.18),
-          transparent 30%
-        ),
-        radial-gradient(
-          circle at 15% 82%,
-          rgba(103, 198, 161, 0.12),
-          transparent 29%
-        ),
-        linear-gradient(
-          145deg,
-          #171322,
-          #1d1930 48%,
-          #152033
-        );
+        var(--background);
     }
 
     button,
-    input,
-    textarea {
+    textarea,
+    input {
       font: inherit;
     }
 
@@ -170,67 +156,66 @@
       display: none !important;
     }
 
-    .background-shape {
+    .ambient-shape {
       position: fixed;
       z-index: -1;
 
-      border-radius: 50%;
+      border-radius: 999px;
       filter: blur(2px);
+      opacity: 0.55;
 
-      opacity: 0.6;
-
-      animation: floatShape 13s ease-in-out infinite;
+      animation: ambientMove 14s ease-in-out infinite;
     }
 
-    .shape-one {
-      top: 16%;
-      left: -45px;
+    .shape-a {
+      top: 20%;
+      left: -60px;
 
-      width: 130px;
-      height: 130px;
+      width: 150px;
+      height: 150px;
 
-      background: var(--pink-soft);
+      background: var(--coral-soft);
     }
 
-    .shape-two {
-      top: 50%;
-      right: -58px;
+    .shape-b {
+      top: 52%;
+      right: -75px;
 
-      width: 170px;
-      height: 170px;
+      width: 190px;
+      height: 190px;
 
       background: var(--blue-soft);
 
-      animation-delay: -4s;
+      animation-delay: -5s;
     }
 
-    .shape-three {
-      bottom: 2%;
-      left: 12%;
+    .shape-c {
+      bottom: 4%;
+      left: 18%;
 
-      width: 105px;
-      height: 105px;
+      width: 120px;
+      height: 120px;
 
-      background: var(--mint-soft);
+      background: var(--sage-soft);
 
-      animation-delay: -8s;
+      animation-delay: -9s;
     }
 
-    @keyframes floatShape {
+    @keyframes ambientMove {
       0%,
       100% {
-        transform: translate3d(0, 0, 0) rotate(0deg);
+        transform: translateY(0) rotate(0deg);
       }
 
       50% {
-        transform: translate3d(0, -24px, 0) rotate(8deg);
+        transform: translateY(-24px) rotate(7deg);
       }
     }
 
     .topbar {
       position: sticky;
       top: 0;
-      z-index: 20;
+      z-index: 30;
 
       display: flex;
       align-items: center;
@@ -243,7 +228,7 @@
 
       background: color-mix(
         in srgb,
-        var(--white) 82%,
+        var(--surface) 84%,
         transparent
       );
 
@@ -257,14 +242,14 @@
       gap: 12px;
     }
 
-    .mini-mascot {
+    .logo {
       display: grid;
       place-items: center;
 
       width: 48px;
       height: 48px;
 
-      border-radius: 18px;
+      border-radius: 17px;
 
       color: white;
 
@@ -272,15 +257,27 @@
         linear-gradient(
           145deg,
           var(--blue),
-          var(--purple)
+          var(--lavender)
         );
 
       box-shadow:
-        0 13px 29px rgba(109, 145, 247, 0.29);
+        0 13px 30px rgba(102, 126, 234, 0.26);
 
-      font-size: 23px;
+      font-size: 21px;
+      font-weight: 850;
 
-      animation: softBreathing 3.8s ease-in-out infinite;
+      animation: logoBreathing 4s ease-in-out infinite;
+    }
+
+    @keyframes logoBreathing {
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.035);
+      }
     }
 
     .brand strong {
@@ -304,41 +301,33 @@
       width: 44px;
       height: 44px;
 
-      border-radius: 16px;
+      border-radius: 15px;
 
-      color: var(--ink);
-      background: var(--white);
+      color: var(--text);
+      background: var(--surface);
 
       box-shadow: var(--small-shadow);
 
       font-size: 19px;
-
-      transition:
-        transform 0.18s ease,
-        background 0.18s ease;
-    }
-
-    .theme-button:active {
-      transform: scale(0.92) rotate(6deg);
     }
 
     main {
-      width: min(100%, 820px);
+      width: min(100%, 840px);
       margin: 0 auto;
-      padding: 20px 13px 70px;
+      padding: 21px 13px 70px;
     }
 
     .screen {
       display: none;
 
-      animation: screenArrival 0.4s ease;
+      animation: screenEntrance 0.4s ease;
     }
 
     .screen.active {
       display: block;
     }
 
-    @keyframes screenArrival {
+    @keyframes screenEntrance {
       from {
         opacity: 0;
         transform: translateY(12px);
@@ -350,184 +339,42 @@
       }
     }
 
-    .welcome {
-      padding: 22px 7px 26px;
-
+    .hero {
+      padding: 28px 7px 30px;
       text-align: center;
     }
 
-    .large-mascot {
-      position: relative;
-
-      display: grid;
-      place-items: center;
-
-      width: 108px;
-      height: 108px;
-
-      margin: 0 auto 19px;
-
-      border-radius: 39px;
-
-      background:
-        linear-gradient(
-          145deg,
-          var(--yellow-soft),
-          var(--pink-soft),
-          var(--purple-soft)
-        );
-
-      box-shadow: var(--shadow);
-
-      animation: softBreathing 3.8s ease-in-out infinite;
-    }
-
-    @keyframes softBreathing {
-      0%,
-      100% {
-        transform: translateY(0) scale(1);
-      }
-
-      50% {
-        transform: translateY(-5px) scale(1.025);
-      }
-    }
-
-    .face {
-      position: relative;
-
-      width: 70px;
-      height: 70px;
-
-      border-radius: 50%;
-
-      background:
-        linear-gradient(
-          145deg,
-          #fff7cf,
-          #ffd9a7
-        );
-
-      box-shadow:
-        inset -8px -9px 17px rgba(226, 152, 88, 0.16),
-        0 8px 20px rgba(137, 105, 87, 0.12);
-    }
-
-    .eye {
-      position: absolute;
-      top: 26px;
-
-      width: 7px;
-      height: 9px;
-
-      border-radius: 50%;
-
-      background: #4f4754;
-
-      animation: blink 4.5s infinite;
-    }
-
-    .eye.left {
-      left: 20px;
-    }
-
-    .eye.right {
-      right: 20px;
-    }
-
-    @keyframes blink {
-      0%,
-      46%,
-      50%,
-      100% {
-        transform: scaleY(1);
-      }
-
-      48% {
-        transform: scaleY(0.1);
-      }
-    }
-
-    .mouth {
-      position: absolute;
-      bottom: 18px;
-      left: 50%;
-
-      width: 23px;
-      height: 12px;
-
-      border-bottom: 3px solid #7b5960;
-      border-radius: 0 0 20px 20px;
-
-      transform: translateX(-50%);
-    }
-
-    .sparkle {
-      position: absolute;
-
-      color: var(--purple);
-
-      animation: sparkleFloat 2.8s ease-in-out infinite;
-    }
-
-    .sparkle.one {
-      top: 6px;
-      right: 9px;
-    }
-
-    .sparkle.two {
-      bottom: 8px;
-      left: 8px;
-
-      color: var(--pink);
-
-      animation-delay: -1.3s;
-    }
-
-    @keyframes sparkleFloat {
-      0%,
-      100% {
-        transform: translateY(0) rotate(0deg);
-        opacity: 0.55;
-      }
-
-      50% {
-        transform: translateY(-6px) rotate(16deg);
-        opacity: 1;
-      }
-    }
-
-    .welcome-badge {
+    .eyebrow {
       display: inline-flex;
 
       padding: 8px 13px;
 
       border-radius: 999px;
 
-      color: var(--purple);
-      background: var(--purple-soft);
+      color: var(--lavender);
+      background: var(--lavender-soft);
 
       font-size: 12px;
       font-weight: 820;
     }
 
-    .welcome h1 {
-      margin: 16px 0 0;
+    .hero h1 {
+      max-width: 690px;
+      margin: 17px auto 0;
 
-      font-size: clamp(36px, 9vw, 55px);
-      line-height: 1.04;
+      font-size: clamp(37px, 9vw, 58px);
+      line-height: 1.03;
       letter-spacing: -0.055em;
     }
 
-    .welcome h1 span {
+    .hero h1 span {
       display: block;
-
       color: var(--blue);
     }
 
-    .welcome p {
-      max-width: 590px;
-      margin: 17px auto 0;
+    .hero p {
+      max-width: 610px;
+      margin: 18px auto 0;
 
       color: var(--muted);
 
@@ -535,22 +382,93 @@
       line-height: 1.62;
     }
 
-    .glass-card {
+    .benefits {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+
+      margin: 20px 0;
+    }
+
+    .benefit {
+      padding: 13px 10px;
+
       border: 1px solid var(--border);
-      border-radius: 31px;
+      border-radius: 17px;
 
-      background: var(--white);
+      background: var(--surface);
+      box-shadow: var(--small-shadow);
 
+      color: var(--muted);
+
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .benefit strong {
+      display: block;
+
+      margin-bottom: 4px;
+
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 28px;
+
+      background: var(--surface);
       box-shadow: var(--shadow);
 
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
     }
 
     .upload-card {
       padding: 25px 19px;
-
       text-align: center;
+
+      background:
+        linear-gradient(
+          145deg,
+          var(--surface),
+          var(--blue-soft) 56%,
+          var(--lavender-soft)
+        );
+    }
+
+    .upload-symbol {
+      display: grid;
+      place-items: center;
+
+      width: 72px;
+      height: 72px;
+
+      margin: 0 auto 17px;
+
+      border-radius: 23px;
+
+      color: var(--blue);
+      background: var(--surface-solid);
+
+      box-shadow: var(--small-shadow);
+
+      font-size: 29px;
+
+      animation: gentleFloat 3.5s ease-in-out infinite;
+    }
+
+    @keyframes gentleFloat {
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-5px);
+      }
     }
 
     .upload-card h2 {
@@ -561,7 +479,7 @@
     }
 
     .upload-card > p {
-      margin: 9px auto 21px;
+      margin: 10px auto 21px;
 
       color: var(--muted);
       line-height: 1.55;
@@ -574,7 +492,8 @@
     }
 
     .primary-button,
-    .secondary-button {
+    .secondary-button,
+    .action-button {
       display: flex;
       align-items: center;
       justify-content: center;
@@ -583,7 +502,7 @@
       min-height: 56px;
       padding: 14px 16px;
 
-      border-radius: 19px;
+      border-radius: 18px;
 
       font-size: 15px;
       font-weight: 800;
@@ -600,24 +519,24 @@
         linear-gradient(
           145deg,
           var(--blue),
-          var(--purple)
+          var(--lavender)
         );
 
       box-shadow:
-        0 14px 30px rgba(109, 145, 247, 0.28);
+        0 14px 30px rgba(102, 126, 234, 0.27);
     }
 
     .secondary-button {
-      color: var(--ink);
-      background: var(--solid-white);
+      color: var(--text);
+      background: var(--surface-solid);
 
       border: 1px solid var(--border);
-
       box-shadow: var(--small-shadow);
     }
 
     .primary-button:active,
-    .secondary-button:active {
+    .secondary-button:active,
+    .action-button:active {
       transform: scale(0.97);
     }
 
@@ -625,7 +544,7 @@
       width: 100%;
     }
 
-    .format-message {
+    .format-info {
       margin: 16px 0 0 !important;
 
       color: var(--muted) !important;
@@ -642,8 +561,7 @@
         linear-gradient(
           145deg,
           var(--blue-soft),
-          var(--purple-soft),
-          var(--pink-soft)
+          var(--lavender-soft)
         );
     }
 
@@ -653,7 +571,7 @@
       gap: 12px;
     }
 
-    .file-symbol {
+    .file-icon {
       display: grid;
       place-items: center;
       flex: 0 0 auto;
@@ -664,7 +582,7 @@
       border-radius: 18px;
 
       color: var(--blue);
-      background: var(--solid-white);
+      background: var(--surface-solid);
 
       box-shadow: var(--small-shadow);
 
@@ -706,9 +624,22 @@
       border-radius: 14px;
 
       color: var(--muted);
-      background: var(--solid-white);
+      background: var(--surface-solid);
 
       font-size: 22px;
+    }
+
+    .compress-message {
+      margin-top: 11px;
+      padding: 11px 13px;
+
+      border-radius: 14px;
+
+      color: var(--sage);
+      background: var(--sage-soft);
+
+      font-size: 12px;
+      line-height: 1.45;
     }
 
     .analyze-button {
@@ -722,8 +653,7 @@
       border: 1px solid var(--border);
       border-radius: 21px;
 
-      background: var(--white);
-
+      background: var(--surface);
       box-shadow: var(--small-shadow);
     }
 
@@ -751,8 +681,8 @@
       border: 1px solid var(--border);
       border-radius: 17px;
 
-      color: var(--ink);
-      background: var(--solid-white);
+      color: var(--text);
+      background: var(--surface-solid);
 
       font-size: 15px;
       line-height: 1.55;
@@ -760,19 +690,14 @@
       resize: vertical;
     }
 
-    .reassurance {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-
+    .privacy {
       margin: 18px auto 0;
       padding: 12px 15px;
 
       border-radius: 17px;
 
       color: var(--muted);
-      background: var(--mint-soft);
+      background: var(--sage-soft);
 
       font-size: 12px;
       line-height: 1.45;
@@ -782,85 +707,65 @@
     .loading-card,
     .error-card {
       max-width: 580px;
-      margin: 45px auto 0;
-      padding: 30px 22px;
+      margin: 48px auto 0;
+      padding: 31px 22px;
 
       text-align: center;
     }
 
-    .thinking-mascot {
+    .loader {
       position: relative;
 
       display: grid;
       place-items: center;
 
-      width: 122px;
-      height: 122px;
+      width: 112px;
+      height: 112px;
 
       margin: 0 auto 22px;
 
-      border-radius: 43px;
+      border-radius: 38px;
 
       background:
         linear-gradient(
           145deg,
           var(--blue-soft),
-          var(--purple-soft),
-          var(--pink-soft)
+          var(--lavender-soft),
+          var(--sage-soft)
         );
 
-      animation: thinkingFloat 2.4s ease-in-out infinite;
+      font-size: 38px;
+
+      animation: loaderBreathing 2.5s ease-in-out infinite;
     }
 
-    @keyframes thinkingFloat {
+    @keyframes loaderBreathing {
       0%,
       100% {
-        transform: translateY(0) rotate(-1deg);
+        transform: scale(1) translateY(0);
       }
 
       50% {
-        transform: translateY(-8px) rotate(2deg);
+        transform: scale(1.035) translateY(-5px);
       }
     }
 
-    .thinking-dot {
+    .loader::after {
+      content: "";
+
       position: absolute;
-      top: 12px;
-      right: 5px;
+      inset: -7px;
 
-      display: flex;
-      gap: 4px;
+      border: 3px solid transparent;
+      border-top-color: var(--blue);
+      border-radius: 42px;
+
+      animation: spin 1.2s linear infinite;
     }
 
-    .thinking-dot span {
-      width: 7px;
-      height: 7px;
-
-      border-radius: 50%;
-
-      background: var(--purple);
-
-      animation: dotWave 1.2s ease-in-out infinite;
-    }
-
-    .thinking-dot span:nth-child(2) {
-      animation-delay: 0.18s;
-    }
-
-    .thinking-dot span:nth-child(3) {
-      animation-delay: 0.36s;
-    }
-
-    @keyframes dotWave {
-      0%,
-      100% {
-        transform: translateY(0);
-        opacity: 0.45;
-      }
-
-      50% {
-        transform: translateY(-6px);
-        opacity: 1;
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
       }
     }
 
@@ -890,7 +795,7 @@
       background: var(--border);
     }
 
-    .progress > div {
+    .progress div {
       width: 12%;
       height: 100%;
 
@@ -899,10 +804,10 @@
       background:
         linear-gradient(
           90deg,
-          var(--pink),
-          var(--purple),
+          var(--coral),
+          var(--lavender),
           var(--blue),
-          var(--mint)
+          var(--sage)
         );
 
       transition: width 0.5s ease;
@@ -913,41 +818,36 @@
       gap: 9px;
 
       margin-top: 21px;
-
       text-align: left;
     }
 
     .step {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-
       padding: 12px 13px;
 
       border-radius: 15px;
 
       color: var(--muted);
-      background: var(--solid-white);
+      background: var(--surface-solid);
 
       font-size: 13px;
       font-weight: 680;
 
       transition:
         transform 0.2s ease,
-        background 0.2s ease,
-        color 0.2s ease;
+        color 0.2s ease,
+        background 0.2s ease;
     }
 
     .step.active {
-      color: var(--purple);
-      background: var(--purple-soft);
+      color: var(--blue);
+      background: var(--blue-soft);
 
       transform: translateX(5px);
     }
 
     .step.done {
-      color: var(--mint);
-      background: var(--mint-soft);
+      color: var(--sage);
+      background: var(--sage-soft);
     }
 
     .result-top {
@@ -965,7 +865,7 @@
       border-radius: 14px;
 
       color: var(--muted);
-      background: var(--white);
+      background: var(--surface);
 
       box-shadow: var(--small-shadow);
 
@@ -978,82 +878,11 @@
 
       border-radius: 999px;
 
-      color: var(--mint);
-      background: var(--mint-soft);
+      color: var(--sage);
+      background: var(--sage-soft);
 
       font-size: 12px;
       font-weight: 820;
-    }
-
-    .celebration {
-      display: flex;
-      align-items: center;
-      gap: 13px;
-
-      margin-bottom: 14px;
-      padding: 16px 17px;
-
-      border-radius: 23px;
-
-      color: var(--ink);
-
-      background:
-        linear-gradient(
-          145deg,
-          var(--yellow-soft),
-          var(--pink-soft),
-          var(--mint-soft)
-        );
-
-      box-shadow: var(--small-shadow);
-
-      animation: celebrationArrival 0.6s ease;
-    }
-
-    @keyframes celebrationArrival {
-      0% {
-        opacity: 0;
-        transform: scale(0.94) translateY(10px);
-      }
-
-      70% {
-        transform: scale(1.02) translateY(-2px);
-      }
-
-      100% {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-      }
-    }
-
-    .celebration span {
-      font-size: 32px;
-
-      animation: happyBounce 1.8s ease-in-out infinite;
-    }
-
-    @keyframes happyBounce {
-      0%,
-      100% {
-        transform: translateY(0) rotate(0deg);
-      }
-
-      50% {
-        transform: translateY(-4px) rotate(5deg);
-      }
-    }
-
-    .celebration strong {
-      display: block;
-
-      margin-bottom: 3px;
-    }
-
-    .celebration p {
-      margin: 0;
-
-      color: var(--muted);
-      font-size: 13px;
     }
 
     .result-card {
@@ -1065,25 +894,13 @@
 
       box-shadow: var(--small-shadow);
 
-      animation: cardRise 0.5s ease both;
+      animation: cardEntrance 0.5s ease both;
     }
 
-    .result-card:nth-of-type(2) {
-      animation-delay: 0.05s;
-    }
-
-    .result-card:nth-of-type(3) {
-      animation-delay: 0.1s;
-    }
-
-    .result-card:nth-of-type(4) {
-      animation-delay: 0.15s;
-    }
-
-    @keyframes cardRise {
+    @keyframes cardEntrance {
       from {
         opacity: 0;
-        transform: translateY(15px);
+        transform: translateY(14px);
       }
 
       to {
@@ -1097,7 +914,7 @@
         linear-gradient(
           145deg,
           var(--blue-soft),
-          var(--white)
+          var(--surface)
         );
     }
 
@@ -1105,7 +922,7 @@
       background:
         linear-gradient(
           145deg,
-          var(--mint-soft),
+          var(--sage-soft),
           var(--blue-soft)
         );
     }
@@ -1114,8 +931,8 @@
       background:
         linear-gradient(
           145deg,
-          var(--purple-soft),
-          var(--pink-soft)
+          var(--lavender-soft),
+          var(--surface)
         );
     }
 
@@ -1123,8 +940,8 @@
       background:
         linear-gradient(
           145deg,
-          var(--yellow-soft),
-          var(--purple-soft)
+          var(--sand-soft),
+          var(--surface)
         );
     }
 
@@ -1132,8 +949,8 @@
       background:
         linear-gradient(
           145deg,
-          var(--peach-soft),
-          var(--yellow-soft)
+          var(--coral-soft),
+          var(--surface)
         );
     }
 
@@ -1141,7 +958,7 @@
       background:
         linear-gradient(
           145deg,
-          var(--pink-soft),
+          var(--lavender-soft),
           var(--blue-soft)
         );
     }
@@ -1151,17 +968,17 @@
         linear-gradient(
           145deg,
           var(--blue-soft),
-          var(--mint-soft)
+          var(--sage-soft)
         );
     }
 
-    .card-heading {
+    .result-heading {
       display: flex;
       align-items: center;
       gap: 11px;
     }
 
-    .card-emoji {
+    .result-icon {
       display: grid;
       place-items: center;
 
@@ -1170,14 +987,14 @@
 
       border-radius: 16px;
 
-      background: var(--white);
+      background: var(--surface);
 
       box-shadow: var(--small-shadow);
 
-      font-size: 23px;
+      font-size: 22px;
     }
 
-    .card-label {
+    .label {
       color: var(--muted);
 
       font-size: 11px;
@@ -1202,7 +1019,7 @@
     }
 
     .summary-text {
-      color: var(--ink) !important;
+      color: var(--text) !important;
 
       font-size: 22px;
       font-weight: 770;
@@ -1227,8 +1044,8 @@
 
       border-radius: 16px;
 
-      color: var(--ink);
-      background: var(--white);
+      color: var(--text);
+      background: var(--surface);
 
       line-height: 1.48;
 
@@ -1256,7 +1073,7 @@
         linear-gradient(
           145deg,
           var(--blue),
-          var(--purple)
+          var(--lavender)
         );
 
       font-size: 12px;
@@ -1283,8 +1100,8 @@
       background:
         linear-gradient(
           145deg,
-          var(--mint-soft),
-          var(--white)
+          var(--sage-soft),
+          var(--surface)
         );
     }
 
@@ -1292,8 +1109,8 @@
       background:
         linear-gradient(
           145deg,
-          var(--yellow-soft),
-          var(--peach-soft)
+          var(--sand-soft),
+          var(--surface)
         );
     }
 
@@ -1301,8 +1118,8 @@
       background:
         linear-gradient(
           145deg,
-          var(--red-soft),
-          var(--pink-soft)
+          var(--danger-soft),
+          var(--surface)
         );
     }
 
@@ -1313,7 +1130,7 @@
       border-left: 4px solid var(--blue);
       border-radius: 0 16px 16px 0;
 
-      background: var(--white);
+      background: var(--surface);
     }
 
     .proof strong {
@@ -1322,7 +1139,6 @@
       margin-bottom: 7px;
 
       color: var(--blue);
-
       font-size: 12px;
     }
 
@@ -1339,40 +1155,146 @@
       font-size: 13px;
     }
 
-    .error-face {
-      display: grid;
-      place-items: center;
+    .action-zone {
+      margin-top: 15px;
+      padding: 20px;
 
-      width: 90px;
-      height: 90px;
-
-      margin: 0 auto 19px;
-
-      border-radius: 31px;
+      border: 1px solid var(--border);
+      border-radius: 27px;
 
       background:
         linear-gradient(
           145deg,
-          var(--pink-soft),
-          var(--yellow-soft)
+          var(--surface),
+          var(--lavender-soft) 55%,
+          var(--coral-soft)
         );
 
-      font-size: 42px;
+      box-shadow: var(--shadow);
     }
 
-    @media (max-width: 620px) {
+    .premium-badge {
+      display: inline-flex;
+
+      margin-bottom: 10px;
+      padding: 7px 11px;
+
+      border-radius: 999px;
+
+      color: var(--lavender);
+      background: var(--surface);
+
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .action-zone h2 {
+      margin: 0;
+
+      font-size: 24px;
+      letter-spacing: -0.04em;
+    }
+
+    .action-zone > p {
+      margin: 9px 0 17px;
+
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .action-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .action-button {
+      justify-content: flex-start;
+
+      color: var(--text);
+      background: var(--surface);
+
+      border: 1px solid var(--border);
+      box-shadow: var(--small-shadow);
+
+      text-align: left;
+    }
+
+    .action-button span {
+      display: block;
+    }
+
+    .action-button small {
+      display: block;
+
+      margin-top: 3px;
+
+      color: var(--muted);
+
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .assistant-panel {
+      margin-top: 13px;
+      padding: 18px;
+
+      border-radius: 20px;
+
+      background: var(--surface);
+      box-shadow: var(--small-shadow);
+    }
+
+    .assistant-panel h3 {
+      margin: 0 0 11px;
+    }
+
+    .assistant-output {
+      min-height: 90px;
+
+      color: var(--text);
+
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+
+    .copy-button {
+      width: 100%;
+      margin-top: 13px;
+
+      color: var(--text);
+      background: var(--sage-soft);
+    }
+
+    .error-symbol {
+      display: grid;
+      place-items: center;
+
+      width: 82px;
+      height: 82px;
+
+      margin: 0 auto 19px;
+
+      border-radius: 28px;
+
+      color: var(--danger);
+      background: var(--danger-soft);
+
+      font-size: 34px;
+    }
+
+    @media (max-width: 640px) {
       .upload-buttons,
       .two-columns {
         grid-template-columns: 1fr;
       }
 
-      .welcome h1 {
-        font-size: 39px;
+      .benefits {
+        grid-template-columns: 1fr;
       }
 
-      .large-mascot {
-        width: 100px;
-        height: 100px;
+      .hero h1 {
+        font-size: 39px;
       }
     }
 
@@ -1389,17 +1311,17 @@
 </head>
 
 <body>
-  <div class="background-shape shape-one"></div>
-  <div class="background-shape shape-two"></div>
-  <div class="background-shape shape-three"></div>
+  <div class="ambient-shape shape-a"></div>
+  <div class="ambient-shape shape-b"></div>
+  <div class="ambient-shape shape-c"></div>
 
   <header class="topbar">
     <div class="brand">
-      <div class="mini-mascot">😊</div>
+      <div class="logo">E</div>
 
       <div>
         <strong>ExpliqueMoi</strong>
-        <span>Votre assistant bienveillant</span>
+        <span>Comprendre puis agir</span>
       </div>
     </div>
 
@@ -1407,44 +1329,50 @@
       id="themeButton"
       class="theme-button"
       type="button"
-      aria-label="Changer le thème"
     >
       ☾
     </button>
   </header>
 
   <main>
-    <!-- ACCUEIL -->
     <section id="homeScreen" class="screen active">
-      <div class="welcome">
-        <div class="large-mascot">
-          <div class="face">
-            <span class="eye left"></span>
-            <span class="eye right"></span>
-            <span class="mouth"></span>
-          </div>
-
-          <span class="sparkle one">✦</span>
-          <span class="sparkle two">✦</span>
-        </div>
-
-        <span class="welcome-badge">
-          👋 Bonjour, je suis là pour vous aider
+      <div class="hero">
+        <span class="eyebrow">
+          Assistant intelligent pour vos documents
         </span>
 
         <h1>
-          Quel document voulez-vous
-          <span>comprendre aujourd’hui ?</span>
+          Comprenez un document,
+          <span>puis passez à l’action.</span>
         </h1>
 
         <p>
-          Ajoutez votre document. Je vous expliquerai simplement ce que
-          c’est, ce qu’on vous demande et ce que vous devez faire.
+          Importez votre courrier, votre facture ou votre contrat.
+          ExpliqueMoi identifie l’essentiel et vous guide simplement.
         </p>
       </div>
 
-      <section class="glass-card upload-card">
-        <h2>📄 Ajoutez votre document</h2>
+      <div class="benefits">
+        <div class="benefit">
+          <strong>Clair</strong>
+          Une explication directe
+        </div>
+
+        <div class="benefit">
+          <strong>Vérifiable</strong>
+          Les passages sont cités
+        </div>
+
+        <div class="benefit">
+          <strong>Concret</strong>
+          Les prochaines actions
+        </div>
+      </div>
+
+      <section class="card upload-card">
+        <div class="upload-symbol">↥</div>
+
+        <h2>Ajouter un document</h2>
 
         <p>
           Prenez une photo ou choisissez un fichier sur votre téléphone.
@@ -1456,7 +1384,7 @@
           </label>
 
           <label class="secondary-button" for="fileInput">
-            🗂️ Importer un fichier
+            📄 Choisir un fichier
           </label>
         </div>
 
@@ -1475,16 +1403,14 @@
           hidden
         >
 
-        <p class="format-message">
-          PDF, JPG, PNG ou WebP — 4 Mo maximum actuellement
+        <p class="format-info">
+          Les images lourdes sont automatiquement compressées.
         </p>
       </section>
 
-      <section id="fileCard" class="glass-card file-card hidden">
+      <section id="fileCard" class="card file-card hidden">
         <div class="file-row">
-          <div id="fileSymbol" class="file-symbol">
-            PDF
-          </div>
+          <div id="fileIcon" class="file-icon">PDF</div>
 
           <div class="file-information">
             <strong id="fileName"></strong>
@@ -1495,25 +1421,27 @@
             id="removeFileButton"
             class="remove-button"
             type="button"
-            aria-label="Supprimer le document"
           >
             ×
           </button>
         </div>
+
+        <div
+          id="compressMessage"
+          class="compress-message hidden"
+        ></div>
 
         <button
           id="analyzeFileButton"
           class="primary-button analyze-button"
           type="button"
         >
-          ✨ Explique-moi ce document
+          ✨ Analyser le document
         </button>
       </section>
 
       <details>
-        <summary>
-          ✍️ Coller directement le texte
-        </summary>
+        <summary>Coller directement du texte</summary>
 
         <div class="manual-content">
           <textarea
@@ -1526,37 +1454,24 @@
             class="secondary-button full"
             type="button"
           >
-            💡 Explique-moi ce texte
+            Analyser ce texte
           </button>
         </div>
       </details>
 
-      <div class="reassurance">
-        🔒 Votre document sert uniquement à produire votre explication.
+      <div class="privacy">
+        🔒 Votre fichier sert uniquement à produire l’explication.
       </div>
     </section>
 
-    <!-- CHARGEMENT -->
     <section id="loadingScreen" class="screen">
-      <div class="glass-card loading-card">
-        <div class="thinking-mascot">
-          <div class="face">
-            <span class="eye left"></span>
-            <span class="eye right"></span>
-            <span class="mouth"></span>
-          </div>
+      <div class="card loading-card">
+        <div class="loader">📄</div>
 
-          <div class="thinking-dot">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-        </div>
-
-        <h2>Je m’occupe de votre document 😊</h2>
+        <h2>Analyse en cours</h2>
 
         <p id="loadingMessage">
-          Ne vous inquiétez pas, je commence par identifier le document.
+          Identification du document…
         </p>
 
         <div class="progress">
@@ -1565,25 +1480,24 @@
 
         <div class="steps">
           <div class="step active">
-            📄 Document reçu
+            Identification du document
           </div>
 
           <div class="step">
-            🔍 Je cherche ce qu’on vous demande
+            Recherche de la demande
           </div>
 
           <div class="step">
-            📅 Je vérifie les dates et montants
+            Vérification des dates et montants
           </div>
 
           <div class="step">
-            💡 Je prépare une explication simple
+            Préparation de l’explication
           </div>
         </div>
       </div>
     </section>
 
-    <!-- RÉSULTAT -->
     <section id="resultScreen" class="screen">
       <div class="result-top">
         <button
@@ -1599,27 +1513,12 @@
         </div>
       </div>
 
-      <div class="celebration">
-        <span>🎉</span>
-
-        <div>
-          <strong>C’est prêt !</strong>
-
-          <p>
-            J’ai trouvé les informations principales. Voici l’explication.
-          </p>
-        </div>
-      </div>
-
       <section class="result-card document-card">
-        <div class="card-heading">
-          <div class="card-emoji">📄</div>
+        <div class="result-heading">
+          <div class="result-icon">📄</div>
 
           <div>
-            <span class="card-label">
-              Ce document est
-            </span>
-
+            <span class="label">Ce document est</span>
             <h2 id="documentType"></h2>
           </div>
         </div>
@@ -1628,15 +1527,12 @@
       </section>
 
       <section class="result-card summary-card">
-        <div class="card-heading">
-          <div class="card-emoji">💙</div>
+        <div class="result-heading">
+          <div class="result-icon">◎</div>
 
           <div>
-            <span class="card-label">
-              En une phrase
-            </span>
-
-            <h2>Voici l’essentiel</h2>
+            <span class="label">En clair</span>
+            <h2>L’essentiel</h2>
           </div>
         </div>
 
@@ -1644,14 +1540,11 @@
       </section>
 
       <section class="result-card action-card">
-        <div class="card-heading">
-          <div class="card-emoji">✅</div>
+        <div class="result-heading">
+          <div class="result-icon">✓</div>
 
           <div>
-            <span class="card-label">
-              Ce que vous devez faire
-            </span>
-
+            <span class="label">Ce que vous devez faire</span>
             <h2 id="request"></h2>
           </div>
         </div>
@@ -1661,30 +1554,14 @@
 
       <div class="two-columns">
         <section class="result-card date-card">
-          <div class="card-heading">
-            <div class="card-emoji">📅</div>
-
-            <div>
-              <span class="card-label">
-                Date principale
-              </span>
-            </div>
-          </div>
+          <span class="label">Date principale</span>
 
           <strong id="mainDate" class="large-value"></strong>
           <p id="mainDateMeaning"></p>
         </section>
 
         <section class="result-card amount-card">
-          <div class="card-heading">
-            <div class="card-emoji">💶</div>
-
-            <div>
-              <span class="card-label">
-                Montant principal
-              </span>
-            </div>
-          </div>
+          <span class="label">Montant principal</span>
 
           <strong id="amount" class="large-value"></strong>
           <p id="amountMeaning"></p>
@@ -1696,16 +1573,11 @@
         class="result-card urgency-card"
         data-level="uncertain"
       >
-        <div class="card-heading">
-          <div id="urgencyEmoji" class="card-emoji">
-            🤔
-          </div>
+        <div class="result-heading">
+          <div id="urgencyIcon" class="result-icon">?</div>
 
           <div>
-            <span class="card-label">
-              Dois-je m’inquiéter ?
-            </span>
-
+            <span class="label">Niveau d’attention</span>
             <h2 id="urgencyTitle"></h2>
           </div>
         </div>
@@ -1714,57 +1586,116 @@
       </section>
 
       <section class="result-card why-card">
-        <div class="card-heading">
-          <div class="card-emoji">💡</div>
+        <span class="label">Pourquoi vous l’avez reçu</span>
 
-          <div>
-            <span class="card-label">
-              Pourquoi vous l’avez reçu
-            </span>
-
-            <h2>Je vous explique</h2>
-          </div>
-        </div>
+        <h2>Explication</h2>
 
         <p id="whyReceived"></p>
       </section>
 
       <section class="result-card proof-card">
-        <div class="card-heading">
-          <div class="card-emoji">🔎</div>
+        <span class="label">Où trouve-t-on l’information ?</span>
 
-          <div>
-            <span class="card-label">
-              Où trouve-t-on l’information ?
-            </span>
-
-            <h2>Passages du document</h2>
-          </div>
-        </div>
+        <h2>Passages du document</h2>
 
         <div id="proofs"></div>
       </section>
+
+      <section class="action-zone">
+        <span class="premium-badge">
+          Aperçu Premium
+        </span>
+
+        <h2>Passer à l’action</h2>
+
+        <p>
+          ExpliqueMoi peut maintenant vous aider à préparer la suite.
+        </p>
+
+        <div class="action-grid">
+          <button
+            class="action-button"
+            type="button"
+            data-action="reply"
+          >
+            <span>
+              ✉️ Aidez-moi à répondre
+              <small>Préparer un courrier ou un e-mail</small>
+            </span>
+          </button>
+
+          <button
+            class="action-button"
+            type="button"
+            data-action="fill"
+          >
+            <span>
+              📝 Aidez-moi à remplir le document
+              <small>Comprendre les informations à renseigner</small>
+            </span>
+          </button>
+
+          <button
+            class="action-button"
+            type="button"
+            data-action="checklist"
+          >
+            <span>
+              📎 Préparer les pièces nécessaires
+              <small>Créer une checklist simple</small>
+            </span>
+          </button>
+
+          <button
+            class="action-button"
+            type="button"
+            data-action="questions"
+          >
+            <span>
+              ☎️ Préparer mes questions
+              <small>Savoir quoi demander à l’organisme</small>
+            </span>
+          </button>
+        </div>
+
+        <div
+          id="assistantPanel"
+          class="assistant-panel hidden"
+        >
+          <h3 id="assistantTitle"></h3>
+
+          <div
+            id="assistantOutput"
+            class="assistant-output"
+          ></div>
+
+          <button
+            id="copyAssistantButton"
+            class="action-button copy-button"
+            type="button"
+          >
+            Copier le résultat
+          </button>
+        </div>
+      </section>
     </section>
 
-    <!-- ERREUR -->
     <section id="errorScreen" class="screen">
-      <div class="glass-card error-card">
-        <div class="error-face">😕</div>
+      <div class="card error-card">
+        <div class="error-symbol">!</div>
 
         <h2 id="errorTitle">
-          Je n’ai pas réussi à lire ce document
+          Impossible d’analyser le document
         </h2>
 
-        <p id="errorMessage">
-          Ce n’est pas grave. Nous pouvons réessayer.
-        </p>
+        <p id="errorMessage"></p>
 
         <button
           id="retryButton"
           class="primary-button full"
           type="button"
         >
-          🔄 Réessayer
+          Réessayer
         </button>
 
         <button
@@ -1773,7 +1704,7 @@
           type="button"
           style="margin-top:10px"
         >
-          📄 Choisir un autre document
+          Choisir un autre document
         </button>
       </div>
     </section>
@@ -1784,10 +1715,13 @@
 
     const state = {
       selectedFile: null,
-      progressTimer: null
+      originalFile: null,
+      progressTimer: null,
+      analysis: null
     };
 
-    const MAX_FILE_SIZE = 4 * 1024 * 1024;
+    const MAX_DIRECT_SIZE = 4 * 1024 * 1024;
+    const MAX_IMAGE_SOURCE_SIZE = 30 * 1024 * 1024;
 
     document.addEventListener("DOMContentLoaded", () => {
       bindEvents();
@@ -1799,32 +1733,26 @@
       $("fileInput").addEventListener("change", handleFile);
 
       $("removeFileButton").addEventListener("click", clearFile);
+      $("analyzeFileButton").addEventListener("click", analyzeFile);
+      $("analyzeTextButton").addEventListener("click", analyzeText);
 
-      $("analyzeFileButton").addEventListener(
-        "click",
-        analyzeFile
-      );
-
-      $("analyzeTextButton").addEventListener(
-        "click",
-        analyzeText
-      );
-
-      $("newDocumentButton").addEventListener(
-        "click",
-        resetApp
-      );
-
+      $("newDocumentButton").addEventListener("click", resetApp);
       $("retryButton").addEventListener("click", retry);
+      $("chooseAnotherButton").addEventListener("click", resetApp);
 
-      $("chooseAnotherButton").addEventListener(
-        "click",
-        resetApp
-      );
+      $("themeButton").addEventListener("click", toggleTheme);
 
-      $("themeButton").addEventListener(
+      document
+        .querySelectorAll("[data-action]")
+        .forEach((button) => {
+          button.addEventListener("click", () => {
+            createActionHelp(button.dataset.action);
+          });
+        });
+
+      $("copyAssistantButton").addEventListener(
         "click",
-        toggleTheme
+        copyAssistantResult
       );
     }
 
@@ -1841,39 +1769,157 @@
       });
     }
 
-    function handleFile(event) {
+    async function handleFile(event) {
       const file = event.target.files?.[0];
 
       if (!file) {
         return;
       }
 
-      const acceptedTypes = [
+      const accepted = [
         "application/pdf",
         "image/jpeg",
         "image/png",
         "image/webp"
       ];
 
-      if (!acceptedTypes.includes(file.type)) {
-        event.target.value = "";
-
+      if (!accepted.includes(file.type)) {
         showError(
-          "Ce format n’est pas encore compatible",
-          "Choisissez un fichier PDF, JPG, PNG ou WebP."
+          "Format non compatible",
+          "Utilisez un PDF, une image JPG, PNG ou WebP."
         );
 
         return;
       }
 
+      state.originalFile = file;
       state.selectedFile = file;
 
-      $("fileName").textContent = file.name;
+      $("compressMessage").classList.add("hidden");
+
+      if (
+        file.type.startsWith("image/") &&
+        file.size > MAX_DIRECT_SIZE
+      ) {
+        if (file.size > MAX_IMAGE_SOURCE_SIZE) {
+          showError(
+            "Image trop volumineuse",
+            "Cette image dépasse 30 Mo. Essayez une photo de résolution plus faible."
+          );
+
+          return;
+        }
+
+        try {
+          $("compressMessage").textContent =
+            "Compression automatique de l’image en cours…";
+
+          $("compressMessage").classList.remove("hidden");
+
+          state.selectedFile =
+            await compressImage(file);
+
+          $("compressMessage").textContent =
+            `Image compressée : ${formatSize(file.size)} → ` +
+            `${formatSize(state.selectedFile.size)}.`;
+        } catch {
+          showError(
+            "Compression impossible",
+            "L’image n’a pas pu être compressée sur ce téléphone."
+          );
+
+          return;
+        }
+      }
+
+      displayFile(state.selectedFile, file.name);
+    }
+
+    async function compressImage(file) {
+      const bitmap = await createImageBitmap(file);
+
+      const maximumDimension = 2200;
+
+      const ratio = Math.min(
+        1,
+        maximumDimension / Math.max(bitmap.width, bitmap.height)
+      );
+
+      const width = Math.round(bitmap.width * ratio);
+      const height = Math.round(bitmap.height * ratio);
+
+      const canvas = document.createElement("canvas");
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const context = canvas.getContext("2d");
+
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, width, height);
+
+      context.drawImage(
+        bitmap,
+        0,
+        0,
+        width,
+        height
+      );
+
+      bitmap.close();
+
+      let quality = 0.82;
+      let blob = await canvasToBlob(canvas, quality);
+
+      while (
+        blob.size > 3.7 * 1024 * 1024 &&
+        quality > 0.48
+      ) {
+        quality -= 0.08;
+        blob = await canvasToBlob(canvas, quality);
+      }
+
+      return new File(
+        [blob],
+        replaceExtension(file.name, "jpg"),
+        {
+          type: "image/jpeg",
+          lastModified: Date.now()
+        }
+      );
+    }
+
+    function canvasToBlob(canvas, quality) {
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error("Compression impossible"));
+            }
+          },
+          "image/jpeg",
+          quality
+        );
+      });
+    }
+
+    function replaceExtension(name, extension) {
+      const cleanName =
+        name.replace(/\.[^.]+$/, "");
+
+      return `${cleanName}-compresse.${extension}`;
+    }
+
+    function displayFile(file, originalName) {
+      $("fileName").textContent =
+        originalName || file.name;
 
       $("fileDetails").textContent =
         `${getFileType(file)} · ${formatSize(file.size)}`;
 
-      $("fileSymbol").textContent =
+      $("fileIcon").textContent =
         file.type === "application/pdf"
           ? "PDF"
           : "IMG";
@@ -1904,28 +1950,43 @@
 
     function clearFile() {
       state.selectedFile = null;
+      state.originalFile = null;
 
       $("cameraInput").value = "";
       $("fileInput").value = "";
 
       $("fileCard").classList.add("hidden");
+      $("compressMessage").classList.add("hidden");
     }
 
     async function analyzeFile() {
       if (!state.selectedFile) {
         showError(
-          "Je n’ai pas encore reçu de document",
-          "Choisissez un document avant de lancer l’explication."
+          "Aucun document sélectionné",
+          "Choisissez un document avant de lancer l’analyse."
         );
 
         return;
       }
 
-      if (state.selectedFile.size > MAX_FILE_SIZE) {
+      if (
+        state.selectedFile.type === "application/pdf" &&
+        state.selectedFile.size > MAX_DIRECT_SIZE
+      ) {
         showError(
-          "Ce document est un peu trop volumineux",
-          `Il fait ${formatSize(state.selectedFile.size)}. ` +
-          "La limite actuelle est d’environ 4 Mo."
+          "PDF trop volumineux",
+          `Ce PDF fait ${formatSize(state.selectedFile.size)}. ` +
+          "Les images peuvent être compressées automatiquement, " +
+          "mais les gros PDF nécessitent encore notre futur système d’upload."
+        );
+
+        return;
+      }
+
+      if (state.selectedFile.size > MAX_DIRECT_SIZE) {
+        showError(
+          "Fichier encore trop volumineux",
+          "La compression n’a pas suffi. Essayez une photo de résolution plus faible."
         );
 
         return;
@@ -1943,8 +2004,8 @@
 
       if (text.length < 30) {
         showError(
-          "Il me manque un peu de texte",
-          "Collez plusieurs phrases pour que je puisse bien les comprendre."
+          "Texte trop court",
+          "Collez plusieurs phrases du document."
         );
 
         return;
@@ -1967,15 +2028,7 @@
           body: formData
         });
 
-        let data;
-
-        try {
-          data = await response.json();
-        } catch {
-          throw new Error(
-            "Le serveur a renvoyé une réponse illisible."
-          );
-        }
+        const data = await response.json();
 
         if (!response.ok) {
           throw new Error(
@@ -1984,9 +2037,11 @@
           );
         }
 
+        state.analysis = data;
+
         finishProgress();
 
-        await wait(550);
+        await wait(500);
 
         renderResult(data);
         showScreen("resultScreen");
@@ -1994,39 +2049,11 @@
         stopProgress();
 
         showError(
-          "Je n’ai pas réussi à terminer l’analyse",
-          friendlyError(error)
+          "Impossible d’analyser le document",
+          error.message ||
+          "Une erreur inattendue est survenue."
         );
       }
-    }
-
-    function friendlyError(error) {
-      const message = String(error?.message || "");
-
-      if (/failed to fetch|network|connexion/i.test(message)) {
-        return (
-          "Je n’arrive pas à joindre le serveur. " +
-          "Vérifiez votre connexion Internet puis réessayez."
-        );
-      }
-
-      if (/quota|429|resource exhausted/i.test(message)) {
-        return (
-          "Le service est momentanément très sollicité. " +
-          "Réessayez dans quelques minutes."
-        );
-      }
-
-      if (/too large|payload|413|volumineux/i.test(message)) {
-        return (
-          "Le document dépasse la taille acceptée actuellement."
-        );
-      }
-
-      return (
-        message ||
-        "Ce n’est pas grave. Essayez avec une photo plus nette ou un autre fichier."
-      );
     }
 
     function renderResult(data) {
@@ -2046,11 +2073,11 @@
 
       $("summary").textContent =
         data.plain_summary ||
-        "Je n’ai pas pu produire une explication suffisamment claire.";
+        "L’explication principale n’a pas pu être produite.";
 
       $("request").textContent =
         data.request ||
-        "Aucune demande certaine n’a été identifiée.";
+        "Aucune demande certaine identifiée.";
 
       renderActions(data.actions);
       renderDate(data.dates);
@@ -2061,16 +2088,18 @@
 
       $("amountMeaning").textContent =
         data.amount?.meaning ||
-        "Aucun montant principal clairement identifié.";
+        "Aucun montant principal identifié.";
 
       renderUrgency(data.urgency);
 
       $("whyReceived").textContent =
         data.why_received ||
-        "La raison n’est pas clairement indiquée dans le document.";
+        "La raison n’est pas clairement indiquée.";
 
       renderConfidence(data.confidence);
       renderProofs(data.evidence);
+
+      $("assistantPanel").classList.add("hidden");
     }
 
     function renderActions(actions) {
@@ -2112,7 +2141,7 @@
         return;
       }
 
-      const mainDate =
+      const date =
         dates.find((item) =>
           /limite|échéance|paiement|réponse|avant/i.test(
             `${item.label || ""} ${item.meaning || ""}`
@@ -2120,17 +2149,17 @@
         ) || dates[0];
 
       $("mainDate").textContent =
-        mainDate.date ||
+        date.date ||
         "Non trouvée";
 
       $("mainDateMeaning").textContent =
-        mainDate.meaning ||
-        mainDate.label ||
+        date.meaning ||
+        date.label ||
         "Date mentionnée";
     }
 
     function renderUrgency(urgency = {}) {
-      const acceptedLevels = [
+      const accepted = [
         "none",
         "soon",
         "urgent",
@@ -2138,27 +2167,31 @@
       ];
 
       const level =
-        acceptedLevels.includes(urgency.level)
+        accepted.includes(urgency.level)
           ? urgency.level
           : "uncertain";
 
       const titles = {
-        none: "Tout va bien 🙂",
-        soon: "Une petite action est nécessaire",
+        none: "Rien d’urgent",
+        soon: "À faire prochainement",
         urgent: "À traiter rapidement",
-        uncertain: "Je vous conseille de vérifier"
+        uncertain: "À vérifier"
       };
 
-      const emojis = {
-        none: "😊",
-        soon: "📝",
-        urgent: "⏰",
-        uncertain: "🤔"
+      const icons = {
+        none: "✓",
+        soon: "!",
+        urgent: "!",
+        uncertain: "?"
       };
 
       $("urgencyCard").dataset.level = level;
-      $("urgencyTitle").textContent = titles[level];
-      $("urgencyEmoji").textContent = emojis[level];
+
+      $("urgencyTitle").textContent =
+        titles[level];
+
+      $("urgencyIcon").textContent =
+        icons[level];
 
       $("urgencyMessage").textContent =
         urgency.message ||
@@ -2169,21 +2202,18 @@
       const confidence =
         Math.max(
           0,
-          Math.min(
-            100,
-            Number(value) || 0
-          )
+          Math.min(100, Number(value) || 0)
         );
 
       if (confidence >= 80) {
         $("confidence").textContent =
-          `Bien compris · ${confidence} %`;
+          `Confiance élevée · ${confidence} %`;
       } else if (confidence >= 55) {
         $("confidence").textContent =
-          `À confirmer · ${confidence} %`;
+          `Confiance moyenne · ${confidence} %`;
       } else {
         $("confidence").textContent =
-          `Lecture difficile · ${confidence} %`;
+          `À vérifier · ${confidence} %`;
       }
     }
 
@@ -2194,7 +2224,7 @@
 
       if (!Array.isArray(proofs) || !proofs.length) {
         container.innerHTML =
-          "<p>Je n’ai pas trouvé de passage suffisamment clair à afficher.</p>";
+          "<p>Aucun passage suffisamment clair n’a été identifié.</p>";
 
         return;
       }
@@ -2221,48 +2251,142 @@
         article.appendChild(page);
         article.appendChild(quote);
 
-        const explanationText =
+        const explanation =
           proof.explanation ||
           proof.explication;
 
-        if (explanationText) {
-          const explanation =
+        if (explanation) {
+          const paragraph =
             document.createElement("p");
 
-          explanation.textContent =
-            explanationText;
+          paragraph.textContent = explanation;
 
-          article.appendChild(explanation);
+          article.appendChild(paragraph);
         }
 
         container.appendChild(article);
       });
     }
 
+    function createActionHelp(type) {
+      const data = state.analysis || {};
+
+      const actions =
+        Array.isArray(data.actions)
+          ? data.actions
+          : [];
+
+      let title = "";
+      let output = "";
+
+      if (type === "reply") {
+        title = "Proposition de réponse";
+
+        output =
+`Objet : Réponse concernant ${data.document_type || "votre document"}
+
+Bonjour,
+
+Je fais suite au document reçu concernant :
+${data.request || "la demande indiquée dans votre courrier"}.
+
+Je vous remercie de bien vouloir confirmer les démarches à effectuer ainsi que les éventuelles pièces complémentaires nécessaires.
+
+Cordialement,`;
+      }
+
+      if (type === "fill") {
+        title = "Guide de remplissage";
+
+        output =
+`Avant de remplir ce document :
+
+1. Vérifiez votre identité et vos coordonnées.
+2. Repérez les champs marqués comme obligatoires.
+3. Préparez les informations suivantes :
+${actions.length
+  ? actions.map((item, index) =>
+      `${index + 1}. ${
+        typeof item === "string"
+          ? item
+          : item.action
+      }`
+    ).join("\n")
+  : "Aucune information précise n’a encore été identifiée."}
+
+Ne validez pas un montant fiscal, juridique ou bancaire sans vérifier sa source.`;
+      }
+
+      if (type === "checklist") {
+        title = "Checklist des pièces";
+
+        output =
+`Checklist proposée :
+
+□ Le document reçu
+□ Une pièce d’identité
+□ Votre numéro de dossier ou de client
+□ Les justificatifs cités dans le document
+□ Une copie de votre réponse
+□ La preuve d’envoi ou de dépôt
+
+Vérifiez les passages du document pour confirmer les pièces réellement demandées.`;
+      }
+
+      if (type === "questions") {
+        title = "Questions à poser";
+
+        output =
+`Vous pouvez demander :
+
+1. Pouvez-vous confirmer précisément ce que je dois faire ?
+2. Quelle est la date limite exacte ?
+3. Quels justificatifs dois-je fournir ?
+4. Puis-je transmettre les documents en ligne ?
+5. Que se passe-t-il si je dépasse le délai ?
+6. Pouvez-vous me confirmer la réception de mon dossier ?`;
+      }
+
+      $("assistantTitle").textContent = title;
+      $("assistantOutput").textContent = output;
+
+      $("assistantPanel").classList.remove("hidden");
+
+      $("assistantPanel").scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }
+
+    async function copyAssistantResult() {
+      const text =
+        $("assistantOutput").textContent;
+
+      try {
+        await navigator.clipboard.writeText(text);
+
+        $("copyAssistantButton").textContent =
+          "Copié ✓";
+
+        setTimeout(() => {
+          $("copyAssistantButton").textContent =
+            "Copier le résultat";
+        }, 1600);
+      } catch {
+        alert(
+          "Maintenez votre doigt sur le texte pour le copier."
+        );
+      }
+    }
+
     function startProgress() {
       stopProgress();
 
       const stages = [
-        [
-          18,
-          "Super, j’ai bien reçu votre document.",
-          0
-        ],
-        [
-          43,
-          "Je cherche ce qu’on vous demande.",
-          1
-        ],
-        [
-          69,
-          "Je vérifie les dates et les montants.",
-          2
-        ],
-        [
-          87,
-          "J’ai presque terminé votre explication.",
-          3
-        ]
+        [18, "Identification du document…", 0],
+        [43, "Recherche de la demande…", 1],
+        [69, "Vérification des dates et montants…", 2],
+        [87, "Préparation de l’explication…", 3]
       ];
 
       let index = 0;
@@ -2279,7 +2403,7 @@
           }
 
           updateProgress(...stages[index]);
-        }, 1150);
+        }, 1100);
     }
 
     function updateProgress(
@@ -2296,10 +2420,7 @@
       document
         .querySelectorAll(".step")
         .forEach((step, index) => {
-          step.classList.remove(
-            "active",
-            "done"
-          );
+          step.classList.remove("active", "done");
 
           if (index < activeStep) {
             step.classList.add("done");
@@ -2313,9 +2434,8 @@
       stopProgress();
 
       $("progressBar").style.width = "100%";
-
       $("loadingMessage").textContent =
-        "C’est prêt ! Je vais maintenant tout vous expliquer.";
+        "Analyse terminée.";
 
       document
         .querySelectorAll(".step")
@@ -2360,7 +2480,10 @@
       stopProgress();
       clearFile();
 
+      state.analysis = null;
+
       $("manualText").value = "";
+      $("assistantPanel").classList.add("hidden");
 
       showScreen("homeScreen");
     }
@@ -2371,7 +2494,6 @@
 
       if (saved === "dark") {
         document.body.classList.add("dark");
-
         $("themeButton").textContent = "☀";
       }
     }
@@ -2379,15 +2501,15 @@
     function toggleTheme() {
       document.body.classList.toggle("dark");
 
-      const isDark =
+      const dark =
         document.body.classList.contains("dark");
 
       $("themeButton").textContent =
-        isDark ? "☀" : "☾";
+        dark ? "☀" : "☾";
 
       localStorage.setItem(
         "expliqueMoiTheme",
-        isDark ? "dark" : "light"
+        dark ? "dark" : "light"
       );
     }
 
