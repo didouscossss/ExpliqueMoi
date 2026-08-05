@@ -3,13 +3,11 @@ import {
   tryAnswerLocally
 } from "../lib/documentContext.js";
 
-const MODEL = "gemini-3.5-flash";
-const FALLBACK_MODELS = [
-  "gemini-3.5-flash",
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-flash-latest"
-];
+import {
+  PRIMARY_MODEL as MODEL,
+  FALLBACK_MODELS,
+  isUnavailableModelError
+} from "../lib/geminiModels.js";
 
 const CHAT_SCHEMA = {
   type: "OBJECT",
@@ -186,7 +184,7 @@ function formatSource(source) {
 }
 
 async function askGeminiWithContext(question, context, history) {
-  const models = [...new Set(FALLBACK_MODELS)];
+  const models = [...new Set([MODEL, ...FALLBACK_MODELS])].slice(0, 4);
   let lastDetail = null;
 
   const historyText = history
@@ -247,8 +245,10 @@ Réponds en JSON { "answer", "source", "found" }.
         lastDetail = data;
 
         if (
-          response.status === 404 ||
-          /not found|unknown model/i.test(String(data?.error?.message || ""))
+          isUnavailableModelError(
+            response.status,
+            data?.error?.message || ""
+          )
         ) {
           continue;
         }

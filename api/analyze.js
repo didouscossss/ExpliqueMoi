@@ -35,13 +35,16 @@ const HETEROGENEOUS_BATCH_WARNING =
 
 /** Budget serveur sous maxDuration Vercel (60s) — laisse de la marge pour la réponse. */
 const REQUEST_BUDGET_MS = 54000;
-const PAGE_IMAGES_MIN_REMAINING_MS = 22000;
+/** Minimum pour tenter le fallback OCR pages→images (après échec direct). */
+const PAGE_IMAGES_MIN_REMAINING_MS = 12000;
 
 const ErrorCode = {
   PDF_PROTECTED: "PDF_PROTECTED",
   PDF_CORRUPTED: "PDF_CORRUPTED",
   PDF_NO_USABLE_CONTENT: "PDF_NO_USABLE_CONTENT",
+  PDF_NO_TEXT: "PDF_NO_TEXT",
   PDF_PROCESSING_FAILED: "PDF_PROCESSING_FAILED",
+  OCR_IMPOSSIBLE: "OCR_IMPOSSIBLE",
   IMAGE_UNREADABLE: "IMAGE_UNREADABLE",
   NO_USABLE_CONTENT: "NO_USABLE_CONTENT",
   FILE_NOT_RECEIVED: "FILE_NOT_RECEIVED",
@@ -171,7 +174,21 @@ export default async function handler(request, response) {
         name: page.name,
         mimeType: page.mimeType,
         size: page.size,
-        order: page.order
+        order: page.order,
+        empty: !page.size,
+        hasBase64: Boolean(page.base64 && page.base64.length > 32)
+      }))
+    });
+
+    // Logs temporaires diagnostic pipeline (Vercel function logs)
+    console.info("[analyze] upload", {
+      bodySize,
+      pageCount: requestContext.pages.length,
+      pages: requestContext.pages.map((page) => ({
+        name: page.name,
+        mimeType: page.mimeType,
+        size: page.size,
+        empty: !page.size
       }))
     });
 
@@ -366,37 +383,118 @@ export default async function handler(request, response) {
       );
     }
 
-    // -------- Niveau 1 : analyse directe (PDF courts / images) --------
-    let analysisResult = await analyzeWithParts(
-      buildDirectParts(text, requestContext.pages, heterogeneous),
-      {
-        // Un seul essai court : le fallback modèles + page_images doivent tenir dans 54s
-        retries: 0,
-        maxModels: 2,
-        timeoutMs: pdfOnly ? 32000 : 28000,
-        label: "direct"
-      },
-      requestContext
-    );
-
-    let mode = "direct";
-
-    // Niveau 2 uniquement si le direct échoue / est vide / inutilisable
-    // et s’il reste assez de budget pour raster + Gemini.
-    const directQuotaHit = isQuotaDetail(analysisResult.detail);
-    const directMissingKey = analysisResult.detail?.missingKey === true;
     const remainingMs = () =>
       (requestContext.deadlineAt || Date.now()) - Date.now();
+
+    let analysisResult = null;
+    let mode = "direct";
+
+    // PDF scanné (sans texte) : OCR pages→images EN PREMIER
+    if (pdfOnly && scannedPdf) {
+      requestContext.diagnostics.push({
+        step: "scanned_pdf_prefer_page_images",
+        pageCount: totalPdfPages,
+        remainingMs: remainingMs()
+      });
+
+      const rasterFirst = await buildPageImageParts(
+        text,
+        requestContext,
+        heterogeneous
+      );
+
+      if (rasterFirst.ok) {
+        mode = "page_images";
+        pdfProcessing = {
+          ...pdfProcessing,
+          mode: "page_images",
+          pageCount: rasterFirst.pageCount,
+          readablePages: rasterFirst.readablePages,
+          failedPages: rasterFirst.failedPages,
+          diagnostics: requestContext.diagnostics
+        };
+
+        analysisResult = await analyzeWithParts(
+          rasterFirst.parts,
+          {
+            retries: 0,
+            maxModels: 3,
+            timeoutMs: Math.min(32000, Math.max(10000, remainingMs() - 4000)),
+            label: "page_images_scanned"
+          },
+          requestContext
+        );
+
+        if (
+          analysisResult.ok &&
+          rasterFirst.failedPages.length &&
+          rasterFirst.readablePages.length
+        ) {
+          requestContext.warnings.push(
+            `Certaines pages n’ont pas pu être lues : ${rasterFirst.failedPages.join(", ")}.`
+          );
+        }
+      } else if (rasterFirst.code === ErrorCode.PDF_PROTECTED) {
+        return response.status(400).json(
+          fail(ErrorCode.PDF_PROTECTED, rasterFirst.message, {
+            pageCount: rasterFirst.pageCount || 0
+          })
+        );
+      } else {
+        requestContext.diagnostics.push({
+          step: "scanned_raster_failed",
+          code: rasterFirst.code || null,
+          message: rasterFirst.message || null
+        });
+      }
+    }
+
+    // -------- Niveau 1 : analyse directe (PDF texte / images) --------
+    if (!analysisResult || !analysisResult.ok || analysisResult.emptyOrUnusable) {
+      // Pour un scanné déjà tenté en images, ne retenter direct que s’il reste du budget
+      const skipDirect =
+        pdfOnly &&
+        scannedPdf &&
+        analysisResult &&
+        remainingMs() < PAGE_IMAGES_MIN_REMAINING_MS;
+
+      if (!skipDirect) {
+        analysisResult = await analyzeWithParts(
+          buildDirectParts(text, requestContext.pages, heterogeneous),
+          {
+            retries: 0,
+            maxModels: 3,
+            timeoutMs: pdfOnly ? 28000 : 26000,
+            label: "direct"
+          },
+          requestContext
+        );
+        mode = mode === "page_images" ? mode : "direct";
+      }
+    }
+
+    // Niveau 2 : fallback OCR pages→images si le direct échoue / est vide
+    // (obligatoire avant tout « Aucun contenu exploitable »)
+    const directQuotaHit = isQuotaDetail(analysisResult?.detail);
+    const directMissingKey = analysisResult?.detail?.missingKey === true;
     const shouldFallbackToImages =
       pdfOnly &&
+      mode !== "page_images" &&
       !directQuotaHit &&
       !directMissingKey &&
-      !isTimeoutDetail(analysisResult.detail) &&
+      !isTimeoutDetail(analysisResult?.detail) &&
       remainingMs() >= PAGE_IMAGES_MIN_REMAINING_MS &&
-      (!analysisResult.ok || analysisResult.emptyOrUnusable);
+      (!analysisResult?.ok || analysisResult?.emptyOrUnusable);
 
     // -------- Niveau 2 : pages → images --------
     if (shouldFallbackToImages) {
+      requestContext.diagnostics.push({
+        step: "fallback_page_images",
+        reason: analysisResult?.ok
+          ? "empty_or_unusable"
+          : "direct_failed",
+        remainingMs: remainingMs()
+      });
       const raster = await buildPageImageParts(
         text,
         requestContext,
@@ -418,7 +516,7 @@ export default async function handler(request, response) {
           raster.parts,
           {
             retries: 0,
-            maxModels: 2,
+            maxModels: 3,
             timeoutMs: Math.min(28000, Math.max(8000, remainingMs() - 3000)),
             label: "page_images"
           },
@@ -464,8 +562,8 @@ export default async function handler(request, response) {
 
         return response.status(422).json(
           fail(
-            ErrorCode.PDF_NO_USABLE_CONTENT,
-            "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
+            ErrorCode.OCR_IMPOSSIBLE,
+            "Impossible de convertir les pages du PDF en images lisibles.",
             {
               pageCount: pdfProcessing.pageCount,
               failedPages:
@@ -476,17 +574,18 @@ export default async function handler(request, response) {
                       (_, i) => i + 1
                     ),
               directError: summarizeGeminiFailure(analysisResult),
-              rasterError: raster.message || raster.code
+              rasterError: raster.message || raster.code,
+              scanned: scannedPdf
             }
           )
         );
       }
     }
 
-    if (!analysisResult.ok) {
+    if (!analysisResult || !analysisResult.ok) {
       return respondGeminiFailure(
         response,
-        analysisResult,
+        analysisResult || { ok: false, detail: { message: "Analyse non démarrée." } },
         pdfOnly,
         pdfProcessing
       );
@@ -928,7 +1027,7 @@ async function analyzeWithParts(parts, options, requestContext) {
   const geminiResult = await callGeminiForAnalysis(parts, {
     retries: options.retries,
     timeoutMs: options.timeoutMs || 28000,
-    maxModels: options.maxModels || 2,
+    maxModels: options.maxModels || 3,
     deadlineAt: requestContext.deadlineAt || Date.now() + 40000
   });
 
@@ -1054,18 +1153,52 @@ function respondGeminiFailure(
   }
 
   if (pdfOnly) {
+    const common = {
+      pageCount: pdfProcessing.pageCount,
+      mode: pdfProcessing.mode,
+      scanned: pdfProcessing.scanned === true,
+      upstreamStatus: detail.httpStatus || null,
+      upstreamMessage: upstreamMessage.slice(0, 240),
+      model: analysisResult.model || detail.model || null,
+      diagnostics: (pdfProcessing.diagnostics || []).slice(-8)
+    };
+
     // Ne pas masquer une panne Gemini derrière « PDF sans contenu »
     if (detail.httpStatus || detail.network || detail.budgetExhausted) {
       return response.status(502).json(
         fail(
           ErrorCode.GEMINI_ERROR,
           "Le service d’analyse a échoué sur ce PDF. Réessayez dans quelques instants.",
+          common
+        )
+      );
+    }
+
+    if (pdfProcessing.mode === "page_images") {
+      return response.status(422).json(
+        fail(
+          ErrorCode.OCR_IMPOSSIBLE,
+          "Le PDF scanné n’a pas pu être lu (OCR impossible).",
           {
-            pageCount: pdfProcessing.pageCount,
-            mode: pdfProcessing.mode,
-            upstreamStatus: detail.httpStatus || null,
-            upstreamMessage: upstreamMessage.slice(0, 240)
+            ...common,
+            failedPages:
+              pdfProcessing.failedPages?.length
+                ? pdfProcessing.failedPages
+                : Array.from(
+                    { length: pdfProcessing.pageCount || 0 },
+                    (_, i) => i + 1
+                  )
           }
+        )
+      );
+    }
+
+    if (pdfProcessing.scanned || pdfProcessing.hasText === false) {
+      return response.status(422).json(
+        fail(
+          ErrorCode.PDF_NO_TEXT,
+          "Ce PDF ne contient pas de texte extractible. La lecture par images a aussi échoué.",
+          common
         )
       );
     }
@@ -1075,17 +1208,14 @@ function respondGeminiFailure(
         ErrorCode.PDF_PROCESSING_FAILED,
         "Le traitement du PDF a échoué. Réessayez avec un autre fichier ou une photo.",
         {
-          pageCount: pdfProcessing.pageCount,
+          ...common,
           failedPages:
             pdfProcessing.failedPages?.length
               ? pdfProcessing.failedPages
               : Array.from(
                   { length: pdfProcessing.pageCount || 0 },
                   (_, i) => i + 1
-                ),
-          mode: pdfProcessing.mode,
-          upstreamStatus: detail.httpStatus || null,
-          upstreamMessage: upstreamMessage.slice(0, 240)
+                )
         }
       )
     );

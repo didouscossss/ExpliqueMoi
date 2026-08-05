@@ -1,4 +1,4 @@
-const MODEL = "gemini-3.5-flash";
+import { PRIMARY_MODEL as MODEL } from "../lib/geminiModels.js";
 
 export default async function handler(request, response) {
   if (request.method !== "POST") {

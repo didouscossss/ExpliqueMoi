@@ -3085,7 +3085,7 @@
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.4.1";
+    const APP_VERSION = "2.4.2";
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -3139,6 +3139,8 @@
       PDF_CORRUPTED: "PDF_CORRUPTED",
       PDF_NO_USABLE_CONTENT: "PDF_NO_USABLE_CONTENT",
       PDF_PROCESSING_FAILED: "PDF_PROCESSING_FAILED",
+      PDF_NO_TEXT: "PDF_NO_TEXT",
+      OCR_IMPOSSIBLE: "OCR_IMPOSSIBLE",
       IMAGE_UNREADABLE: "IMAGE_UNREADABLE",
       IMAGE_COMPRESSION_FAILED: "IMAGE_COMPRESSION_FAILED",
       NO_USABLE_CONTENT: "NO_USABLE_CONTENT",
@@ -3188,8 +3190,11 @@
     ];
 
     const IMAGE_MAX_EDGE = 2400;
-    const IMAGE_TARGET_BYTES = 1.2 * 1024 * 1024;
-    const IMAGE_HARD_MAX_BYTES = 3.2 * 1024 * 1024;
+    const IMAGE_MIN_EDGE = 1600;
+    // Objectif lisible : 1–2 Mo après compression (photo ~6 Mo)
+    const IMAGE_TARGET_BYTES = 1.5 * 1024 * 1024;
+    const IMAGE_HARD_MAX_BYTES = 3.5 * 1024 * 1024;
+    const IMAGE_SKIP_RECOMPRESS_BYTES = 900 * 1024;
 
     // Plus de limite de pages utilisateur — seule la taille 4 Mo compte.
     const MAX_PAGES_SOFT = 200;
@@ -3636,6 +3641,7 @@
      * Compression automatique navigateur avant upload.
      * JPG / PNG / WebP uniquement — jamais les PDF.
      * Orientation EXIF corrigée ; redimensionnement progressif.
+     * Objectif : ~6 Mo → 1–2 Mo, texte lisible.
      */
     async function compressImageForDocument(
       sourceFile,
@@ -3651,6 +3657,27 @@
       const rotation = Number(options.rotation) || 0;
       const originalName =
         options.originalName || sourceFile.name || "page.jpg";
+      const originalSize = sourceFile.size;
+
+      console.info("[compressImageForDocument] start", {
+        name: originalName,
+        mime: sourceFile.type,
+        originalSize,
+        rotation
+      });
+
+      // JPEG déjà léger + pas de rotation : garder tel quel (pas de re-encode destructif)
+      if (
+        sourceFile.type === "image/jpeg" &&
+        originalSize > 0 &&
+        originalSize <= IMAGE_SKIP_RECOMPRESS_BYTES &&
+        rotation === 0
+      ) {
+        console.info("[compressImageForDocument] skip_light_jpeg", {
+          originalSize
+        });
+        return sourceFile;
+      }
 
       let bitmap;
 
@@ -3660,6 +3687,15 @@
         });
       } catch {
         bitmap = await createImageBitmap(sourceFile);
+      }
+
+      if (!bitmap || !bitmap.width || !bitmap.height) {
+        try {
+          bitmap?.close?.();
+        } catch {
+          // ignore
+        }
+        throw new Error("IMAGE_COMPRESSION_FAILED");
       }
 
       const normalized =
@@ -3672,9 +3708,10 @@
       let edgeLimit = IMAGE_MAX_EDGE;
       let quality = 0.88;
       let bestBlob = null;
+      let bestMeta = null;
 
       try {
-        for (let pass = 0; pass < 6; pass += 1) {
+        for (let pass = 0; pass < 8; pass += 1) {
           const ratio = Math.min(
             1,
             edgeLimit /
@@ -3710,6 +3747,8 @@
             canvas.width,
             canvas.height
           );
+          context.imageSmoothingEnabled = true;
+          context.imageSmoothingQuality = "high";
 
           context.save();
           context.translate(
@@ -3733,26 +3772,59 @@
             quality
           );
 
-          bestBlob = blob;
-
-          if (blob.size <= IMAGE_TARGET_BYTES) {
-            break;
-          }
-
-          if (quality > 0.80) {
-            quality = 0.80;
+          if (!blob || !blob.size) {
+            console.warn("[compressImageForDocument] empty_blob", {
+              pass,
+              quality,
+              edgeLimit
+            });
             continue;
           }
 
-          if (quality > 0.74) {
-            quality = 0.74;
+          // Préférer le blob le plus petit encore lisible
+          if (!bestBlob || blob.size < bestBlob.size) {
+            bestBlob = blob;
+            bestMeta = {
+              pass,
+              quality,
+              edgeLimit,
+              width: canvas.width,
+              height: canvas.height,
+              size: blob.size
+            };
+          }
+
+          console.info("[compressImageForDocument] pass", {
+            pass,
+            quality,
+            edgeLimit,
+            width: canvas.width,
+            height: canvas.height,
+            size: blob.size
+          });
+
+          if (blob.size <= IMAGE_TARGET_BYTES) {
+            bestBlob = blob;
+            break;
+          }
+
+          if (quality > 0.82) {
+            quality = 0.82;
+            continue;
+          }
+
+          if (quality > 0.76) {
+            quality = 0.76;
             continue;
           }
 
           // Réduction modérée des dimensions (lisibilité texte)
-          if (edgeLimit > 1600) {
-            edgeLimit = Math.round(edgeLimit * 0.85);
-            quality = Math.max(quality, 0.78);
+          if (edgeLimit > IMAGE_MIN_EDGE) {
+            edgeLimit = Math.max(
+              IMAGE_MIN_EDGE,
+              Math.round(edgeLimit * 0.88)
+            );
+            quality = Math.max(quality, 0.8);
             continue;
           }
 
@@ -3760,9 +3832,9 @@
             break;
           }
 
-          if (edgeLimit > 1400) {
-            edgeLimit = 1400;
-            quality = 0.72;
+          // Dernier recours contrôlé — ne pas descendre sous 0.70
+          if (quality > 0.70) {
+            quality = 0.70;
             continue;
           }
 
@@ -3772,15 +3844,30 @@
         bitmap.close();
       }
 
-      if (!bestBlob) {
+      if (!bestBlob || !bestBlob.size) {
+        console.error("[compressImageForDocument] failed_empty");
         throw new Error("IMAGE_COMPRESSION_FAILED");
+      }
+
+      // Si la compression a agrandi le fichier JPEG d’origine sous 4 Mo, garder l’original
+      if (
+        sourceFile.type === "image/jpeg" &&
+        rotation === 0 &&
+        originalSize <= MAX_DOCUMENT_SIZE &&
+        bestBlob.size > originalSize
+      ) {
+        console.info("[compressImageForDocument] keep_original_smaller", {
+          originalSize,
+          compressedSize: bestBlob.size
+        });
+        return sourceFile;
       }
 
       const baseName =
         String(originalName || "page")
           .replace(/\.[^.]+$/, "");
 
-      return new File(
+      const file = new File(
         [bestBlob],
         `${baseName}.jpg`,
         {
@@ -3788,6 +3875,23 @@
           lastModified: Date.now()
         }
       );
+
+      if (!file.size || file.type !== "image/jpeg") {
+        console.error("[compressImageForDocument] invalid_output", {
+          size: file.size,
+          type: file.type
+        });
+        throw new Error("IMAGE_COMPRESSION_FAILED");
+      }
+
+      console.info("[compressImageForDocument] done", {
+        originalSize,
+        compressedSize: file.size,
+        meta: bestMeta,
+        ratio: (file.size / Math.max(originalSize, 1)).toFixed(3)
+      });
+
+      return file;
     }
 
     /*
@@ -4540,6 +4644,20 @@
             "Le traitement du PDF a échoué. Réessayez avec un autre fichier ou une photo.",
           retryable: true
         },
+        PDF_NO_TEXT: {
+          code: AnalysisErrorCode.PDF_NO_TEXT,
+          title: "Échec de l’analyse",
+          message:
+            "Ce PDF ne contient pas de texte extractible. La lecture par images a aussi échoué.",
+          retryable: true
+        },
+        OCR_IMPOSSIBLE: {
+          code: AnalysisErrorCode.OCR_IMPOSSIBLE,
+          title: "Échec de l’analyse",
+          message:
+            "Le PDF scanné n’a pas pu être lu (OCR impossible).",
+          retryable: true
+        },
         IMAGE_UNREADABLE: {
           code: AnalysisErrorCode.IMAGE_UNREADABLE,
           title: "Échec de l’analyse",
@@ -4649,6 +4767,8 @@
         PDF_CORRUPTED: "PDF_CORRUPTED",
         PDF_NO_USABLE_CONTENT: "PDF_NO_USABLE_CONTENT",
         PDF_PROCESSING_FAILED: "PDF_PROCESSING_FAILED",
+        PDF_NO_TEXT: "PDF_NO_TEXT",
+        OCR_IMPOSSIBLE: "OCR_IMPOSSIBLE",
         IMAGE_UNREADABLE: "IMAGE_UNREADABLE",
         IMAGE_COMPRESSION_FAILED: "IMAGE_COMPRESSION_FAILED",
         NO_USABLE_CONTENT: "NO_USABLE_CONTENT",
