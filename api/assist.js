@@ -1,4 +1,4 @@
-import { PRIMARY_MODEL as MODEL } from "../lib/geminiModels.js";
+const MODEL = "gemini-3.5-flash";
 
 export default async function handler(request, response) {
   if (request.method !== "POST") {
@@ -21,12 +21,6 @@ export default async function handler(request, response) {
 
     const actionType = String(body?.actionType || "");
     const analysis = body?.analysis;
-    const replyOptions = {
-      replyType: String(body?.replyType || "email"),
-      tone: String(body?.tone || "polite"),
-      objective: String(body?.objective || "").slice(0, 400),
-      userNotes: String(body?.userNotes || "").slice(0, 600)
-    };
 
     if (!analysis || !actionType) {
       return response.status(400).json({
@@ -47,8 +41,7 @@ export default async function handler(request, response) {
       });
     }
 
-    // Réutilise le contexte déjà analysé — jamais le PDF brut
-    const prompt = buildAssistPrompt(actionType, analysis, replyOptions);
+    const prompt = buildAssistPrompt(actionType, analysis);
 
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`,
@@ -183,40 +176,15 @@ export default async function handler(request, response) {
   }
 }
 
-function buildAssistPrompt(actionType, analysis, replyOptions = {}) {
-  const toneMap = {
-    simple: "simple et direct",
-    polite: "poli et naturel",
-    formal: "formel et administratif",
-    firm: "ferme mais respectueux"
-  };
-
-  const typeMap = {
-    email: "un e-mail",
-    letter: "une lettre",
-    short: "un message court",
-    admin: "une réponse administrative",
-    info: "une demande d'information",
-    dispute: "une contestation simple",
-    confirm: "une confirmation",
-    followup: "une relance"
-  };
-
+function buildAssistPrompt(actionType, analysis) {
   const actionInstructions = {
     reply: `
-Prépare ${typeMap[replyOptions.replyType] || "une réponse"} adaptée au document.
-
-Ton demandé : ${toneMap[replyOptions.tone] || "poli et naturel"}.
-Objectif utilisateur : ${replyOptions.objective || "non précisé"}.
-Notes utilisateur (à utiliser seulement si pertinentes) :
-${replyOptions.userNotes || "Aucune."}
+Prépare une réponse adaptée au document.
 
 La réponse doit :
-- s'appuyer UNIQUEMENT sur le contexte d'analyse fourni (pas de PDF brut) ;
 - reprendre uniquement les faits réellement présents ;
-- laisser entre crochets les informations personnelles manquantes
-  ([Votre nom], [Votre adresse], [Numéro de dossier], [Date]) ;
-- ne jamais inventer identité, adresse, numéro de dossier, date, montant, référence ;
+- utiliser un ton poli et naturel ;
+- laisser entre crochets les informations personnelles manquantes ;
 - ne jamais prétendre qu'une pièce est jointe si cela n'est pas confirmé ;
 - ne jamais reconnaître une dette, une faute ou une obligation incertaine ;
 - signaler ce qui doit être vérifié avant l'envoi.
