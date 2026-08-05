@@ -6,8 +6,7 @@ export const config = {
 
 import {
   inspectPdf,
-  rasterizePdfPages,
-  MAX_PDF_PAGES
+  rasterizePdfPages
 } from "../lib/pdfProcessing.js";
 import {
   callGeminiForAnalysis,
@@ -19,10 +18,16 @@ import {
   normalizeEntities,
   normalizeAmountsDetail
 } from "../lib/documentContext.js";
+import {
+  MAX_DOCUMENT_SIZE,
+  buildTooLargeMessage,
+  planPdfChunks,
+  formatBytesFr
+} from "../lib/pdfChunking.js";
+import { analyzeLongPdf } from "../lib/longPdfAnalysis.js";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const MAX_TOTAL_SIZE = 20 * 1024 * 1024;
-const MAX_PAGES = MAX_PDF_PAGES;
+const MAX_FILE_SIZE = MAX_DOCUMENT_SIZE;
+const MAX_TOTAL_SIZE = MAX_DOCUMENT_SIZE;
 const VERCEL_BODY_SOFT_LIMIT = 4.4 * 1024 * 1024;
 
 const HETEROGENEOUS_BATCH_WARNING =
@@ -106,10 +111,11 @@ export default async function handler(request, response) {
       return response.status(413).json(
         fail(
           ErrorCode.FILE_TOO_LARGE,
-          "La requête dépasse la limite de taille du serveur (≈ 4,5 Mo sur Vercel). Réduisez le fichier ou le nombre de pages.",
+          buildTooLargeMessage(bodySize, VERCEL_BODY_SOFT_LIMIT),
           {
             receivedBytes: bodySize,
-            limitBytes: VERCEL_BODY_SOFT_LIMIT
+            limitBytes: VERCEL_BODY_SOFT_LIMIT,
+            title: "Fichier trop volumineux"
           }
         )
       );
@@ -145,16 +151,7 @@ export default async function handler(request, response) {
       return respondEmptyInput(response, requestContext);
     }
 
-    if (requestContext.pages.length > MAX_PAGES) {
-      return response.status(400).json(
-        fail(
-          ErrorCode.UNSUPPORTED_FORMAT,
-          "Le document dépasse la limite de 10 pages.",
-          { pageCount: requestContext.pages.length }
-        )
-      );
-    }
-
+    // Limite unique : 4 Mo par fichier et pour le lot complet (pas de limite de pages)
     const totalSize = requestContext.pages.reduce(
       (sum, page) => sum + page.size,
       0
@@ -164,8 +161,12 @@ export default async function handler(request, response) {
       return response.status(413).json(
         fail(
           ErrorCode.FILE_TOO_LARGE,
-          "La sélection dépasse la taille totale acceptée.",
-          { totalSize }
+          buildTooLargeMessage(totalSize, MAX_TOTAL_SIZE),
+          {
+            totalSize,
+            limitBytes: MAX_TOTAL_SIZE,
+            title: "Fichier trop volumineux"
+          }
         )
       );
     }
@@ -175,8 +176,13 @@ export default async function handler(request, response) {
         return response.status(413).json(
           fail(
             ErrorCode.FILE_TOO_LARGE,
-            `La page « ${page.name} » dépasse la limite de 10 Mo.`,
-            { name: page.name, size: page.size }
+            buildTooLargeMessage(page.size, MAX_FILE_SIZE),
+            {
+              name: page.name,
+              size: page.size,
+              limitBytes: MAX_FILE_SIZE,
+              title: "Fichier trop volumineux"
+            }
           )
         );
       }
@@ -217,17 +223,121 @@ export default async function handler(request, response) {
       requestContext.pdfMeta.length > 0 &&
       requestContext.pdfMeta.every((meta) => meta.scanned);
 
+    const totalPdfPages = summarizePageCount(requestContext);
+
     let pdfProcessing = {
       mode: "direct",
-      pageCount: summarizePageCount(requestContext),
+      pageCount: totalPdfPages,
+      totalPages: totalPdfPages,
+      processedPages: 0,
       readablePages: [],
       failedPages: [],
+      chunkCount: 1,
       hasText: requestContext.pdfMeta.some((meta) => meta.hasText),
       scanned: scannedPdf,
       diagnostics: requestContext.diagnostics
     };
 
-    // -------- Niveau 1 : analyse directe --------
+    // -------- PDF long : traitement par lots --------
+    const singlePdfPage = pdfOnly ? requestContext.pages[0] : null;
+    const longPlan =
+      singlePdfPage && requestContext.pages.length === 1
+        ? planPdfChunks({
+            pageCount: singlePdfPage.pdfPageCount || 0,
+            fileSize: singlePdfPage.size,
+            textLength: (singlePdfPage.pdfPageTexts || []).reduce(
+              (sum, item) => sum + String(item?.text || "").length,
+              0
+            ),
+            scanned: singlePdfPage.pdfScanned === true,
+            pageTexts: singlePdfPage.pdfPageTexts || []
+          })
+        : null;
+
+    if (longPlan && longPlan.mode === "chunked" && longPlan.chunkCount > 1) {
+      const longResult = await analyzeLongPdf({
+        page: singlePdfPage,
+        text,
+        heterogeneous,
+        buildPrompt,
+        validateResult,
+        hasUsableContent
+      });
+
+      requestContext.diagnostics.push(...(longResult.diagnostics || []));
+
+      pdfProcessing = {
+        mode: "chunked",
+        pageCount: totalPdfPages,
+        totalPages: totalPdfPages,
+        processedPages: (longResult.merged.processedPages || []).length,
+        readablePages: longResult.merged.processedPages || [],
+        failedPages: longResult.merged.failedPages || [],
+        chunkCount: longPlan.chunkCount,
+        hasText: pdfProcessing.hasText,
+        scanned: scannedPdf,
+        diagnostics: requestContext.diagnostics
+      };
+
+      if (!longResult.merged.ok || !longResult.merged.analysis) {
+        return response.status(422).json(
+          fail(
+            ErrorCode.PDF_NO_USABLE_CONTENT,
+            "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
+            {
+              pageCount: totalPdfPages,
+              totalPages: totalPdfPages,
+              failedPages:
+                longResult.merged.failedPages?.length
+                  ? longResult.merged.failedPages
+                  : Array.from({ length: totalPdfPages }, (_, i) => i + 1),
+              chunkCount: longPlan.chunkCount,
+              mode: "chunked"
+            }
+          )
+        );
+      }
+
+      const validated = validateResult(
+        longResult.merged.analysis,
+        [
+          ...requestContext.warnings,
+          ...(longResult.merged.warnings || [])
+        ],
+        requestContext.pageErrors,
+        heterogeneous
+      );
+
+      if (!hasUsableContent(validated)) {
+        return response.status(422).json(
+          fail(
+            ErrorCode.PDF_NO_USABLE_CONTENT,
+            "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
+            {
+              pageCount: totalPdfPages,
+              failedPages: pdfProcessing.failedPages,
+              mode: "chunked"
+            }
+          )
+        );
+      }
+
+      return response.status(200).json(
+        succeed(validated, validated.warnings || [], {
+          mode: "chunked",
+          totalPages: totalPdfPages,
+          processedPages: pdfProcessing.processedPages,
+          failedPages: pdfProcessing.failedPages,
+          chunkCount: longPlan.chunkCount,
+          pageCount: totalPdfPages,
+          readablePages: pdfProcessing.readablePages,
+          hasText: pdfProcessing.hasText,
+          scanned: scannedPdf
+        })
+      );
+    }
+
+    // -------- Niveau 1 : analyse directe (PDF courts / images) --------
     let analysisResult = await analyzeWithParts(
       buildDirectParts(text, requestContext.pages, heterogeneous),
       {
@@ -240,7 +350,6 @@ export default async function handler(request, response) {
     let mode = "direct";
 
     // Niveau 2 uniquement si le direct échoue / est vide / inutilisable
-    // (y compris PDF scannés : Gemini direct échoue souvent → rasterisation)
     const directQuotaHit = isQuotaDetail(analysisResult.detail);
     const shouldFallbackToImages =
       pdfOnly &&
@@ -399,12 +508,23 @@ export default async function handler(request, response) {
       );
     }
 
+    const readable =
+      pdfProcessing.readablePages?.length
+        ? pdfProcessing.readablePages
+        : Array.from(
+            { length: pdfProcessing.pageCount || 0 },
+            (_, i) => i + 1
+          );
+
     return response.status(200).json(
       succeed(validated, validated.warnings || [], {
         mode: pdfProcessing.mode,
         pageCount: pdfProcessing.pageCount,
-        readablePages: pdfProcessing.readablePages,
-        failedPages: pdfProcessing.failedPages,
+        totalPages: pdfProcessing.pageCount,
+        processedPages: readable.length,
+        readablePages: readable,
+        failedPages: pdfProcessing.failedPages || [],
+        chunkCount: pdfProcessing.chunkCount || 1,
         hasText: pdfProcessing.hasText,
         scanned: pdfProcessing.scanned
       })
@@ -481,7 +601,7 @@ async function inspectIncomingPdfs(requestContext) {
     const bytes = Buffer.from(page.base64, "base64");
 
     try {
-      const meta = await inspectPdf(bytes, { maxPages: MAX_PAGES });
+      const meta = await inspectPdf(bytes);
 
       requestContext.pdfMeta.push({
         name: page.name,
@@ -613,7 +733,6 @@ async function buildPageImageParts(text, requestContext, heterogeneous) {
       page.bytes || Buffer.from(page.base64 || "", "base64");
 
     const raster = await rasterizePdfPages(bytes, {
-      maxPages: MAX_PAGES,
       rotation: page.rotation,
       pageTexts: page.pdfPageTexts || []
     });
@@ -1330,10 +1449,12 @@ LECTURE INTELLIGENTE :
 - Détecte échéanciers, tableaux administratifs, formulaires.
 - Extrais montants HT, TVA, TTC et totaux.
 - Extrais personnes, adresses, références, signatures, organismes.
+- Détecte les champs de formulaire (form_fields) et les justificatifs
+  demandés (required_documents).
 - Sur PDF scanné (images), lis les tableaux VISUELLEMENT.
 - Alimente résumé, dates, actions, montants, échéances et timeline
   à partir des tableaux quand c'est pertinent.
-- N'invente aucune cellule.
+- N'invente aucune cellule ni donnée personnelle.
 
 RÈGLES :
 - Ne fais jamais de résumé vague.
@@ -1413,6 +1534,27 @@ Réponds exclusivement avec ce JSON :
     "signatures": [],
     "organizations": []
   },
+  "form_fields": [
+    {
+      "id": "field_1",
+      "label": "Nom",
+      "type": "text",
+      "required": true,
+      "page": 1,
+      "currentValue": "",
+      "help": "Indiquez votre nom de famille.",
+      "source": null
+    }
+  ],
+  "required_documents": [
+    {
+      "id": "doc_1",
+      "label": "Justificatif de domicile",
+      "reason": "demandé explicitement",
+      "page": "Page 1",
+      "required": true
+    }
+  ],
   "evidence": [
     {
       "page": "Page X ou emplacement",
@@ -1517,6 +1659,14 @@ function validateResult(
 
     tables: normalizeTables(result.tables),
 
+    form_fields: normalizeFormFields(
+      result.form_fields || result.formFields
+    ),
+
+    required_documents: normalizeRequiredDocuments(
+      result.required_documents || result.requiredDocuments
+    ),
+
     entities: normalizeEntities(result.entities),
 
     evidence: Array.isArray(result.evidence)
@@ -1531,4 +1681,41 @@ function validateResult(
     heterogeneous: heterogeneous === true,
     batch_heterogeneous: heterogeneous === true
   };
+}
+
+function normalizeFormFields(fields) {
+  if (!Array.isArray(fields)) {
+    return [];
+  }
+
+  return fields
+    .slice(0, 40)
+    .map((field, index) => ({
+      id: cleanText(field?.id) || `field_${index + 1}`,
+      label: cleanText(field?.label) || `Champ ${index + 1}`,
+      type: cleanText(field?.type) || "text",
+      required: field?.required === true,
+      page: Number(field?.page) || cleanText(field?.page) || null,
+      currentValue: cleanText(field?.currentValue || field?.current_value),
+      help: cleanText(field?.help),
+      source: cleanText(field?.source) || null
+    }))
+    .filter((field) => field.label);
+}
+
+function normalizeRequiredDocuments(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items
+    .slice(0, 30)
+    .map((item, index) => ({
+      id: cleanText(item?.id) || `doc_${index + 1}`,
+      label: cleanText(item?.label || item?.name) || `Pièce ${index + 1}`,
+      reason: cleanText(item?.reason || item?.why),
+      page: cleanText(item?.page),
+      required: item?.required !== false
+    }))
+    .filter((item) => item.label);
 }

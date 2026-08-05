@@ -1621,6 +1621,91 @@
       margin-top: 4px;
     }
 
+    .action-hub-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .action-hub-btn {
+      width: 100%;
+      justify-content: flex-start;
+      text-align: left;
+      font-size: 13px;
+      padding: 12px 14px;
+    }
+
+    .checklist-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .checklist-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--solid);
+    }
+
+    .checklist-item strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .checklist-item small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .assist-form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .assist-form label {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .assist-form select,
+    .assist-form textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--solid);
+      font: inherit;
+    }
+
+    .reply-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .fill-field-panel {
+      margin: 12px 0;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--solid);
+    }
+
+    @media (max-width: 640px) {
+      .action-hub-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .doc-chat-thread {
       display: grid;
       gap: 10px;
@@ -2202,7 +2287,7 @@
         >
 
         <p class="format-info">
-          PDF, JPG, PNG ou WebP · jusqu’à 10 pages
+          PDF, JPG, PNG ou WebP · 4 Mo max
         </p>
       </section>
 
@@ -2291,7 +2376,7 @@
         <h2>Je lis votre document</h2>
 
         <p id="loadingMessage">
-          Identification du document…
+          Préparation du document…
         </p>
 
         <div class="progress">
@@ -2301,21 +2386,28 @@
           ></div>
         </div>
 
-        <div class="loading-steps">
-          <div class="loading-step active">
-            📄 Identification du document
+        <div
+          id="loadingSteps"
+          class="loading-steps"
+        >
+          <div class="loading-step active" data-step="0">
+            Préparation du document
           </div>
 
-          <div class="loading-step">
-            🔍 Recherche de ce qu’on vous demande
+          <div class="loading-step" data-step="1">
+            Lecture des pages
           </div>
 
-          <div class="loading-step">
-            📅 Vérification des dates et montants
+          <div class="loading-step" data-step="2">
+            Analyse des tableaux
           </div>
 
-          <div class="loading-step">
-            💡 Préparation d’une explication simple
+          <div class="loading-step" data-step="3">
+            Regroupement des informations
+          </div>
+
+          <div class="loading-step" data-step="4">
+            Préparation de votre explication
           </div>
         </div>
       </div>
@@ -2608,6 +2700,134 @@
         ></div>
       </section>
 
+      <section class="card result-card action-hub-card">
+        <div class="heading">
+          <div class="heading-icon">🎯</div>
+          <div>
+            <span class="kicker">Ensuite</span>
+            <h2>Que souhaitez-vous faire maintenant ?</h2>
+          </div>
+        </div>
+
+        <div class="action-hub-grid" id="actionHubGrid">
+          <button type="button" class="button secondary-button action-hub-btn" data-hub-action="ask">
+            Poser une question
+          </button>
+          <button type="button" class="button secondary-button action-hub-btn" data-hub-action="reply">
+            M’aider à répondre
+          </button>
+          <button type="button" class="button secondary-button action-hub-btn" data-hub-action="fill">
+            M’aider à remplir
+          </button>
+          <button type="button" class="button secondary-button action-hub-btn" data-hub-action="tables">
+            Voir les tableaux
+          </button>
+          <button type="button" class="button secondary-button action-hub-btn" data-hub-action="checklist">
+            Voir les pièces nécessaires
+          </button>
+          <button type="button" class="button secondary-button action-hub-btn" data-hub-action="steps">
+            Comprendre les prochaines étapes
+          </button>
+        </div>
+      </section>
+
+      <section
+        id="checklistCard"
+        class="card result-card checklist-card hidden"
+      >
+        <div class="heading">
+          <div class="heading-icon">📁</div>
+          <div>
+            <span class="kicker">Dossier</span>
+            <h2>Pièces et informations nécessaires</h2>
+          </div>
+        </div>
+        <div id="checklistList" class="checklist-list"></div>
+      </section>
+
+      <section
+        id="replyAssistCard"
+        class="card result-card hidden"
+      >
+        <div class="heading">
+          <div class="heading-icon">✉️</div>
+          <div>
+            <span class="kicker">Réponse</span>
+            <h2>M’aider à répondre</h2>
+          </div>
+        </div>
+
+        <form id="replyAssistForm" class="assist-form">
+          <label>
+            Type de réponse
+            <select id="replyType">
+              <option value="email">E-mail</option>
+              <option value="letter">Lettre</option>
+              <option value="short">Message court</option>
+              <option value="admin">Réponse administrative</option>
+              <option value="info">Demande d’information</option>
+              <option value="dispute">Contestation simple</option>
+              <option value="confirm">Confirmation</option>
+              <option value="followup">Relance</option>
+            </select>
+          </label>
+
+          <label>
+            Ton
+            <select id="replyTone">
+              <option value="simple">Simple</option>
+              <option value="polite">Poli</option>
+              <option value="formal">Formel</option>
+              <option value="firm">Ferme mais respectueux</option>
+            </select>
+          </label>
+
+          <label>
+            Objectif de la réponse
+            <textarea id="replyObjective" maxlength="400" placeholder="Ex. Demander un délai, confirmer la réception…"></textarea>
+          </label>
+
+          <label>
+            Informations à ajouter (facultatif)
+            <textarea id="replyUserNotes" maxlength="600" placeholder="Nom, adresse, précisions… Ne seront pas inventées."></textarea>
+          </label>
+
+          <button class="button primary-button" type="submit">
+            Préparer la réponse
+          </button>
+        </form>
+
+        <div id="replyAssistOutput" class="assistant-panel hidden"></div>
+
+        <div id="replyAssistActions" class="reply-actions hidden">
+          <button type="button" class="button secondary-button" id="replyCopyButton">Copier la réponse</button>
+          <button type="button" class="button secondary-button" id="replyEditButton">Modifier</button>
+          <button type="button" class="button secondary-button" id="replyRegenButton">Régénérer</button>
+          <button type="button" class="button secondary-button" id="replyToneButton">Choisir un autre ton</button>
+        </div>
+      </section>
+
+      <section
+        id="fillAssistCard"
+        class="card result-card hidden"
+      >
+        <div class="heading">
+          <div class="heading-icon">✏️</div>
+          <div>
+            <span class="kicker">Formulaire</span>
+            <h2>M’aider à remplir</h2>
+          </div>
+        </div>
+
+        <p id="fillProgress" class="table-preview-meta">Champ 0 sur 0</p>
+        <div id="fillFieldPanel" class="fill-field-panel"></div>
+        <div class="reply-actions">
+          <button type="button" class="button secondary-button" id="fillPrevButton">Précédent</button>
+          <button type="button" class="button primary-button" id="fillNextButton">Suivant</button>
+        </div>
+        <div id="fillSummary" class="assistant-panel hidden"></div>
+      </section>
+
       <section
         id="tablesCard"
         class="card result-card tables-card hidden"
@@ -2865,7 +3085,7 @@
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.3.0";
+    const APP_VERSION = "2.4.0";
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -2900,12 +3120,18 @@
       isCompressing: false,
       isAnalyzing: false,
       isBusy: false,
-      // Sprint 3 — conversation liée UNIQUEMENT au document courant
+      // Conversation + contexte liés UNIQUEMENT au document courant
       documentId: null,
       chatHistory: [],
       chatRequestId: 0,
       chatController: null,
-      isChatting: false
+      isChatting: false,
+      documentContext: null,
+      checklistStatus: {},
+      replyDraft: null,
+      fillAnswers: {},
+      fillIndex: 0,
+      loadingStepTimer: null
     };
 
     const AnalysisErrorCode = {
@@ -2939,16 +3165,17 @@
     const HETEROGENEOUS_BATCH_WARNING =
       "Ces pages semblent appartenir à plusieurs documents différents. Pour une explication plus précise, analysez-les séparément.";
 
-    const MAX_PAGES = 10;
-
-    const MAX_DIRECT_FILE_SIZE =
+    const MAX_DOCUMENT_SIZE =
       4 * 1024 * 1024;
 
-    const MAX_IMAGE_SIZE =
-      30 * 1024 * 1024;
+    const MAX_DIRECT_FILE_SIZE = MAX_DOCUMENT_SIZE;
 
-    const MAX_TOTAL_UPLOAD_SIZE =
-      15 * 1024 * 1024;
+    const MAX_IMAGE_SIZE = MAX_DOCUMENT_SIZE;
+
+    const MAX_TOTAL_UPLOAD_SIZE = MAX_DOCUMENT_SIZE;
+
+    // Plus de limite de pages utilisateur — seule la taille 4 Mo compte.
+    const MAX_PAGES_SOFT = 200;
 
     const ALLOWED_PAGE_TYPES = [
       "application/pdf",
@@ -3090,6 +3317,39 @@
           }
         );
       }
+
+      document
+        .querySelectorAll("[data-hub-action]")
+        .forEach((button) => {
+          button.addEventListener("click", () => {
+            handleHubAction(button.dataset.hubAction);
+          });
+        });
+
+      if ($("replyAssistForm")) {
+        $("replyAssistForm").addEventListener(
+          "submit",
+          handleReplyAssistSubmit
+        );
+      }
+
+      ["replyCopyButton", "replyEditButton", "replyRegenButton", "replyToneButton"].forEach((id) => {
+        if ($(id)) {
+          $(id).addEventListener("click", () => handleReplyAction(id));
+        }
+      });
+
+      if ($("fillPrevButton")) {
+        $("fillPrevButton").addEventListener("click", () => moveFillField(-1));
+      }
+
+      if ($("fillNextButton")) {
+        $("fillNextButton").addEventListener("click", () => moveFillField(1));
+      }
+
+      if ($("checklistList")) {
+        $("checklistList").addEventListener("change", handleChecklistChange);
+      }
     }
 
     function prepareFileInput(event) {
@@ -3140,11 +3400,11 @@
 
       try {
         const room =
-          MAX_PAGES - state.pages.length;
+          Math.max(0, MAX_PAGES_SOFT - state.pages.length);
 
         if (room <= 0) {
           showPagesLimitMessage(
-            "Vous avez déjà atteint la limite de 10 pages."
+            "Trop de pages dans la sélection. Réduisez le lot ou la taille (4 Mo max)."
           );
           return;
         }
@@ -3161,7 +3421,7 @@
 
           if (accepted.length >= room) {
             showPagesLimitMessage(
-              "Certaines pages n’ont pas été ajoutées : maximum 10 pages."
+              "Certaines pages n’ont pas été ajoutées : le lot dépasserait 4 Mo ou la capacité de traitement."
             );
             break;
           }
@@ -3234,14 +3494,14 @@
         if (file.size > MAX_DIRECT_FILE_SIZE) {
           page.status = "error";
           page.statusMessage =
-            "PDF trop volumineux (max. 3,2 Mo)";
+            "Fichier trop volumineux (max. 4 Mo)";
           page.file = null;
         }
       } else if (file.type.startsWith("image/")) {
         if (file.size > MAX_IMAGE_SIZE) {
           page.status = "error";
           page.statusMessage =
-            "Image trop volumineuse (max. 30 Mo)";
+            "Fichier trop volumineux (max. 4 Mo)";
           page.file = null;
         } else {
           page.previewUrl =
@@ -3604,14 +3864,14 @@
         list.innerHTML = "";
         card.classList.add("hidden");
         $("pagesCounter").textContent =
-          `0 / ${MAX_PAGES}`;
+          `0 page`;
         return;
       }
 
       card.classList.remove("hidden");
 
       $("pagesCounter").textContent =
-        `${state.pages.length} / ${MAX_PAGES}`;
+        `${state.pages.length} page${state.pages.length > 1 ? "s" : ""}`;
 
       $("pagesTitle").textContent =
         state.pages.length > 1
@@ -4205,8 +4465,9 @@
         },
         FILE_TOO_LARGE: {
           code: AnalysisErrorCode.FILE_TOO_LARGE,
-          title: "Échec de l’analyse",
-          message: "Le fichier est trop volumineux.",
+          title: "Fichier trop volumineux",
+          message:
+            "La taille maximale autorisée est de 4 Mo. Réduisez la taille du document ou divisez-le en plusieurs fichiers.",
           retryable: false
         },
         UNSUPPORTED_FORMAT: {
@@ -4459,7 +4720,7 @@
 
       if ($("pagesCounter")) {
         $("pagesCounter").textContent =
-          `0 / ${MAX_PAGES}`;
+          `0 page`;
       }
 
       hidePagesLimitMessage();
@@ -4706,8 +4967,7 @@
         !busy &&
         readyPages.length > 0 &&
         !hasPageErrors() &&
-        totalSize <= MAX_TOTAL_UPLOAD_SIZE &&
-        state.pages.length <= MAX_PAGES;
+        totalSize <= MAX_TOTAL_UPLOAD_SIZE;
 
       if (analyzeFileButton) {
         analyzeFileButton.disabled =
@@ -4727,7 +4987,7 @@
       const fileInputsBusy =
         state.isAnalyzing ||
         state.isCompressing ||
-        state.pages.length >= MAX_PAGES;
+        false;
 
       if ($("cameraInput")) {
         $("cameraInput").disabled =
@@ -4859,8 +5119,8 @@
       for (const page of pagesToAnalyze) {
         if (page.size > MAX_DIRECT_FILE_SIZE) {
           showError(
-            "Échec de l’analyse",
-            "Le fichier est trop volumineux.",
+            "Fichier trop volumineux",
+            `La taille maximale autorisée est de 4 Mo. Réduisez la taille du document ou divisez-le en plusieurs fichiers. Taille du fichier : ${formatSize(page.size)} — limite : ${formatSize(MAX_DOCUMENT_SIZE)}`,
             {
               keepRuntimeClean: true,
               code: AnalysisErrorCode.FILE_TOO_LARGE,
@@ -4880,8 +5140,8 @@
 
       if (totalSize > MAX_TOTAL_UPLOAD_SIZE) {
         showError(
-          "Échec de l’analyse",
-          "Le fichier est trop volumineux.",
+          "Fichier trop volumineux",
+          `La taille maximale autorisée est de 4 Mo. Réduisez la taille du document ou divisez-le en plusieurs fichiers. Taille du fichier : ${formatSize(totalSize)} — limite : ${formatSize(MAX_DOCUMENT_SIZE)}`,
           {
             keepRuntimeClean: true,
             code: AnalysisErrorCode.FILE_TOO_LARGE,
@@ -5044,7 +5304,12 @@
 
       syncActionControls();
       showScreen("loadingScreen");
-      startProgress();
+
+      const estimatedPages = (meta.pagesSnapshot || []).reduce((sum, page) => {
+        return sum + (page.mimeType === "application/pdf" ? 1 : 1);
+      }, 0);
+
+      startProgress({ totalPages: estimatedPages || state.pages.length || 1 });
 
       try {
         const response = await fetch(
@@ -5455,6 +5720,14 @@
           data?.entities
         ),
 
+        formFields: normalizeFormFieldsClient(
+          data?.form_fields || data?.formFields
+        ),
+
+        requiredDocuments: normalizeRequiredDocumentsClient(
+          data?.required_documents || data?.requiredDocuments
+        ),
+
         confidence,
 
         warnings,
@@ -5680,6 +5953,31 @@
             source.issuers
         )
       };
+    }
+
+    function normalizeFormFieldsClient(fields) {
+      if (!Array.isArray(fields)) return [];
+      return fields.slice(0, 40).map((field, index) => ({
+        id: cleanText(field?.id) || `field_${index + 1}`,
+        label: cleanText(field?.label) || `Champ ${index + 1}`,
+        type: cleanText(field?.type) || "text",
+        required: field?.required === true,
+        page: field?.page ?? null,
+        currentValue: cleanText(field?.currentValue || field?.current_value),
+        help: cleanText(field?.help),
+        source: cleanText(field?.source) || null
+      })).filter((field) => field.label);
+    }
+
+    function normalizeRequiredDocumentsClient(items) {
+      if (!Array.isArray(items)) return [];
+      return items.slice(0, 30).map((item, index) => ({
+        id: cleanText(item?.id) || `doc_${index + 1}`,
+        label: cleanText(item?.label || item?.name) || `Pièce ${index + 1}`,
+        reason: cleanText(item?.reason || item?.why),
+        page: cleanText(item?.page),
+        required: item?.required !== false
+      })).filter((item) => item.label);
     }
 
     function renderAnalysis(analysis) {
@@ -6362,24 +6660,387 @@
       cancelInFlightChat();
       state.documentId = null;
       state.chatHistory = [];
+      state.documentContext = null;
+      state.checklistStatus = {};
+      state.replyDraft = null;
+      state.fillAnswers = {};
+      state.fillIndex = 0;
       clearDocChatThread();
 
       if ($("docChatInput")) {
         $("docChatInput").value = "";
       }
+
+      hideActionPanels();
     }
 
     function beginDocumentConversation(analysis) {
       cancelInFlightChat();
       state.documentId = `doc_${Date.now()}_${state.analysisId}`;
       state.chatHistory = [];
+      state.checklistStatus = {};
+      state.replyDraft = null;
+      state.fillAnswers = {};
+      state.fillIndex = 0;
       clearDocChatThread();
 
       if ($("docChatInput")) {
         $("docChatInput").value = "";
       }
 
-      void analysis;
+      state.documentContext = buildClientDocumentContext(analysis);
+      renderChecklist(analysis);
+      prepareFillWizard(analysis);
+      hideActionPanels();
+    }
+
+    function hideActionPanels() {
+      ["replyAssistCard", "fillAssistCard"].forEach((id) => {
+        if ($(id)) $(id).classList.add("hidden");
+      });
+
+      if ($("replyAssistOutput")) {
+        $("replyAssistOutput").classList.add("hidden");
+        $("replyAssistOutput").innerHTML = "";
+      }
+
+      if ($("replyAssistActions")) {
+        $("replyAssistActions").classList.add("hidden");
+      }
+
+      if ($("fillSummary")) {
+        $("fillSummary").classList.add("hidden");
+        $("fillSummary").innerHTML = "";
+      }
+    }
+
+    function buildClientDocumentContext(analysis) {
+      if (!analysis) return null;
+
+      return {
+        analysisId: state.analysisId,
+        documentId: state.documentId,
+        documentType: analysis.documentType || "",
+        issuer: analysis.issuer || "",
+        summary: analysis.summary || "",
+        requests: analysis.request || "",
+        actions: analysis.actions || [],
+        dates: analysis.dates || [],
+        amounts: analysis.amount || null,
+        amountsDetail: analysis.amountsDetail || [],
+        references: analysis.entities?.references || [],
+        proofs: analysis.evidence || [],
+        tables: analysis.tables || [],
+        formFields: analysis.formFields || [],
+        requiredDocuments: analysis.requiredDocuments || [],
+        conversation: state.chatHistory
+      };
+    }
+
+    function handleHubAction(action) {
+      if (!state.analysis) return;
+
+      if (action === "ask") {
+        $("docChatInput")?.focus();
+        $("docChatCard") || $("docChatThread")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        document.querySelector(".doc-chat-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+
+      if (action === "tables") {
+        const card = $("tablesCard");
+        if (card && !card.classList.contains("hidden")) {
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+          alert("Aucun tableau détecté dans ce document.");
+        }
+        return;
+      }
+
+      if (action === "checklist") {
+        const card = $("checklistCard");
+        if (card) {
+          card.classList.remove("hidden");
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        return;
+      }
+
+      if (action === "steps") {
+        $("actionList")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+
+      if (action === "reply") {
+        hideActionPanels();
+        $("replyAssistCard")?.classList.remove("hidden");
+        $("replyAssistCard")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+
+      if (action === "fill") {
+        hideActionPanels();
+        $("fillAssistCard")?.classList.remove("hidden");
+        renderFillField();
+        $("fillAssistCard")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+
+    function renderChecklist(analysis) {
+      const card = $("checklistCard");
+      const list = $("checklistList");
+      if (!card || !list) return;
+
+      const items = Array.isArray(analysis?.requiredDocuments)
+        ? analysis.requiredDocuments
+        : [];
+
+      // Enrichir avec actions / signatures si absents
+      const enriched = items.slice();
+
+      (analysis?.actions || []).slice(0, 3).forEach((item, index) => {
+        if (!enriched.some((e) => e.label === item.action)) {
+          enriched.push({
+            id: `action_${index}`,
+            label: item.action,
+            reason: item.how || "Action à effectuer",
+            required: true
+          });
+        }
+      });
+
+      (analysis?.entities?.signatures || []).forEach((sig, index) => {
+        enriched.push({
+          id: `sig_${index}`,
+          label: `Signature : ${sig}`,
+          reason: "Signature détectée / demandée",
+          required: true
+        });
+      });
+
+      list.innerHTML = "";
+
+      if (!enriched.length) {
+        card.classList.add("hidden");
+        return;
+      }
+
+      card.classList.remove("hidden");
+
+      enriched.forEach((item) => {
+        const id = item.id || item.label;
+        const status = state.checklistStatus[id] || "todo";
+        const row = document.createElement("div");
+        row.className = "checklist-item";
+        row.innerHTML = `
+          <div>
+            <strong>${escapeHtml(item.label || "Élément")}</strong>
+            <small>${escapeHtml(item.reason || item.page || "")}</small>
+          </div>
+          <select data-checklist-id="${escapeHtml(id)}">
+            <option value="todo"${status === "todo" ? " selected" : ""}>À préparer</option>
+            <option value="ready"${status === "ready" ? " selected" : ""}>Prêt</option>
+            <option value="na"${status === "na" ? " selected" : ""}>Non concerné</option>
+          </select>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    function handleChecklistChange(event) {
+      const select = event.target.closest("select[data-checklist-id]");
+      if (!select) return;
+      state.checklistStatus[select.dataset.checklistId] = select.value;
+      if (state.documentContext) {
+        state.documentContext.checklistStatus = { ...state.checklistStatus };
+      }
+    }
+
+    function prepareFillWizard(analysis) {
+      const fields = Array.isArray(analysis?.formFields)
+        ? analysis.formFields
+        : [];
+      state.fillIndex = 0;
+      state.fillAnswers = {};
+      fields.forEach((field) => {
+        if (field.currentValue) {
+          state.fillAnswers[field.id] = field.currentValue;
+        }
+      });
+      renderFillField();
+    }
+
+    function renderFillField() {
+      const fields = state.analysis?.formFields || [];
+      const panel = $("fillFieldPanel");
+      const progress = $("fillProgress");
+      const summary = $("fillSummary");
+
+      if (!panel || !progress) return;
+
+      if (!fields.length) {
+        progress.textContent = "Aucun champ de formulaire détecté.";
+        panel.innerHTML =
+          "<p>Ce document ne contient pas de formulaire identifiable. Vous pouvez utiliser « M’aider à répondre ».</p>";
+        if ($("fillPrevButton")) $("fillPrevButton").disabled = true;
+        if ($("fillNextButton")) $("fillNextButton").disabled = true;
+        return;
+      }
+
+      if (state.fillIndex >= fields.length) {
+        progress.textContent = `Récapitulatif — ${fields.length} champ(s)`;
+        panel.innerHTML = "";
+        if (summary) {
+          summary.classList.remove("hidden");
+          const filled = fields.filter((f) => cleanText(state.fillAnswers[f.id]));
+          const missing = fields.filter((f) => f.required && !cleanText(state.fillAnswers[f.id]));
+          summary.innerHTML = `
+            <p><strong>Champs renseignés :</strong> ${filled.length}</p>
+            <p><strong>Champs obligatoires manquants :</strong> ${missing.length}</p>
+            <ul>${fields.map((f) => `<li>${escapeHtml(f.label)} : ${escapeHtml(state.fillAnswers[f.id] || (f.required ? "[À compléter]" : "—"))}</li>`).join("")}</ul>
+          `;
+        }
+        if ($("fillNextButton")) $("fillNextButton").disabled = true;
+        return;
+      }
+
+      if (summary) summary.classList.add("hidden");
+      if ($("fillNextButton")) $("fillNextButton").disabled = false;
+      if ($("fillPrevButton")) $("fillPrevButton").disabled = state.fillIndex <= 0;
+
+      const field = fields[state.fillIndex];
+      progress.textContent = `Champ ${state.fillIndex + 1} sur ${fields.length}`;
+      const suggested = state.fillAnswers[field.id] || field.currentValue || "";
+      panel.innerHTML = `
+        <strong>${escapeHtml(field.label)}</strong>
+        <p class="table-preview-meta">${field.required ? "Obligatoire" : "Facultatif"}${field.page ? " · page " + escapeHtml(String(field.page)) : ""}</p>
+        <p>${escapeHtml(field.help || "Indiquez la valeur demandée.")}</p>
+        <label>
+          Votre réponse
+          <input id="fillCurrentInput" type="text" value="${escapeHtml(suggested)}" placeholder="${field.required ? "[Votre information]" : "Facultatif"}" />
+        </label>
+        <p class="table-preview-meta">Aucune donnée personnelle n’est inventée. Utilisez des crochets si elle manque.</p>
+      `;
+    }
+
+    function moveFillField(delta) {
+      const fields = state.analysis?.formFields || [];
+      if (!fields.length) return;
+
+      const input = $("fillCurrentInput");
+      const current = fields[state.fillIndex];
+      if (current && input) {
+        state.fillAnswers[current.id] = input.value.trim();
+      }
+
+      state.fillIndex = Math.max(0, Math.min(fields.length, state.fillIndex + delta));
+      renderFillField();
+    }
+
+    async function handleReplyAssistSubmit(event) {
+      event.preventDefault();
+      if (!state.analysis || state.isAnalyzing) return;
+
+      const replyType = $("replyType")?.value || "email";
+      const tone = $("replyTone")?.value || "polite";
+      const objective = cleanText($("replyObjective")?.value || "");
+      const userNotes = cleanText($("replyUserNotes")?.value || "");
+
+      await generateReplyDraft({ replyType, tone, objective, userNotes });
+    }
+
+    async function generateReplyDraft({ replyType, tone, objective, userNotes }) {
+      const output = $("replyAssistOutput");
+      const actions = $("replyAssistActions");
+      if (!output) return;
+
+      output.classList.remove("hidden");
+      output.innerHTML = `<div class="assistant-loading"><div class="assistant-spinner"></div><div>Je prépare votre réponse…</div></div>`;
+      if (actions) actions.classList.add("hidden");
+
+      const analysisSnapshot = state.analysis;
+      const analysisId = state.analysisId;
+      const documentId = state.documentId;
+
+      try {
+        const response = await fetch("/api/assist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+          cache: "no-store",
+          body: JSON.stringify({
+            actionType: "reply",
+            analysis: analysisSnapshot,
+            replyType,
+            tone,
+            objective,
+            userNotes,
+            documentId
+          })
+        });
+
+        const data = await response.json();
+
+        if (
+          analysisId !== state.analysisId ||
+          documentId !== state.documentId ||
+          state.analysis !== analysisSnapshot
+        ) {
+          return;
+        }
+
+        if (!response.ok || data.error) {
+          throw new Error(data.error || "Impossible de préparer la réponse.");
+        }
+
+        state.replyDraft = data;
+        output.innerHTML = `
+          <h3>${escapeHtml(data.title || "Votre réponse")}</h3>
+          <div class="assistant-introduction">${escapeHtml(data.introduction || "")}</div>
+          <pre class="assistant-draft" id="replyDraftText">${escapeHtml(data.draft || "")}</pre>
+          ${(data.missing_information || []).map((item) => `<div class="assistant-missing">${escapeHtml(item)}</div>`).join("")}
+        `;
+        if (actions) actions.classList.remove("hidden");
+      } catch (error) {
+        if (analysisId !== state.analysisId) return;
+        output.innerHTML = `<p>${escapeHtml(error.message || "Erreur")}</p>`;
+      }
+    }
+
+    function handleReplyAction(buttonId) {
+      if (buttonId === "replyCopyButton") {
+        const text = $("replyDraftText")?.textContent || "";
+        if (text) navigator.clipboard?.writeText(text);
+        return;
+      }
+
+      if (buttonId === "replyEditButton") {
+        const pre = $("replyDraftText");
+        if (!pre) return;
+        const area = document.createElement("textarea");
+        area.id = "replyDraftText";
+        area.className = "assistant-draft";
+        area.style.minHeight = "220px";
+        area.value = pre.textContent || "";
+        pre.replaceWith(area);
+        return;
+      }
+
+      if (buttonId === "replyToneButton") {
+        $("replyTone")?.focus();
+        return;
+      }
+
+      if (buttonId === "replyRegenButton") {
+        handleReplyAssistSubmit(new Event("submit"));
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
     }
 
     function clearDocChatThread() {
@@ -7212,51 +7873,53 @@
       }
     }
 
-    function startProgress() {
+    function startProgress(options = {}) {
       stopProgress();
 
+      const totalPages = Number(options.totalPages) || 0;
+      const chunkHints = Array.isArray(options.chunkHints)
+        ? options.chunkHints
+        : [];
+
       const stages = [
+        [12, "Préparation du document…", 0],
         [
-          18,
-          "J’identifie le type de document…",
-          0
-        ],
-        [
-          43,
-          "Je cherche ce qu’on vous demande…",
+          28,
+          chunkHints[0] ||
+            (totalPages > 6
+              ? `Lecture des pages 1 à ${Math.min(totalPages, 6)}…`
+              : "Lecture des pages…"),
           1
         ],
         [
-          69,
-          "Je vérifie les dates et montants…",
-          2
+          48,
+          chunkHints[1] ||
+            (totalPages > 12
+              ? "Lecture des pages suivantes…"
+              : "Analyse du contenu…"),
+          1
         ],
-        [
-          87,
-          "Je prépare une explication simple…",
-          3
-        ]
+        [66, "Analyse des tableaux…", 2],
+        [82, "Regroupement des informations…", 3],
+        [92, "Préparation de votre explication…", 4]
       ];
 
       let index = 0;
 
-      updateProgress(
-        ...stages[index]
-      );
+      updateProgress(...stages[index]);
 
-      state.progressTimer =
-        setInterval(() => {
-          index += 1;
+      state.progressTimer = setInterval(() => {
+        index += 1;
 
-          if (index >= stages.length) {
-            stopProgress();
-            return;
-          }
+        if (index >= stages.length) {
+          // Pas de faux 100 % — rester sur la dernière étape connue
+          clearInterval(state.progressTimer);
+          state.progressTimer = null;
+          return;
+        }
 
-          updateProgress(
-            ...stages[index]
-          );
-        }, 1100);
+        updateProgress(...stages[index]);
+      }, 1400);
     }
 
     function updateProgress(
