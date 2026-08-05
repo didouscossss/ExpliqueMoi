@@ -33,12 +33,19 @@ const VERCEL_BODY_SOFT_LIMIT = 4.4 * 1024 * 1024;
 const HETEROGENEOUS_BATCH_WARNING =
   "Ces pages semblent appartenir à plusieurs documents différents. Pour une explication plus précise, analysez-les séparément.";
 
+/** Budget serveur sous maxDuration Vercel (60s) — laisse de la marge pour la réponse. */
+const REQUEST_BUDGET_MS = 54000;
+const PAGE_IMAGES_MIN_REMAINING_MS = 22000;
+
 const ErrorCode = {
   PDF_PROTECTED: "PDF_PROTECTED",
   PDF_CORRUPTED: "PDF_CORRUPTED",
   PDF_NO_USABLE_CONTENT: "PDF_NO_USABLE_CONTENT",
+  PDF_PROCESSING_FAILED: "PDF_PROCESSING_FAILED",
   IMAGE_UNREADABLE: "IMAGE_UNREADABLE",
   NO_USABLE_CONTENT: "NO_USABLE_CONTENT",
+  FILE_NOT_RECEIVED: "FILE_NOT_RECEIVED",
+  INVALID_MULTIPART: "INVALID_MULTIPART",
   FILE_TOO_LARGE: "FILE_TOO_LARGE",
   UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT",
   NETWORK_ERROR: "NETWORK_ERROR",
@@ -46,6 +53,7 @@ const ErrorCode = {
   EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
   INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
   API_QUOTA_EXCEEDED: "API_QUOTA_EXCEEDED",
+  GEMINI_ERROR: "GEMINI_ERROR",
   UNKNOWN_ERROR: "UNKNOWN_ERROR"
 };
 
@@ -97,14 +105,34 @@ export default async function handler(request, response) {
   };
 
   try {
-    const { formData, bodySize } = await readMultipartRequest(request);
+    const deadlineAt = Date.now() + REQUEST_BUDGET_MS;
+    requestContext.deadlineAt = deadlineAt;
+
+    let formData;
+    let bodySize = 0;
+
+    try {
+      ({ formData, bodySize } = await readMultipartRequest(request));
+    } catch (multipartError) {
+      return response.status(400).json(
+        fail(
+          ErrorCode.INVALID_MULTIPART,
+          "La requête multipart est invalide ou incomplète.",
+          {
+            message: String(multipartError?.message || multipartError)
+          }
+        )
+      );
+    }
+
     requestContext.rawBodySize = bodySize;
 
     requestContext.diagnostics.push({
       step: "upload",
       receivedBytes: bodySize,
       contentType: String(request.headers["content-type"] || ""),
-      overVercelSoftLimit: bodySize > VERCEL_BODY_SOFT_LIMIT
+      overVercelSoftLimit: bodySize > VERCEL_BODY_SOFT_LIMIT,
+      deadlineAt
     });
 
     if (bodySize > VERCEL_BODY_SOFT_LIMIT) {
@@ -261,7 +289,8 @@ export default async function handler(request, response) {
         heterogeneous,
         buildPrompt,
         validateResult,
-        hasUsableContent
+        hasUsableContent,
+        deadlineAt: requestContext.deadlineAt
       });
 
       requestContext.diagnostics.push(...(longResult.diagnostics || []));
@@ -341,7 +370,10 @@ export default async function handler(request, response) {
     let analysisResult = await analyzeWithParts(
       buildDirectParts(text, requestContext.pages, heterogeneous),
       {
-        retries: pdfOnly || requestContext.pages.length === 1 ? 1 : 0,
+        // Un seul essai court : le fallback modèles + page_images doivent tenir dans 54s
+        retries: 0,
+        maxModels: 2,
+        timeoutMs: pdfOnly ? 32000 : 28000,
         label: "direct"
       },
       requestContext
@@ -350,10 +382,17 @@ export default async function handler(request, response) {
     let mode = "direct";
 
     // Niveau 2 uniquement si le direct échoue / est vide / inutilisable
+    // et s’il reste assez de budget pour raster + Gemini.
     const directQuotaHit = isQuotaDetail(analysisResult.detail);
+    const directMissingKey = analysisResult.detail?.missingKey === true;
+    const remainingMs = () =>
+      (requestContext.deadlineAt || Date.now()) - Date.now();
     const shouldFallbackToImages =
       pdfOnly &&
       !directQuotaHit &&
+      !directMissingKey &&
+      !isTimeoutDetail(analysisResult.detail) &&
+      remainingMs() >= PAGE_IMAGES_MIN_REMAINING_MS &&
       (!analysisResult.ok || analysisResult.emptyOrUnusable);
 
     // -------- Niveau 2 : pages → images --------
@@ -377,7 +416,12 @@ export default async function handler(request, response) {
 
         const imageResult = await analyzeWithParts(
           raster.parts,
-          { retries: 1, label: "page_images" },
+          {
+            retries: 0,
+            maxModels: 2,
+            timeoutMs: Math.min(28000, Math.max(8000, remainingMs() - 3000)),
+            label: "page_images"
+          },
           requestContext
         );
 
@@ -565,6 +609,7 @@ function respondEmptyInput(response, requestContext) {
   );
 
   const pageMessage = requestContext.pageErrors[0]?.message || "";
+  const receivedBytes = Number(requestContext.rawBodySize) || 0;
 
   let code = ErrorCode.NO_USABLE_CONTENT;
   let message = "Aucun document ou texte exploitable n’a été reçu.";
@@ -587,9 +632,18 @@ function respondEmptyInput(response, requestContext) {
   } else if (requestContext.pageErrors.length) {
     code = ErrorCode.IMAGE_UNREADABLE;
     message = "Aucune page exploitable n’a pu être extraite.";
+  } else if (receivedBytes > 0) {
+    code = ErrorCode.FILE_NOT_RECEIVED;
+    message =
+      "Le fichier n’a pas été reçu correctement. Réessayez avec une photo ou un PDF.";
   }
 
-  return response.status(400).json(fail(code, message));
+  return response.status(400).json(
+    fail(code, message, {
+      receivedBytes,
+      pageErrors: requestContext.pageErrors?.length || 0
+    })
+  );
 }
 
 async function inspectIncomingPdfs(requestContext) {
@@ -873,7 +927,9 @@ async function analyzeWithParts(parts, options, requestContext) {
 
   const geminiResult = await callGeminiForAnalysis(parts, {
     retries: options.retries,
-    timeoutMs: 50000
+    timeoutMs: options.timeoutMs || 28000,
+    maxModels: options.maxModels || 2,
+    deadlineAt: requestContext.deadlineAt || Date.now() + 40000
   });
 
   requestContext.diagnostics.push({
@@ -998,10 +1054,26 @@ function respondGeminiFailure(
   }
 
   if (pdfOnly) {
+    // Ne pas masquer une panne Gemini derrière « PDF sans contenu »
+    if (detail.httpStatus || detail.network || detail.budgetExhausted) {
+      return response.status(502).json(
+        fail(
+          ErrorCode.GEMINI_ERROR,
+          "Le service d’analyse a échoué sur ce PDF. Réessayez dans quelques instants.",
+          {
+            pageCount: pdfProcessing.pageCount,
+            mode: pdfProcessing.mode,
+            upstreamStatus: detail.httpStatus || null,
+            upstreamMessage: upstreamMessage.slice(0, 240)
+          }
+        )
+      );
+    }
+
     return response.status(502).json(
       fail(
-        ErrorCode.PDF_NO_USABLE_CONTENT,
-        "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
+        ErrorCode.PDF_PROCESSING_FAILED,
+        "Le traitement du PDF a échoué. Réessayez avec un autre fichier ou une photo.",
         {
           pageCount: pdfProcessing.pageCount,
           failedPages:
@@ -1021,13 +1093,27 @@ function respondGeminiFailure(
 
   return response.status(502).json(
     fail(
-      ErrorCode.EMPTY_AI_RESPONSE,
+      ErrorCode.GEMINI_ERROR,
       "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants.",
       {
+        mode: pdfProcessing.mode,
+        pageCount: pdfProcessing.pageCount,
         upstreamStatus: detail.httpStatus || null,
-        upstreamMessage: upstreamMessage.slice(0, 240)
+        upstreamMessage: upstreamMessage.slice(0, 240),
+        model: analysisResult.model || null
       }
     )
+  );
+}
+
+function isTimeoutDetail(detail) {
+  if (!detail || typeof detail !== "object") {
+    return false;
+  }
+
+  return (
+    detail.timeout === true ||
+    detail.budgetExhausted === true
   );
 }
 
@@ -1216,6 +1302,59 @@ async function extractPages(formData, manifest) {
     }
   }
 
+  // Nouveau format sans manifeste obligatoire : page_0, page_1, …
+  const discovered = [];
+
+  for (let index = 0; index < 40; index += 1) {
+    const field = `page_${index}`;
+    const file = formData.get(field);
+
+    if (!file || typeof file === "string") {
+      if (index === 0) {
+        // aussi pages[0][file] éventuel
+        const alt = formData.get(`pages[${index}][file]`);
+        if (alt && typeof alt !== "string") {
+          discovered.push({ file: alt, order: index });
+          continue;
+        }
+      }
+      // trou dans la séquence → on arrête après page_0 manquant
+      if (index > 0 && !discovered.length) {
+        break;
+      }
+      if (index > 0) {
+        break;
+      }
+      continue;
+    }
+
+    discovered.push({ file, order: index });
+  }
+
+  for (const item of discovered) {
+    try {
+      const page = await readPageFile(item.file, {
+        order: item.order,
+        name: item.file.name || `page-${item.order + 1}`,
+        mimeType: item.file.type || "application/octet-stream",
+        rotation: 0
+      });
+      pages.push(page);
+    } catch (error) {
+      pageErrors.push({
+        name: item.file?.name || `page-${item.order + 1}`,
+        mimeType: item.file?.type || "",
+        page: `Page ${item.order + 1}`,
+        message: error?.message || "Le document n’a pas pu être lu."
+      });
+    }
+  }
+
+  if (pages.length) {
+    return { pages, pageErrors };
+  }
+
+  // Ancien format mono-fichier
   try {
     const legacyFile = formData.get("file");
 
