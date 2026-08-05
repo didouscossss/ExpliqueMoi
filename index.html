@@ -2094,6 +2094,7 @@
 
       <div class="privacy">
         🔒 Votre fichier sert uniquement à produire votre explication.
+        <span id="appVersionLabel" style="display:inline-block;margin-left:8px;opacity:0.55;font-size:0.85em;"></span>
       </div>
     </section>
 
@@ -2575,9 +2576,13 @@
     const $ = (id) =>
       document.getElementById(id);
 
+    // Affichée dans l’UI pour vérifier le déploiement Vercel
+    const APP_VERSION = "2.1.0";
+
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
-     * requestId / analysisId : invalident les réponses obsolètes
+     * runtimeGeneration : invalide TOUTE promesse async obsolète
+     * requestId / analysisId : invalident les réponses réseau
      * analysisContext        : transaction locale d’UNE analyse
      * pages[]                : pages du document courant
      */
@@ -2586,6 +2591,7 @@
       analysis: null,
       progressTimer: null,
       summaryExpanded: false,
+      runtimeGeneration: 0,
       requestId: 0,
       analysisId: 0,
       activeController: null,
@@ -2598,12 +2604,14 @@
       analysisError: null,
       finalStatus: "idle",
       pdfTempData: null,
+      activeObjectUrls: [],
       assistRequestId: 0,
       assistController: null,
       fileSelectionId: 0,
       isSelectingFile: false,
       isCompressing: false,
-      isAnalyzing: false
+      isAnalyzing: false,
+      isBusy: false
     };
 
     const AnalysisErrorKind = {
@@ -2645,10 +2653,22 @@
     function initializeApplication() {
       restoreTheme();
       bindEvents();
+      renderAppVersion();
       resetApplicationState({
         showHome: true,
         clearManualText: true
       });
+    }
+
+    function renderAppVersion() {
+      const label = $("appVersionLabel");
+
+      if (label) {
+        label.textContent = `v${APP_VERSION}`;
+      }
+
+      document.documentElement.dataset.appVersion =
+        APP_VERSION;
     }
 
     function bindEvents() {
@@ -2881,7 +2901,9 @@
           page.file = null;
         } else {
           page.previewUrl =
-            URL.createObjectURL(file);
+            trackObjectUrl(
+              URL.createObjectURL(file)
+            );
         }
       }
 
@@ -2942,7 +2964,9 @@
         current.file = compressedFile;
         current.mimeType = compressedFile.type;
         current.previewUrl =
-          URL.createObjectURL(compressedFile);
+          trackObjectUrl(
+            URL.createObjectURL(compressedFile)
+          );
         current.status = "ready";
         current.statusMessage =
           `Compressé : ${formatSize(current.originalSize)} → ${formatSize(compressedFile.size)}`;
@@ -3131,8 +3155,34 @@
     function revokePagePreview(page) {
       if (page?.previewUrl) {
         URL.revokeObjectURL(page.previewUrl);
+
+        state.activeObjectUrls =
+          state.activeObjectUrls.filter(
+            (url) => url !== page.previewUrl
+          );
+
         page.previewUrl = null;
       }
+    }
+
+    function trackObjectUrl(url) {
+      if (url) {
+        state.activeObjectUrls.push(url);
+      }
+
+      return url;
+    }
+
+    function revokeAllObjectUrls() {
+      state.activeObjectUrls.forEach((url) => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // ignore
+        }
+      });
+
+      state.activeObjectUrls = [];
     }
 
     function enforceTotalSizeLimit() {
@@ -3456,7 +3506,9 @@
           360;
         current.rotation = 0;
         current.previewUrl =
-          URL.createObjectURL(rotatedFile);
+          trackObjectUrl(
+            URL.createObjectURL(rotatedFile)
+          );
         current.status = "ready";
         current.statusMessage = "Prêt";
         current.sizeLabel =
@@ -3500,6 +3552,7 @@
     /*
      * Purge atomique de tout le runtime d’analyse.
      * Une analyse échouée ne doit jamais contaminer la suivante.
+     * runtimeGeneration empêche toute ancienne promesse de toucher l’UI.
      */
     function resetAnalysisRuntimeState(options = {}) {
       const clearPages = options.clearPages === true;
@@ -3513,6 +3566,9 @@
       const resetButtons =
         options.resetButtons !== false;
 
+      // 0. Nouvelle génération : invalide TOUT async en cours
+      state.runtimeGeneration += 1;
+
       // 1. Annuler l’ancienne requête
       if (state.activeController) {
         try {
@@ -3524,7 +3580,7 @@
         state.activeController = null;
       }
 
-      // 2. Invalider requestId / analysisId (promesses obsolètes)
+      // 2. Invalider requestId / analysisId
       state.requestId += 1;
       state.analysisId += 1;
 
@@ -3533,6 +3589,7 @@
         const previous = state.analysisContext;
 
         previous.status = AnalysisErrorKind.OBSOLETE;
+        previous.generation = -1;
         previous.formData = null;
         previous.manifest = null;
         previous.pages = null;
@@ -3556,6 +3613,7 @@
       state.analysisError = null;
       state.finalStatus = "idle";
       state.pdfTempData = null;
+      state.isBusy = false;
 
       if (clearPages) {
         purgeFileMemory();
@@ -3580,6 +3638,17 @@
         $("errorMessage").textContent = "";
       }
 
+      // Remet toujours le bandeau hors « Analyse partielle »
+      if ($("successBannerTitle")) {
+        $("successBannerTitle").textContent =
+          "Analyse terminée avec succès !";
+      }
+
+      if ($("successBannerMessage")) {
+        $("successBannerMessage").textContent =
+          "Votre document a été compris.";
+      }
+
       state.isAnalyzing = false;
 
       if (clearManualText && $("manualText")) {
@@ -3594,7 +3663,7 @@
         showScreen("homeScreen");
       }
 
-      return state.requestId;
+      return state.runtimeGeneration;
     }
 
     // Alias conservé : annulation réseau uniquement via le reset centralisé
@@ -3623,11 +3692,38 @@
       return Boolean(
         context &&
         state.analysisContext === context &&
+        context.generation === state.runtimeGeneration &&
         context.requestId === state.requestId &&
         context.analysisId === state.analysisId &&
         context.status === "running" &&
         context.controller &&
-        !context.controller.signal.aborted
+        !context.controller.signal.aborted &&
+        state.isAnalyzing
+      );
+    }
+
+    function isCurrentGeneration(generation) {
+      return generation === state.runtimeGeneration;
+    }
+
+    /*
+     * Gemini envoie souvent 0.85 (échelle 0–1).
+     * Sans conversion → Math.round(0.85)=1 → faux « Analyse partielle ».
+     */
+    function normalizeConfidence(value) {
+      const number = Number(value);
+
+      if (!Number.isFinite(number) || number < 0) {
+        return 0;
+      }
+
+      if (number > 0 && number <= 1) {
+        return Math.round(number * 100);
+      }
+
+      return Math.max(
+        0,
+        Math.min(100, Math.round(number))
       );
     }
 
@@ -3782,6 +3878,7 @@
     function purgeFileMemory() {
       state.pages.forEach(revokePagePreview);
       state.pages = [];
+      revokeAllObjectUrls();
 
       state.fileSelectionId += 1;
       state.isSelectingFile = false;
@@ -3971,6 +4068,7 @@
 
       const busy =
         state.isAnalyzing ||
+        state.isBusy ||
         state.isCompressing ||
         state.isSelectingFile;
 
@@ -4269,10 +4367,12 @@
       const controller = new AbortController();
       const requestId = state.requestId;
       const analysisId = state.analysisId;
+      const generation = state.runtimeGeneration;
 
       const context = {
         requestId,
         analysisId,
+        generation,
         pages: meta.pagesSnapshot || null,
         manifest: meta.manifest || null,
         controller,
@@ -4298,6 +4398,7 @@
       state.pdfTempData = null;
       state.finalStatus = "loading";
       state.isAnalyzing = true;
+      state.isBusy = true;
 
       syncActionControls();
       showScreen("loadingScreen");
@@ -4380,7 +4481,11 @@
 
         await wait(450);
 
-        if (!isActiveAnalysisContext(context)) {
+        // Re-vérifie génération + contexte après l’attente
+        if (
+          !isCurrentGeneration(generation) ||
+          !isActiveAnalysisContext(context)
+        ) {
           context.status =
             AnalysisErrorKind.OBSOLETE;
           return;
@@ -4390,10 +4495,11 @@
         purgeAnalysisMemory();
         clearResultInterface();
 
+        // « Analyse partielle » UNIQUEMENT si lecture réellement partielle
+        // (warnings / reading_quality) — jamais à cause d’une confidence 0–1 mal lue
         const finalStatus =
           newAnalysis.readingQuality ===
-            "partial" ||
-          newAnalysis.warnings.length > 0
+            "partial"
             ? "partial"
             : "success";
 
@@ -4417,7 +4523,10 @@
           return;
         }
 
-        if (!isActiveAnalysisContext(context)) {
+        if (
+          !isCurrentGeneration(generation) ||
+          !isActiveAnalysisContext(context)
+        ) {
           context.status =
             AnalysisErrorKind.OBSOLETE;
           return;
@@ -4442,7 +4551,7 @@
         context.error = error;
         context.warnings = [];
 
-        // Après erreur bloquante : runtime propre, pages conservées
+        // Après erreur bloquante : état 100 % vierge (pages conservées pour réessai)
         resetAnalysisRuntimeState({
           clearPages: false,
           resetCharacter: true,
@@ -4453,6 +4562,7 @@
         state.finalStatus = "error";
         state.analysisError = error;
         state.analysisWarnings = [];
+        state.isBusy = false;
 
         showError(
           errorTitle,
@@ -4471,6 +4581,7 @@
         if (state.analysisContext === context) {
           state.activeController = null;
           state.isAnalyzing = false;
+          state.isBusy = false;
           state.lastFormData = null;
           state.lastManifest = null;
           state.preparedPages = null;
@@ -4579,20 +4690,29 @@
         data?.reading_quality
       ).toLowerCase();
 
+      const confidence = normalizeConfidence(
+        data?.confidence
+      );
+
       if (
         !["full", "partial", "failed"].includes(
           readingQuality
         )
       ) {
-        if (
+        readingQuality =
           warnings.length ||
           pageErrors.length ||
-          Number(data?.confidence) < 55
-        ) {
-          readingQuality = "partial";
-        } else {
-          readingQuality = "full";
-        }
+          confidence < 55
+            ? "partial"
+            : "full";
+      }
+
+      // Warnings de lot hétérogène / pages → partial explicite
+      if (
+        (warnings.length || pageErrors.length) &&
+        readingQuality === "full"
+      ) {
+        readingQuality = "partial";
       }
 
       return {
@@ -4655,18 +4775,7 @@
             data?.evidence
           ),
 
-        confidence:
-          Math.max(
-            0,
-            Math.min(
-              100,
-              Math.round(
-                Number(
-                  data?.confidence
-                ) || 0
-              )
-            )
-          ),
+        confidence,
 
         warnings,
         pageErrors,
@@ -5804,8 +5913,20 @@
       state.finalStatus = "error";
       state.analysisWarnings = [];
       state.isAnalyzing = false;
+      state.isBusy = false;
       state.isCompressing = false;
       state.isSelectingFile = false;
+
+      // Efface tout résidu d’« Analyse partielle » avant l’écran d’erreur
+      if ($("successBannerTitle")) {
+        $("successBannerTitle").textContent =
+          "Analyse terminée avec succès !";
+      }
+
+      if ($("successBannerMessage")) {
+        $("successBannerMessage").textContent =
+          "Votre document a été compris.";
+      }
 
       if (options.keepRuntimeClean) {
         state.lastFormData = null;

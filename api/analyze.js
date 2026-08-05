@@ -135,38 +135,19 @@ export default async function handler(request, response) {
       });
     }
 
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts
-            }
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            responseMimeType: "application/json"
-          }
-        })
-      }
-    );
+    const pdfOnly =
+      requestContext.pages.length > 0 &&
+      requestContext.pages.every(
+        (page) => page.mimeType === "application/pdf"
+      );
 
-    const geminiData = await geminiResponse.json();
+    // Chaque requête appelle Gemini indépendamment (pas de cache / état partagé)
+    const geminiResult = await callGeminiForAnalysis(parts, {
+      retries: pdfOnly || requestContext.pages.length === 1 ? 1 : 0
+    });
 
-    if (!geminiResponse.ok) {
-      console.error(geminiData);
-
-      const pdfOnly =
-        requestContext.pages.length > 0 &&
-        requestContext.pages.every(
-          (page) => page.mimeType === "application/pdf"
-        );
+    if (!geminiResult.ok) {
+      console.error(geminiResult.detail);
 
       return response.status(502).json({
         error: pdfOnly
@@ -178,19 +159,10 @@ export default async function handler(request, response) {
       });
     }
 
-    const rawText =
-      geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!rawText) {
-      throw Object.assign(new Error("Réponse IA vide."), {
-        errorKind: "backend"
-      });
-    }
-
     let result;
 
     try {
-      result = JSON.parse(rawText);
+      result = JSON.parse(geminiResult.rawText);
     } catch {
       throw Object.assign(
         new Error("Réponse IA illisible."),
@@ -488,10 +460,119 @@ function cleanText(value) {
     : "";
 }
 
+/*
+ * Gemini renvoie souvent une confidence sur 0–1 (ex: 0.85).
+ * L’UI et reading_quality attendent 0–100.
+ * Sans cette conversion, presque tout devient « Analyse partielle ».
+ */
+function normalizeConfidence(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number < 0) {
+    return 0;
+  }
+
+  if (number > 0 && number <= 1) {
+    return Math.round(number * 100);
+  }
+
+  return Math.max(0, Math.min(100, Math.round(number)));
+}
+
+async function callGeminiForAnalysis(parts, options = {}) {
+  const retries = Number(options.retries) || 0;
+  let lastDetail = null;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts
+              }
+            ],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: "application/json"
+            }
+          })
+        }
+      );
+
+      const geminiData = await geminiResponse.json();
+
+      if (!geminiResponse.ok) {
+        lastDetail = geminiData;
+
+        // Retry only on transient upstream errors
+        if (
+          attempt < retries &&
+          [429, 500, 502, 503, 504].includes(geminiResponse.status)
+        ) {
+          await wait(350 * (attempt + 1));
+          continue;
+        }
+
+        return { ok: false, detail: geminiData };
+      }
+
+      const rawText =
+        geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!rawText) {
+        lastDetail = {
+          empty: true,
+          finishReason:
+            geminiData.candidates?.[0]?.finishReason || null,
+          promptFeedback: geminiData.promptFeedback || null
+        };
+
+        if (attempt < retries) {
+          await wait(350 * (attempt + 1));
+          continue;
+        }
+
+        return { ok: false, detail: lastDetail };
+      }
+
+      return { ok: true, rawText, detail: geminiData };
+    } catch (error) {
+      lastDetail = {
+        network: true,
+        message: error?.message || "fetch failed"
+      };
+
+      if (attempt < retries) {
+        await wait(350 * (attempt + 1));
+        continue;
+      }
+
+      return { ok: false, detail: lastDetail };
+    }
+  }
+
+  return { ok: false, detail: lastDetail };
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 function hasUsableContent(result) {
   const summary = cleanText(result.plain_summary);
   const request = cleanText(result.request);
   const documentType = cleanText(result.document_type);
+  const confidence = normalizeConfidence(result.confidence);
 
   const hasSummary =
     summary.length >= 20 &&
@@ -517,7 +598,7 @@ function hasUsableContent(result) {
     hasSummary ||
     hasRequest ||
     (hasType && hasEvidence) ||
-    Number(result.confidence) >= 35
+    confidence >= 35
   );
 }
 
@@ -611,9 +692,11 @@ Réponds exclusivement avec ce JSON :
       "explanation": "ce que prouve ce passage"
     }
   ],
-  "confidence": 0,
+  "confidence": 85,
   "reading_quality": "full | partial"
 }
+
+Important : confidence est un entier de 0 à 100 (pas une fraction 0–1).
 
 Texte collé par l'utilisateur, s'il existe :
 ${pastedText || "Aucun texte collé."}
@@ -646,15 +729,18 @@ function validateResult(
     pushWarning(HETEROGENEOUS_BATCH_WARNING);
   }
 
+  const confidence = normalizeConfidence(result?.confidence);
+
   let readingQuality = cleanText(
     result?.reading_quality
   ).toLowerCase();
 
+  // Ne jamais forcer « partial » juste parce que Gemini a renvoyé 0.8 au lieu de 80
   if (!["full", "partial", "failed"].includes(readingQuality)) {
     readingQuality =
       warnings.length ||
       pageErrors.length ||
-      Number(result?.confidence) < 55
+      confidence < 55
         ? "partial"
         : "full";
   }
@@ -662,6 +748,9 @@ function validateResult(
   if (pageErrors.length && readingQuality === "full") {
     readingQuality = "partial";
   }
+
+  // Lot hétérogène : partial uniquement si warning présent (déjà le cas)
+  // PDF seul sans warning : ne pas hériter d’un état précédent (il n’y en a pas serveur)
 
   return {
     document_type:
@@ -709,9 +798,7 @@ function validateResult(
       ? result.evidence.slice(0, 6)
       : [],
 
-    confidence: Number.isFinite(result.confidence)
-      ? Math.max(0, Math.min(100, result.confidence))
-      : 0,
+    confidence,
 
     reading_quality: readingQuality,
     warnings,
