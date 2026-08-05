@@ -235,8 +235,10 @@ export default async function handler(request, response) {
 
     // Niveau 2 uniquement si le direct échoue / est vide / inutilisable
     // (y compris PDF scannés : Gemini direct échoue souvent → rasterisation)
+    const directQuotaHit = isQuotaDetail(analysisResult.detail);
     const shouldFallbackToImages =
       pdfOnly &&
+      !directQuotaHit &&
       (!analysisResult.ok || analysisResult.emptyOrUnusable);
 
     // -------- Niveau 2 : pages → images --------
@@ -901,6 +903,19 @@ function respondGeminiFailure(
         upstreamMessage: upstreamMessage.slice(0, 240)
       }
     )
+  );
+}
+
+function isQuotaDetail(detail) {
+  if (!detail || typeof detail !== "object") {
+    return false;
+  }
+
+  const message = String(detail?.error?.message || detail?.message || "");
+
+  return (
+    detail.httpStatus === 429 ||
+    /quota|rate limit|exceeded your current quota/i.test(message)
   );
 }
 
