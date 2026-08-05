@@ -5,6 +5,8 @@ export const config = {
 };
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_TOTAL_SIZE = 20 * 1024 * 1024;
+const MAX_PAGES = 10;
 
 export default async function handler(request, response) {
   if (request.method !== "POST") {
@@ -16,34 +18,60 @@ export default async function handler(request, response) {
   try {
     const formData = await readMultipartRequest(request);
 
-    const file = formData.get("file");
     const text = String(formData.get("text") || "").trim();
+    const pages = await extractPages(formData);
 
-    if (!file && text.length < 20) {
+    if (!pages.length && text.length < 20) {
       return response.status(400).json({
         error: "Aucun document ou texte exploitable n’a été reçu."
       });
     }
 
-    if (file && file.size > MAX_FILE_SIZE) {
-      return response.status(413).json({
-        error: "Le fichier dépasse la limite de 10 Mo."
+    if (pages.length > MAX_PAGES) {
+      return response.status(400).json({
+        error: "Le document dépasse la limite de 10 pages."
       });
+    }
+
+    const totalSize = pages.reduce(
+      (sum, page) => sum + page.size,
+      0
+    );
+
+    if (totalSize > MAX_TOTAL_SIZE) {
+      return response.status(413).json({
+        error: "La sélection dépasse la taille totale acceptée."
+      });
+    }
+
+    for (const page of pages) {
+      if (page.size > MAX_FILE_SIZE) {
+        return response.status(413).json({
+          error: `La page « ${page.name} » dépasse la limite de 10 Mo.`
+        });
+      }
     }
 
     const parts = [
       {
-        text: buildPrompt(text)
+        text: buildPrompt(text, pages.length)
       }
     ];
 
-    if (file) {
-      const bytes = Buffer.from(await file.arrayBuffer());
+    for (const page of pages) {
+      parts.push({
+        text:
+          `--- Page ${page.order + 1} / ${pages.length} ---\n` +
+          `Nom: ${page.name}\n` +
+          `Type: ${page.mimeType}\n` +
+          `Rotation déclarée: ${page.rotation}°\n` +
+          `Ordre: ${page.order}`
+      });
 
       parts.push({
         inlineData: {
-          mimeType: file.type || "application/octet-stream",
-          data: bytes.toString("base64")
+          mimeType: page.mimeType || "application/octet-stream",
+          data: page.base64
         }
       });
     }
@@ -119,7 +147,115 @@ async function readMultipartRequest(request) {
   return nativeRequest.formData();
 }
 
-function buildPrompt(pastedText) {
+/*
+ * Accepte :
+ * - multi-pages via manifest + page_N
+ * - mono-fichier legacy via "file"
+ */
+async function extractPages(formData) {
+  const pages = [];
+
+  let manifest = null;
+
+  const rawManifest = formData.get("manifest");
+
+  if (typeof rawManifest === "string" && rawManifest.trim()) {
+    try {
+      manifest = JSON.parse(rawManifest);
+    } catch {
+      manifest = null;
+    }
+  }
+
+  if (Array.isArray(manifest?.pages) && manifest.pages.length) {
+    const ordered = [...manifest.pages].sort(
+      (a, b) => Number(a.order) - Number(b.order)
+    );
+
+    for (const [index, meta] of ordered.entries()) {
+      const field =
+        meta.field || `page_${index}`;
+
+      const file = formData.get(field);
+
+      if (!file || typeof file === "string") {
+        continue;
+      }
+
+      const bytes = Buffer.from(await file.arrayBuffer());
+
+      pages.push({
+        order: index,
+        name:
+          cleanText(meta.name) ||
+          file.name ||
+          `page-${index + 1}`,
+        mimeType:
+          cleanText(meta.mimeType) ||
+          file.type ||
+          "application/octet-stream",
+        rotation: normalizeRotation(meta.rotation),
+        size: bytes.length,
+        base64: bytes.toString("base64")
+      });
+    }
+
+    // Manifest exploitable : format multi-pages
+    if (pages.length) {
+      return pages;
+    }
+
+    // Manifest présent mais pages illisibles → fallback legacy "file"
+  }
+
+  // Format historique : un seul champ "file" (et/ou texte collé)
+  const legacyFile = formData.get("file");
+
+  if (legacyFile && typeof legacyFile !== "string") {
+    const bytes = Buffer.from(await legacyFile.arrayBuffer());
+
+    pages.push({
+      order: 0,
+      name: legacyFile.name || "document",
+      mimeType:
+        legacyFile.type || "application/octet-stream",
+      rotation: 0,
+      size: bytes.length,
+      base64: bytes.toString("base64")
+    });
+  }
+
+  return pages;
+}
+
+function normalizeRotation(value) {
+  const number = Number(value) || 0;
+  const normalized = ((number % 360) + 360) % 360;
+
+  return [0, 90, 180, 270].includes(normalized)
+    ? normalized
+    : 0;
+}
+
+function cleanText(value) {
+  return typeof value === "string"
+    ? value.replace(/\s+/g, " ").trim()
+    : "";
+}
+
+function buildPrompt(pastedText, pageCount) {
+  const multiPageRules =
+    pageCount > 1
+      ? `
+DOCUMENT MULTI-PAGES :
+- Tu reçois ${pageCount} pages d'UN SEUL document, déjà ordonnées.
+- Analyse-les comme un document unique et cohérent.
+- Si une page est illisible, continue avec les autres.
+- Signale clairement les passages illisibles sans inventer leur contenu.
+- Dans evidence.page, indique "Page 1", "Page 2", etc. selon l'ordre fourni.
+`
+      : "";
+
   return `
 Tu es ExpliqueMoi, un assistant qui explique les documents français
 de manière directe, courte et vérifiable.
@@ -148,7 +284,7 @@ RÈGLES :
 - Pour chaque conclusion importante, cite le passage exact.
 - En matière fiscale, juridique ou médicale, explique sans prétendre
   remplacer un professionnel.
-
+${multiPageRules}
 Réponds exclusivement avec ce JSON :
 
 {
@@ -243,4 +379,4 @@ function validateResult(result) {
       ? Math.max(0, Math.min(100, result.confidence))
       : 0
   };
-      }
+}
