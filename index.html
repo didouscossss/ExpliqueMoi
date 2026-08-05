@@ -2600,7 +2600,7 @@
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.1.2";
+    const APP_VERSION = "2.2.0";
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -2640,6 +2640,7 @@
     const AnalysisErrorCode = {
       PDF_PROTECTED: "PDF_PROTECTED",
       PDF_CORRUPTED: "PDF_CORRUPTED",
+      PDF_NO_USABLE_CONTENT: "PDF_NO_USABLE_CONTENT",
       IMAGE_UNREADABLE: "IMAGE_UNREADABLE",
       NO_USABLE_CONTENT: "NO_USABLE_CONTENT",
       FILE_TOO_LARGE: "FILE_TOO_LARGE",
@@ -2669,7 +2670,7 @@
     const MAX_PAGES = 10;
 
     const MAX_DIRECT_FILE_SIZE =
-      3.2 * 1024 * 1024;
+      4 * 1024 * 1024;
 
     const MAX_IMAGE_SIZE =
       30 * 1024 * 1024;
@@ -3864,6 +3865,13 @@
           message: "Le fichier semble endommagé.",
           retryable: false
         },
+        PDF_NO_USABLE_CONTENT: {
+          code: AnalysisErrorCode.PDF_NO_USABLE_CONTENT,
+          title: "Échec de l’analyse",
+          message:
+            "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
+          retryable: false
+        },
         IMAGE_UNREADABLE: {
           code: AnalysisErrorCode.IMAGE_UNREADABLE,
           title: "Échec de l’analyse",
@@ -3935,6 +3943,7 @@
         NETWORK: "NETWORK_ERROR",
         PDF_PROTECTED: "PDF_PROTECTED",
         PDF_CORRUPTED: "PDF_CORRUPTED",
+        PDF_NO_USABLE_CONTENT: "PDF_NO_USABLE_CONTENT",
         IMAGE_UNREADABLE: "IMAGE_UNREADABLE",
         NO_USABLE_CONTENT: "NO_USABLE_CONTENT",
         FILE_TOO_LARGE: "FILE_TOO_LARGE",
