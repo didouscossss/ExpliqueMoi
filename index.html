@@ -2865,7 +2865,7 @@
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.3.0-restored";
+    const APP_VERSION = "2.3.1";
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -2895,6 +2895,13 @@
       activeObjectUrls: [],
       assistRequestId: 0,
       assistController: null,
+      assistInFlightAction: null,
+      assistActiveByAction: {
+        reply: 0,
+        fill: 0,
+        checklist: 0,
+        questions: 0
+      },
       fileSelectionId: 0,
       isSelectingFile: false,
       isCompressing: false,
@@ -6793,6 +6800,356 @@
       return null;
     }
 
+    const ASSIST_ENDPOINT = "/api/assist";
+    const ASSIST_TIMEOUT_MS = 20000;
+
+    const ASSIST_UI = {
+      reply: {
+        title: "Préparation de votre réponse",
+        loading: "Je prépare une réponse adaptée…"
+      },
+      fill: {
+        title: "Guide de remplissage",
+        loading: "Je recherche les champs présents…"
+      },
+      checklist: {
+        title: "Pièces à préparer",
+        loading: "Je vérifie les justificatifs…"
+      },
+      questions: {
+        title: "Questions à poser",
+        loading: "Je prépare les questions utiles…"
+      }
+    };
+
+    /**
+     * Appel centralisé des 4 actions post-analyse.
+     * - JSON toujours attendu
+     * - text() puis JSON.parse
+     * - timeout + AbortController
+     * - ignore les réponses d’un ancien document
+     */
+    async function requestDocumentAction(
+      actionType,
+      payload = {}
+    ) {
+      const action = String(actionType || "");
+      const analysisSnapshot =
+        payload.analysis || state.analysis;
+      const boundAnalysisId =
+        payload.analysisId ?? state.analysisId;
+      const documentId =
+        payload.documentId || state.documentId || "";
+
+      if (
+        !analysisSnapshot ||
+        !ASSIST_UI[action]
+      ) {
+        return {
+          ok: false,
+          stale: false,
+          error: {
+            code: "INVALID_CONTEXT",
+            message:
+              "Le document actuel ne contient pas assez d’informations."
+          }
+        };
+      }
+
+      // Un seul appel actif par action (anti double-clic)
+      if (
+        state.assistInFlightAction === action
+      ) {
+        return {
+          ok: false,
+          stale: true,
+          error: {
+            code: "REQUEST_IN_FLIGHT",
+            message:
+              "Une préparation est déjà en cours pour cette action."
+          }
+        };
+      }
+
+      if (state.assistController) {
+        state.assistController.abort();
+      }
+
+      const controller = new AbortController();
+      state.assistController = controller;
+      state.assistInFlightAction = action;
+      state.assistRequestId += 1;
+
+      const assistRequestId =
+        state.assistRequestId;
+      const actionToken =
+        (state.assistActiveByAction[action] ||
+          0) + 1;
+
+      state.assistActiveByAction[action] =
+        actionToken;
+
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, ASSIST_TIMEOUT_MS);
+
+      try {
+        const response = await fetch(
+          `${ASSIST_ENDPOINT}?time=${Date.now()}&assist=${assistRequestId}&action=${encodeURIComponent(action)}`,
+          {
+            method: "POST",
+            cache: "no-store",
+            signal: controller.signal,
+            headers: {
+              "Content-Type":
+                "application/json",
+              "Cache-Control": "no-store",
+              "X-ExpliqueMoi-Analysis":
+                String(boundAnalysisId)
+            },
+            body: JSON.stringify({
+              actionType: action,
+              analysisId: boundAnalysisId,
+              documentId,
+              analysis: analysisSnapshot,
+              documentContext: {
+                analysisId: boundAnalysisId,
+                documentType:
+                  analysisSnapshot.documentType ||
+                  analysisSnapshot.document_type ||
+                  "",
+                issuer:
+                  analysisSnapshot.issuer || "",
+                summary:
+                  analysisSnapshot.summary || "",
+                requests: Array.isArray(
+                  analysisSnapshot.requests
+                )
+                  ? analysisSnapshot.requests
+                  : analysisSnapshot.request
+                    ? [analysisSnapshot.request]
+                    : [],
+                actions:
+                  analysisSnapshot.actions || [],
+                dates:
+                  analysisSnapshot.dates || [],
+                amounts:
+                  analysisSnapshot.amountsDetail ||
+                  analysisSnapshot.amounts ||
+                  [],
+                references:
+                  analysisSnapshot.entities
+                    ?.references ||
+                  analysisSnapshot.references ||
+                  [],
+                proofs:
+                  analysisSnapshot.proofs || [],
+                tables:
+                  analysisSnapshot.tables || [],
+                formFields:
+                  analysisSnapshot.formFields ||
+                  [],
+                requiredDocuments:
+                  analysisSnapshot.requiredDocuments ||
+                  []
+              }
+            })
+          }
+        );
+
+        const rawText = await response.text();
+        const contentType =
+          response.headers.get("content-type") ||
+          "";
+
+        if (
+          assistRequestId !==
+            state.assistRequestId ||
+          boundAnalysisId !==
+            state.analysisId ||
+          state.assistActiveByAction[action] !==
+            actionToken ||
+          controller.signal.aborted
+        ) {
+          return {
+            ok: false,
+            stale: true,
+            error: {
+              code: "STALE_RESPONSE",
+              message:
+                "Cette réponse ne correspond plus au document actuel."
+            }
+          };
+        }
+
+        let data = null;
+
+        try {
+          data = rawText
+            ? JSON.parse(rawText)
+            : null;
+        } catch (parseError) {
+          const meta = {
+            status: response.status,
+            contentType,
+            bytes: rawText.length,
+            head: String(rawText)
+              .slice(0, 120)
+              .replace(/\s+/g, " "),
+            action,
+            analysisId: boundAnalysisId
+          };
+
+          console.error(
+            "[assist] invalid JSON",
+            meta
+          );
+
+          const timeoutLike =
+            response.status === 504 ||
+            /FUNCTION_INVOCATION_TIMEOUT|timeout/i.test(
+              rawText
+            );
+
+          const htmlLike =
+            /<!doctype|<html/i.test(rawText);
+
+          return {
+            ok: false,
+            stale: false,
+            error: {
+              code: timeoutLike
+                ? "TIMEOUT"
+                : htmlLike
+                  ? "NON_JSON_HTML"
+                  : "NON_JSON",
+              message: timeoutLike
+                ? "Le serveur a mis trop de temps à répondre (timeout). Réessayez."
+                : htmlLike
+                  ? `Réponse non JSON du serveur (HTTP ${response.status}, page HTML).`
+                  : rawText.trim()
+                    ? `Réponse du serveur illisible (HTTP ${response.status}, ${contentType || "type inconnu"}).`
+                    : `Réponse du serveur illisible (HTTP ${response.status}, corps vide).`
+            }
+          };
+        }
+
+        if (
+          assistRequestId !==
+            state.assistRequestId ||
+          boundAnalysisId !==
+            state.analysisId ||
+          state.assistActiveByAction[action] !==
+            actionToken
+        ) {
+          return {
+            ok: false,
+            stale: true,
+            error: {
+              code: "STALE_RESPONSE",
+              message:
+                "Cette réponse ne correspond plus au document actuel."
+            }
+          };
+        }
+
+        if (
+          data &&
+          data.ok === true &&
+          data.result
+        ) {
+          return {
+            ok: true,
+            stale: false,
+            action: data.action || action,
+            result: data.result,
+            httpStatus: response.status
+          };
+        }
+
+        const structuredError =
+          data?.error &&
+          typeof data.error === "object"
+            ? data.error
+            : null;
+
+        return {
+          ok: false,
+          stale: false,
+          error: {
+            code:
+              structuredError?.code ||
+              (response.ok
+                ? "ASSIST_FAILED"
+                : `HTTP_${response.status}`),
+            message:
+              structuredError?.message ||
+              (typeof data?.error === "string"
+                ? data.error
+                : null) ||
+              "Je n’ai pas pu préparer cette aide."
+          },
+          httpStatus: response.status
+        };
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          if (
+            boundAnalysisId !==
+              state.analysisId ||
+            state.assistActiveByAction[action] !==
+              actionToken
+          ) {
+            return {
+              ok: false,
+              stale: true,
+              error: {
+                code: "STALE_RESPONSE",
+                message:
+                  "Cette réponse ne correspond plus au document actuel."
+              }
+            };
+          }
+
+          return {
+            ok: false,
+            stale: false,
+            error: {
+              code: "TIMEOUT",
+              message:
+                "La préparation a été interrompue (délai dépassé). Réessayez."
+            }
+          };
+        }
+
+        return {
+          ok: false,
+          stale: false,
+          error: {
+            code: "NETWORK_ERROR",
+            message:
+              error?.message ||
+              "Impossible de contacter le serveur."
+          }
+        };
+      } finally {
+        clearTimeout(timeoutId);
+
+        if (
+          state.assistController === controller
+        ) {
+          state.assistController = null;
+        }
+
+        if (
+          state.assistInFlightAction === action &&
+          state.assistActiveByAction[action] ===
+            actionToken
+        ) {
+          state.assistInFlightAction = null;
+        }
+      }
+    }
+
     async function requestAssistance(
       actionType
     ) {
@@ -6800,61 +7157,20 @@
         return;
       }
 
-      // Snapshot de l'analyse courante + id : ignore toute réponse assist obsolète
-      const analysisSnapshot = state.analysis;
-      const boundAnalysisId = state.analysisId;
-
-      const configuration = {
-        reply: {
-          title:
-            "Préparation de votre réponse",
-
-          loading:
-            "Je prépare une réponse adaptée…"
-        },
-
-        fill: {
-          title:
-            "Guide de remplissage",
-
-          loading:
-            "Je recherche les champs présents…"
-        },
-
-        checklist: {
-          title:
-            "Pièces à préparer",
-
-          loading:
-            "Je vérifie les justificatifs…"
-        },
-
-        questions: {
-          title:
-            "Questions à poser",
-
-          loading:
-            "Je prépare les questions utiles…"
-        }
-      };
-
-      const current =
-        configuration[actionType];
-
-      if (state.assistController) {
-        state.assistController.abort();
+      if (
+        state.assistInFlightAction ===
+        actionType
+      ) {
+        return;
       }
 
-      const controller =
-        new AbortController();
+      const current = ASSIST_UI[actionType];
 
-      state.assistController =
-        controller;
+      if (!current) {
+        return;
+      }
 
-      state.assistRequestId += 1;
-
-      const assistRequestId =
-        state.assistRequestId;
+      const boundAnalysisId = state.analysisId;
 
       $("assistantTitle").textContent =
         current.title;
@@ -6880,107 +7196,54 @@
       setAssistantButtonsDisabled(true);
 
       try {
-        const response = await fetch(
-          `/api/assist?time=${Date.now()}&assist=${assistRequestId}`,
-          {
-            method: "POST",
-
-            cache: "no-store",
-
-            signal: controller.signal,
-
-            headers: {
-              "Content-Type":
-                "application/json",
-              "Cache-Control":
-                "no-store"
-            },
-
-            body: JSON.stringify({
-              actionType,
-              analysis: analysisSnapshot
-            })
-          }
-        );
+        const outcome =
+          await requestDocumentAction(
+            actionType,
+            {
+              analysis: state.analysis,
+              analysisId: boundAnalysisId,
+              documentId: state.documentId
+            }
+          );
 
         if (
-          assistRequestId !==
-            state.assistRequestId ||
-          boundAnalysisId !==
-            state.analysisId ||
-          controller.signal.aborted
+          outcome?.stale ||
+          boundAnalysisId !== state.analysisId
         ) {
           return;
         }
 
-        let data;
+        if (!outcome?.ok) {
+          const message =
+            outcome?.error?.message ||
+            "Je n’ai pas pu préparer cette aide.";
 
-        try {
-          data =
-            await response.json();
-        } catch {
-          throw new Error(
-            "Réponse du serveur illisible."
-          );
-        }
+          $("assistantOutput").innerHTML = `
+            <div class="assistant-warning">
+              <strong>
+                Je n’ai pas pu préparer cette aide.
+              </strong>
 
-        if (!response.ok) {
-          throw new Error(
-            data?.error ||
-            "Aide impossible."
-          );
-        }
-
-        if (
-          assistRequestId !==
-            state.assistRequestId ||
-          boundAnalysisId !==
-            state.analysisId
-        ) {
+              <p>
+                ${escapeHtml(message)}
+              </p>
+            </div>
+          `;
           return;
         }
 
         renderAssistantResult(
-          data,
+          outcome,
           actionType
         );
 
         $("copyAssistantButton").classList.remove(
           "hidden"
         );
-      } catch (error) {
-        if (error.name === "AbortError") {
-          return;
-        }
-
-        if (
-          assistRequestId !==
-            state.assistRequestId ||
-          boundAnalysisId !==
-            state.analysisId
-        ) {
-          return;
-        }
-
-        $("assistantOutput").innerHTML = `
-          <div class="assistant-warning">
-            <strong>
-              Je n’ai pas pu préparer cette aide.
-            </strong>
-
-            <p>
-              ${escapeHtml(error.message)}
-            </p>
-          </div>
-        `;
       } finally {
         if (
-          assistRequestId ===
-            state.assistRequestId &&
-          state.assistController ===
-            controller
+          state.assistInFlightAction == null
         ) {
-          state.assistController = null;
           setAssistantButtonsDisabled(false);
         }
       }
@@ -6990,6 +7253,17 @@
       data,
       actionType
     ) {
+      // Nouveau contrat { ok, action, result }
+      if (data?.ok === true && data?.result) {
+        $("assistantOutput").innerHTML =
+          renderStructuredAssistResult(
+            data.action || actionType,
+            data.result
+          );
+        return;
+      }
+
+      // Compatibilité éventuelle ancien format
       const steps =
         Array.isArray(data?.steps)
           ? data.steps
@@ -7111,6 +7385,191 @@
       $("assistantOutput").innerHTML =
         html ||
         "<p>Aucune information suffisamment certaine.</p>";
+    }
+
+    function renderStructuredAssistResult(
+      actionType,
+      result
+    ) {
+      if (actionType === "reply") {
+        const missing = Array.isArray(
+          result.missingFields
+        )
+          ? result.missingFields
+          : [];
+
+        return `
+          <div class="assistant-introduction">
+            Brouillon de réponse (ton ${escapeHtml(result.tone || "formal")}).
+            Les informations personnelles manquantes sont entre crochets.
+          </div>
+
+          <section class="assistant-section">
+            <h4>Objet</h4>
+            <div class="assistant-draft">
+              ${escapeHtml(result.subject || "")}
+            </div>
+          </section>
+
+          <section class="assistant-section">
+            <h4>Réponse proposée</h4>
+            <div class="assistant-draft">
+              ${escapeHtml(result.body || "")}
+            </div>
+          </section>
+
+          ${
+            missing.length
+              ? `
+            <section class="assistant-section assistant-missing">
+              <h4>Informations à compléter</h4>
+              <ul>
+                ${missing
+                  .map(
+                    (item) =>
+                      `<li>${escapeHtml(item)}</li>`
+                  )
+                  .join("")}
+              </ul>
+            </section>
+          `
+              : ""
+          }
+        `;
+      }
+
+      if (actionType === "fill") {
+        const fields = Array.isArray(
+          result.fields
+        )
+          ? result.fields
+          : [];
+
+        return `
+          <div class="assistant-introduction">
+            Champs identifiés dans le document. Aucune donnée personnelle n’est inventée.
+          </div>
+
+          <section class="assistant-section">
+            <h4>Champs et informations à compléter</h4>
+            ${fields
+              .map((field, index) =>
+                renderAssistantStep(
+                  {
+                    label: field.label,
+                    instruction: [
+                      field.required
+                        ? "Obligatoire."
+                        : "Facultatif.",
+                      field.help,
+                      field.value
+                        ? `Valeur connue : ${field.value}`
+                        : "Valeur à renseigner.",
+                      field.source
+                        ? `Source : ${field.source}`
+                        : ""
+                    ]
+                      .filter(Boolean)
+                      .join(" "),
+                    source:
+                      field.source ||
+                      "Document analysé",
+                    certainty: field.value
+                      ? "certain"
+                      : "unknown"
+                  },
+                  index
+                )
+              )
+              .join("")}
+          </section>
+        `;
+      }
+
+      if (actionType === "checklist") {
+        const items = Array.isArray(
+          result.items
+        )
+          ? result.items
+          : [];
+
+        if (!items.length) {
+          return `
+            <div class="assistant-introduction">
+              ${escapeHtml(
+                result.message ||
+                  "Aucune pièce justificative n’est explicitement demandée dans ce document."
+              )}
+            </div>
+          `;
+        }
+
+        return `
+          <div class="assistant-introduction">
+            Pièces réellement demandées ou fortement justifiées par le document.
+          </div>
+
+          <section class="assistant-section">
+            <h4>Éléments à préparer</h4>
+            ${items
+              .map((item, index) =>
+                renderAssistantStep(
+                  {
+                    label: item.label,
+                    instruction: [
+                      item.required === false
+                        ? "Facultatif."
+                        : "À préparer.",
+                      item.reason
+                    ]
+                      .filter(Boolean)
+                      .join(" "),
+                    source:
+                      item.reason ||
+                      "Document analysé",
+                    certainty: "to_confirm"
+                  },
+                  index
+                )
+              )
+              .join("")}
+          </section>
+        `;
+      }
+
+      if (actionType === "questions") {
+        const questions = Array.isArray(
+          result.questions
+        )
+          ? result.questions
+          : [];
+
+        return `
+          <div class="assistant-introduction">
+            Questions utiles à poser à l’organisme, basées sur ce document.
+          </div>
+
+          <section class="assistant-section">
+            <h4>Questions recommandées</h4>
+            ${questions
+              .map((question, index) =>
+                renderAssistantStep(
+                  {
+                    label: `Question ${index + 1}`,
+                    instruction: question,
+                    source:
+                      "Basée sur le document courant",
+                    certainty: "to_confirm"
+                  },
+                  index
+                )
+              )
+              .join("")}
+          </section>
+        `;
+      }
+
+      return "<p>Aucune information suffisamment certaine.</p>";
     }
 
     function renderAssistantStep(
