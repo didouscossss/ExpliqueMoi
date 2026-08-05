@@ -592,6 +592,166 @@
       margin-top: 13px;
     }
 
+    .pages-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+
+      margin-bottom: 12px;
+    }
+
+    .pages-header strong {
+      font-size: 15px;
+    }
+
+    .pages-header span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .pages-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .page-item {
+      display: grid;
+      grid-template-columns: 64px 1fr auto;
+      gap: 10px;
+      align-items: center;
+
+      padding: 10px;
+
+      border: 1px solid var(--border);
+      border-radius: 18px;
+
+      background: var(--solid);
+    }
+
+    .page-thumb {
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+
+      width: 64px;
+      height: 64px;
+
+      border-radius: 14px;
+
+      color: var(--purple);
+      background: var(--purple-soft);
+
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .page-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .page-meta {
+      min-width: 0;
+    }
+
+    .page-meta strong {
+      display: block;
+
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      font-size: 13px;
+    }
+
+    .page-meta span {
+      display: block;
+
+      margin-top: 3px;
+
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .page-status {
+      display: inline-flex;
+
+      margin-top: 6px;
+      padding: 4px 8px;
+
+      border-radius: 999px;
+
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .page-status-ready {
+      color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .page-status-compressing {
+      color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .page-status-error {
+      color: var(--red);
+      background: var(--red-soft);
+    }
+
+    .page-actions {
+      display: grid;
+      gap: 6px;
+    }
+
+    .page-action-button {
+      display: grid;
+      place-items: center;
+
+      width: 40px;
+      height: 40px;
+
+      border-radius: 12px;
+
+      color: var(--text);
+      background: var(--background);
+
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .page-action-button:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .pages-limit-message {
+      margin-top: 10px;
+      padding: 10px;
+
+      border-radius: 13px;
+
+      color: var(--orange);
+      background: var(--orange-soft);
+
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .pages-hint {
+      margin: 10px 0 0;
+
+      color: var(--muted);
+
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
     .manual-section {
       margin-top: 14px;
 
@@ -1712,6 +1872,20 @@
         grid-template-columns: 1fr;
       }
 
+      .page-item {
+        grid-template-columns: 56px 1fr;
+      }
+
+      .page-actions {
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .page-action-button {
+        width: 100%;
+        min-height: 44px;
+      }
+
       .document-information {
         flex-direction: column;
       }
@@ -1813,7 +1987,8 @@
         <h2>Ajouter un document</h2>
 
         <p>
-          Prenez une photo ou choisissez un fichier sur votre téléphone.
+          Prenez plusieurs photos ou ajoutez des fichiers.
+          ExpliqueMoi les analysera comme un seul document.
         </p>
 
         <div class="upload-buttons">
@@ -1828,7 +2003,7 @@
             class="button secondary-button"
             for="fileInput"
           >
-            📄 Choisir un fichier
+            📄 Ajouter des fichiers
           </label>
         </div>
 
@@ -1844,11 +2019,12 @@
           id="fileInput"
           type="file"
           accept="application/pdf,image/jpeg,image/png,image/webp"
+          multiple
           hidden
         >
 
         <p class="format-info">
-          PDF, JPG, PNG ou WebP
+          PDF, JPG, PNG ou WebP · jusqu’à 10 pages
         </p>
       </section>
 
@@ -1856,37 +2032,39 @@
         id="selectedFileCard"
         class="card selected-file-card hidden"
       >
-        <div class="file-row">
-          <div
-            id="selectedFileIcon"
-            class="file-icon"
-          >
-            PDF
-          </div>
+        <div class="pages-header">
+          <strong id="pagesTitle">
+            Pages sélectionnées
+          </strong>
 
-          <div class="file-information">
-            <strong id="selectedFileName"></strong>
-            <span id="selectedFileDetails"></span>
-          </div>
-
-          <button
-            id="removeFileButton"
-            class="remove-button"
-            type="button"
-          >
-            ×
-          </button>
+          <span id="pagesCounter">
+            0 / 10
+          </span>
         </div>
 
         <div
-          id="compressionMessage"
-          class="compression-message hidden"
+          id="pagesList"
+          class="pages-list"
         ></div>
+
+        <div
+          id="pagesLimitMessage"
+          class="pages-limit-message hidden"
+        ></div>
+
+        <p
+          id="pagesHint"
+          class="pages-hint"
+        >
+          Réordonnez les pages avant l’analyse.
+          Chaque photo ou PDF devient une page du document.
+        </p>
 
         <button
           id="analyzeFileButton"
           class="button primary-button analyze-button"
           type="button"
+          disabled
         >
           ✨ Analyser le document
         </button>
@@ -2397,20 +2575,45 @@
     const $ = (id) =>
       document.getElementById(id);
 
+    /*
+     * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
+     * requestId  : invalide les réponses réseau obsolètes
+     * analysisId : invalide tout commit UI d’une analyse dépassée
+     * pages[]    : pages du document courant (ordre = ordre d’envoi)
+     */
     const state = {
-      selectedFile: null,
+      pages: [],
       analysis: null,
       progressTimer: null,
       summaryExpanded: false,
-      requestNumber: 0,
-      activeController: null
+      requestId: 0,
+      analysisId: 0,
+      activeController: null,
+      assistRequestId: 0,
+      assistController: null,
+      fileSelectionId: 0,
+      isSelectingFile: false,
+      isCompressing: false,
+      isAnalyzing: false
     };
+
+    const MAX_PAGES = 10;
 
     const MAX_DIRECT_FILE_SIZE =
       3.2 * 1024 * 1024;
 
     const MAX_IMAGE_SIZE =
       30 * 1024 * 1024;
+
+    const MAX_TOTAL_UPLOAD_SIZE =
+      15 * 1024 * 1024;
+
+    const ALLOWED_PAGE_TYPES = [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+    ];
 
     document.addEventListener(
       "DOMContentLoaded",
@@ -2420,8 +2623,10 @@
     function initializeApplication() {
       restoreTheme();
       bindEvents();
-      resetLoadingDisplay();
-      showScreen("homeScreen");
+      resetApplicationState({
+        showHome: true,
+        clearManualText: true
+      });
     }
 
     function bindEvents() {
@@ -2445,9 +2650,9 @@
         handleFileSelection
       );
 
-      $("removeFileButton").addEventListener(
+      $("pagesList").addEventListener(
         "click",
-        clearFile
+        handlePagesListClick
       );
 
       $("analyzeFileButton").addEventListener(
@@ -2521,87 +2726,248 @@
     }
 
     async function handleFileSelection(event) {
-      const file =
-        event.target.files?.[0];
+      const incoming =
+        Array.from(event.target.files || []);
 
-      if (!file) {
+      // Toujours vider l'input pour permettre de resélectionner le même fichier
+      event.target.value = "";
+
+      if (!incoming.length) {
         return;
       }
 
-      const allowedTypes = [
-        "application/pdf",
-        "image/jpeg",
-        "image/png",
-        "image/webp"
-      ];
-
-      if (!allowedTypes.includes(file.type)) {
-        event.target.value = "";
-
-        showError(
-          "Format non compatible",
-          "Choisissez un PDF, JPG, PNG ou WebP."
-        );
-
+      if (state.isAnalyzing) {
         return;
       }
 
-      clearPreviousAnalysis();
+      cancelInFlightAnalysis();
+      purgeAnalysisMemory();
+      clearResultInterface();
 
-      state.selectedFile = file;
+      state.fileSelectionId += 1;
+      const selectionId = state.fileSelectionId;
 
-      $("compressionMessage").classList.add(
-        "hidden"
-      );
+      state.isSelectingFile = true;
+      syncActionControls();
+      hidePagesLimitMessage();
 
-      if (
-        file.type.startsWith("image/") &&
-        file.size > MAX_DIRECT_FILE_SIZE
-      ) {
-        if (file.size > MAX_IMAGE_SIZE) {
-          event.target.value = "";
+      try {
+        const room =
+          MAX_PAGES - state.pages.length;
 
-          showError(
-            "Image trop volumineuse",
-            "Cette image dépasse 30 Mo."
+        if (room <= 0) {
+          showPagesLimitMessage(
+            "Vous avez déjà atteint la limite de 10 pages."
           );
-
           return;
         }
 
-        try {
-          $("compressionMessage").textContent =
-            "Compression automatique en cours…";
+        const accepted = [];
 
-          $("compressionMessage").classList.remove(
+        for (const file of incoming) {
+          if (!ALLOWED_PAGE_TYPES.includes(file.type)) {
+            showPagesLimitMessage(
+              `"${file.name}" n’est pas un format accepté (PDF, JPG, PNG ou WebP).`
+            );
+            continue;
+          }
+
+          if (accepted.length >= room) {
+            showPagesLimitMessage(
+              "Certaines pages n’ont pas été ajoutées : maximum 10 pages."
+            );
+            break;
+          }
+
+          accepted.push(file);
+        }
+
+        for (const file of accepted) {
+          if (selectionId !== state.fileSelectionId) {
+            return;
+          }
+
+          await addPageFromFile(file, selectionId);
+        }
+
+        if (selectionId !== state.fileSelectionId) {
+          return;
+        }
+
+        renderPagesList();
+        syncActionControls();
+
+        if (state.pages.length) {
+          $("selectedFileCard").classList.remove(
             "hidden"
           );
 
-          state.selectedFile =
-            await compressImage(file);
+          setTimeout(() => {
+            $("selectedFileCard").scrollIntoView({
+              behavior: "smooth",
+              block: "center"
+            });
+          }, 100);
+        }
+      } finally {
+        if (selectionId === state.fileSelectionId) {
+          state.isSelectingFile = false;
+          state.isCompressing =
+            state.pages.some(
+              (page) => page.status === "compressing"
+            );
+          syncActionControls();
+        }
+      }
+    }
 
-          $("compressionMessage").textContent =
-            `Image compressée : ${formatSize(file.size)} → ` +
-            `${formatSize(state.selectedFile.size)}`;
-        } catch {
-          showError(
-            "Compression impossible",
-            "Cette image n’a pas pu être compressée."
-          );
+    /*
+     * Ajoute une page à la sélection courante (additive).
+     * selectionId ignore les traitements obsolètes.
+     */
+    async function addPageFromFile(file, selectionId) {
+      const pageId = createPageId();
 
-          return;
+      const page = {
+        id: pageId,
+        originalName: file.name,
+        mimeType: file.type,
+        originalSize: file.size,
+        file,
+        previewUrl: null,
+        rotation: 0,
+        appliedRotation: 0,
+        status: "ready",
+        statusMessage: "Prêt",
+        sizeLabel: formatSize(file.size)
+      };
+
+      if (file.type === "application/pdf") {
+        if (file.size > MAX_DIRECT_FILE_SIZE) {
+          page.status = "error";
+          page.statusMessage =
+            "PDF trop volumineux (max. 3,2 Mo)";
+          page.file = null;
+        }
+      } else if (file.type.startsWith("image/")) {
+        if (file.size > MAX_IMAGE_SIZE) {
+          page.status = "error";
+          page.statusMessage =
+            "Image trop volumineuse (max. 30 Mo)";
+          page.file = null;
+        } else {
+          page.previewUrl =
+            URL.createObjectURL(file);
         }
       }
 
-      displaySelectedFile(
-        state.selectedFile,
-        file.name
-      );
+      if (selectionId !== state.fileSelectionId) {
+        revokePagePreview(page);
+        return;
+      }
+
+      state.pages.push(page);
+      renderPagesList();
+      syncActionControls();
+
+      if (
+        page.status === "ready" &&
+        page.mimeType.startsWith("image/") &&
+        page.originalSize > MAX_DIRECT_FILE_SIZE
+      ) {
+        await compressPage(page.id, selectionId);
+      }
+
+      enforceTotalSizeLimit();
     }
 
-    async function compressImage(file) {
+    // Compresse une page image sans retirer les autres en cas d’échec
+    async function compressPage(pageId, selectionId) {
+      const page = findPageById(pageId);
+
+      if (!page || !page.file) {
+        return;
+      }
+
+      page.status = "compressing";
+      page.statusMessage =
+        "Compression en cours…";
+
+      state.isCompressing = true;
+      renderPagesList();
+      syncActionControls();
+
+      try {
+        const compressedFile =
+          await renderImageFile(
+            page.file,
+            page.rotation,
+            page.originalName
+          );
+
+        if (
+          selectionId !== state.fileSelectionId ||
+          !findPageById(pageId)
+        ) {
+          return;
+        }
+
+        const current = findPageById(pageId);
+
+        revokePagePreview(current);
+        current.file = compressedFile;
+        current.mimeType = compressedFile.type;
+        current.previewUrl =
+          URL.createObjectURL(compressedFile);
+        current.status = "ready";
+        current.statusMessage =
+          `Compressé : ${formatSize(current.originalSize)} → ${formatSize(compressedFile.size)}`;
+        current.sizeLabel =
+          formatSize(compressedFile.size);
+      } catch {
+        if (
+          selectionId !== state.fileSelectionId ||
+          !findPageById(pageId)
+        ) {
+          return;
+        }
+
+        const current = findPageById(pageId);
+
+        current.status = "error";
+        current.statusMessage =
+          "Compression impossible";
+        current.file = null;
+      } finally {
+        if (selectionId === state.fileSelectionId) {
+          state.isCompressing =
+            state.pages.some(
+              (item) => item.status === "compressing"
+            );
+          renderPagesList();
+          syncActionControls();
+        }
+      }
+    }
+
+    /*
+     * Redessine une image avec rotation + compression JPEG lisible.
+     * Max côté 1900px, qualité dégressive jusqu’à ~2,9 Mo.
+     */
+    async function renderImageFile(
+      sourceFile,
+      rotation = 0,
+      originalName = "page.jpg"
+    ) {
       const bitmap =
-        await createImageBitmap(file);
+        await createImageBitmap(sourceFile);
+
+      const normalized =
+        ((rotation % 360) + 360) % 360;
+
+      const swap =
+        normalized === 90 ||
+        normalized === 270;
 
       const ratio = Math.min(
         1,
@@ -2612,22 +2978,26 @@
           )
       );
 
-      const width =
+      const drawWidth =
         Math.round(bitmap.width * ratio);
 
-      const height =
+      const drawHeight =
         Math.round(bitmap.height * ratio);
 
       const canvas =
         document.createElement("canvas");
 
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width =
+        swap ? drawHeight : drawWidth;
+
+      canvas.height =
+        swap ? drawWidth : drawHeight;
 
       const context =
         canvas.getContext("2d");
 
       if (!context) {
+        bitmap.close();
         throw new Error(
           "Compression indisponible."
         );
@@ -2638,21 +3008,30 @@
       context.fillRect(
         0,
         0,
-        width,
-        height
+        canvas.width,
+        canvas.height
       );
 
+      context.save();
+      context.translate(
+        canvas.width / 2,
+        canvas.height / 2
+      );
+      context.rotate(
+        (normalized * Math.PI) / 180
+      );
       context.drawImage(
         bitmap,
-        0,
-        0,
-        width,
-        height
+        -drawWidth / 2,
+        -drawHeight / 2,
+        drawWidth,
+        drawHeight
       );
+      context.restore();
 
       bitmap.close();
 
-      let quality = 0.78;
+      let quality = 0.82;
 
       let imageBlob =
         await createCanvasBlob(
@@ -2663,9 +3042,9 @@
       while (
         imageBlob.size >
           2.9 * 1024 * 1024 &&
-        quality > 0.4
+        quality > 0.45
       ) {
-        quality -= 0.08;
+        quality -= 0.07;
 
         imageBlob =
           await createCanvasBlob(
@@ -2674,12 +3053,13 @@
           );
       }
 
+      const baseName =
+        String(originalName || "page")
+          .replace(/\.[^.]+$/, "");
+
       return new File(
         [imageBlob],
-        file.name.replace(
-          /\.[^.]+$/,
-          ""
-        ) + "-compresse.jpg",
+        `${baseName}-page.jpg`,
         {
           type: "image/jpeg",
           lastModified: Date.now()
@@ -2712,35 +3092,367 @@
       );
     }
 
-    function displaySelectedFile(
-      file,
-      originalName
-    ) {
-      $("selectedFileName").textContent =
-        originalName;
+    function createPageId() {
+      return `page-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 9)}`;
+    }
 
-      $("selectedFileDetails").textContent =
-        `${
-          file.type === "application/pdf"
-            ? "Document PDF"
-            : "Image"
-        } · ${formatSize(file.size)}`;
+    function findPageById(pageId) {
+      return state.pages.find(
+        (page) => page.id === pageId
+      );
+    }
 
-      $("selectedFileIcon").textContent =
-        file.type === "application/pdf"
-          ? "PDF"
-          : "IMG";
+    function revokePagePreview(page) {
+      if (page?.previewUrl) {
+        URL.revokeObjectURL(page.previewUrl);
+        page.previewUrl = null;
+      }
+    }
 
-      $("selectedFileCard").classList.remove(
-        "hidden"
+    function enforceTotalSizeLimit() {
+      const total = state.pages.reduce(
+        (sum, page) =>
+          sum + (page.file?.size || 0),
+        0
       );
 
-      setTimeout(() => {
-        $("selectedFileCard").scrollIntoView({
-          behavior: "smooth",
-          block: "center"
-        });
-      }, 100);
+      if (total <= MAX_TOTAL_UPLOAD_SIZE) {
+        return;
+      }
+
+      showPagesLimitMessage(
+        `La sélection dépasse ${formatSize(MAX_TOTAL_UPLOAD_SIZE)}. ` +
+        "Retirez des pages ou utilisez des photos plus légères."
+      );
+    }
+
+    function showPagesLimitMessage(message) {
+      const element =
+        $("pagesLimitMessage");
+
+      if (!element) {
+        return;
+      }
+
+      element.textContent = message;
+      element.classList.remove("hidden");
+    }
+
+    function hidePagesLimitMessage() {
+      const element =
+        $("pagesLimitMessage");
+
+      if (!element) {
+        return;
+      }
+
+      element.textContent = "";
+      element.classList.add("hidden");
+    }
+
+    function getReadyPages() {
+      return state.pages.filter(
+        (page) =>
+          page.status === "ready" &&
+          page.file
+      );
+    }
+
+    function hasPageErrors() {
+      return state.pages.some(
+        (page) => page.status === "error"
+      );
+    }
+
+    function getPagesTotalSize() {
+      return state.pages.reduce(
+        (sum, page) =>
+          sum + (page.file?.size || 0),
+        0
+      );
+    }
+
+    function renderPagesList() {
+      const list = $("pagesList");
+      const card = $("selectedFileCard");
+
+      if (!list || !card) {
+        return;
+      }
+
+      if (!state.pages.length) {
+        list.innerHTML = "";
+        card.classList.add("hidden");
+        $("pagesCounter").textContent =
+          `0 / ${MAX_PAGES}`;
+        return;
+      }
+
+      card.classList.remove("hidden");
+
+      $("pagesCounter").textContent =
+        `${state.pages.length} / ${MAX_PAGES}`;
+
+      $("pagesTitle").textContent =
+        state.pages.length > 1
+          ? "Pages sélectionnées"
+          : "Page sélectionnée";
+
+      list.innerHTML = state.pages
+        .map((page, index) => {
+          const isImage =
+            page.mimeType.startsWith("image/");
+
+          const thumb = isImage && page.previewUrl
+            ? `<img src="${page.previewUrl}" alt="Aperçu page ${index + 1}">`
+            : "PDF";
+
+          const statusClass =
+            page.status === "compressing"
+              ? "page-status-compressing"
+              : page.status === "error"
+                ? "page-status-error"
+                : "page-status-ready";
+
+          const rotationLabel =
+            isImage && page.appliedRotation
+              ? ` · rot. ${page.appliedRotation}°`
+              : "";
+
+          return `
+            <article class="page-item" data-page-id="${page.id}">
+              <div class="page-thumb">
+                ${thumb}
+              </div>
+
+              <div class="page-meta">
+                <strong>Page ${index + 1} · ${escapeHtml(page.originalName)}</strong>
+                <span>
+                  ${
+                    page.mimeType === "application/pdf"
+                      ? "PDF"
+                      : "Image"
+                  }
+                  · ${escapeHtml(page.sizeLabel || formatSize(page.originalSize))}
+                  ${rotationLabel}
+                </span>
+                <span class="page-status ${statusClass}">
+                  ${escapeHtml(page.statusMessage)}
+                </span>
+              </div>
+
+              <div class="page-actions">
+                <button
+                  class="page-action-button"
+                  type="button"
+                  data-page-action="up"
+                  data-page-id="${page.id}"
+                  aria-label="Monter la page ${index + 1}"
+                  title="Monter"
+                  ${index === 0 ? "disabled" : ""}
+                >
+                  ↑
+                </button>
+
+                <button
+                  class="page-action-button"
+                  type="button"
+                  data-page-action="down"
+                  data-page-id="${page.id}"
+                  aria-label="Descendre la page ${index + 1}"
+                  title="Descendre"
+                  ${index === state.pages.length - 1 ? "disabled" : ""}
+                >
+                  ↓
+                </button>
+
+                <button
+                  class="page-action-button"
+                  type="button"
+                  data-page-action="rotate"
+                  data-page-id="${page.id}"
+                  aria-label="Tourner la page ${index + 1} de 90 degrés"
+                  title="Tourner"
+                  ${isImage && page.status !== "compressing" ? "" : "disabled"}
+                >
+                  ⟳
+                </button>
+
+                <button
+                  class="page-action-button"
+                  type="button"
+                  data-page-action="remove"
+                  data-page-id="${page.id}"
+                  aria-label="Supprimer la page ${index + 1}"
+                  title="Supprimer"
+                  ${page.status === "compressing" ? "disabled" : ""}
+                >
+                  ×
+                </button>
+              </div>
+            </article>
+          `;
+        })
+        .join("");
+    }
+
+    function handlePagesListClick(event) {
+      const button =
+        event.target.closest(
+          "[data-page-action]"
+        );
+
+      if (!button || button.disabled) {
+        return;
+      }
+
+      const pageId =
+        button.dataset.pageId;
+
+      const action =
+        button.dataset.pageAction;
+
+      if (action === "remove") {
+        removePage(pageId);
+        return;
+      }
+
+      if (action === "up") {
+        movePage(pageId, -1);
+        return;
+      }
+
+      if (action === "down") {
+        movePage(pageId, 1);
+        return;
+      }
+
+      if (action === "rotate") {
+        rotatePage(pageId);
+      }
+    }
+
+    function removePage(pageId) {
+      const index =
+        state.pages.findIndex(
+          (page) => page.id === pageId
+        );
+
+      if (index < 0) {
+        return;
+      }
+
+      revokePagePreview(state.pages[index]);
+      state.pages.splice(index, 1);
+
+      hidePagesLimitMessage();
+      renderPagesList();
+      syncActionControls();
+    }
+
+    function movePage(pageId, delta) {
+      const index =
+        state.pages.findIndex(
+          (page) => page.id === pageId
+        );
+
+      if (index < 0) {
+        return;
+      }
+
+      const target = index + delta;
+
+      if (
+        target < 0 ||
+        target >= state.pages.length
+      ) {
+        return;
+      }
+
+      const [page] =
+        state.pages.splice(index, 1);
+
+      state.pages.splice(target, 0, page);
+
+      renderPagesList();
+      syncActionControls();
+    }
+
+    async function rotatePage(pageId) {
+      const page = findPageById(pageId);
+
+      if (
+        !page ||
+        !page.file ||
+        !page.mimeType.startsWith("image/") ||
+        page.status === "compressing" ||
+        state.isAnalyzing
+      ) {
+        return;
+      }
+
+      const selectionId =
+        state.fileSelectionId;
+
+      page.status = "compressing";
+      page.statusMessage =
+        "Rotation en cours…";
+
+      state.isCompressing = true;
+      renderPagesList();
+      syncActionControls();
+
+      try {
+        const rotatedFile =
+          await renderImageFile(
+            page.file,
+            90,
+            page.originalName
+          );
+
+        if (
+          selectionId !== state.fileSelectionId ||
+          !findPageById(pageId)
+        ) {
+          return;
+        }
+
+        const current = findPageById(pageId);
+
+        // Fichier déjà tourné : on mémorise l’angle cumulé pour le manifeste
+        revokePagePreview(current);
+        current.file = rotatedFile;
+        current.mimeType = rotatedFile.type;
+        current.appliedRotation =
+          ((current.appliedRotation || 0) + 90) %
+          360;
+        current.rotation = 0;
+        current.previewUrl =
+          URL.createObjectURL(rotatedFile);
+        current.status = "ready";
+        current.statusMessage = "Prêt";
+        current.sizeLabel =
+          formatSize(rotatedFile.size);
+      } catch {
+        if (!findPageById(pageId)) {
+          return;
+        }
+
+        const current = findPageById(pageId);
+
+        current.status = "error";
+        current.statusMessage =
+          "Rotation impossible";
+      } finally {
+        state.isCompressing =
+          state.pages.some(
+            (item) => item.status === "compressing"
+          );
+        renderPagesList();
+        syncActionControls();
+      }
     }
 
     function formatSize(bytes) {
@@ -2755,42 +3467,106 @@
       ).toFixed(1)} Mo`;
     }
 
-    function clearFile() {
-      state.selectedFile = null;
+    /* =========================================================
+     * STABILITÉ — annulation, mémoire, reset centralisé
+     * ========================================================= */
+
+    // Annule toute analyse réseau en cours (ne touche pas encore à l'UI)
+    function cancelInFlightAnalysis() {
+      state.requestId += 1;
+      state.analysisId += 1;
+
+      if (state.activeController) {
+        state.activeController.abort();
+        state.activeController = null;
+      }
+
+      state.isAnalyzing = false;
+      stopProgress();
+    }
+
+    // Annule une éventuelle requête /api/assist en cours
+    function cancelInFlightAssist() {
+      state.assistRequestId += 1;
+
+      if (state.assistController) {
+        state.assistController.abort();
+        state.assistController = null;
+      }
+    }
+
+    // Seule la paire requestId + analysisId courante peut modifier l'UI résultats
+    function canCommitAnalysis(requestId, analysisId, controller) {
+      return (
+        requestId === state.requestId &&
+        analysisId === state.analysisId &&
+        controller &&
+        !controller.signal.aborted &&
+        state.isAnalyzing
+      );
+    }
+
+    // Vide complètement l'objet d'analyse et ses tableaux en mémoire
+    function purgeAnalysisMemory() {
+      if (state.analysis) {
+        const previous = state.analysis;
+
+        if (Array.isArray(previous.actions)) {
+          previous.actions.length = 0;
+        }
+
+        if (Array.isArray(previous.dates)) {
+          previous.dates.length = 0;
+        }
+
+        if (Array.isArray(previous.evidence)) {
+          previous.evidence.length = 0;
+        }
+
+        previous.documentType = "";
+        previous.issuer = "";
+        previous.summary = "";
+        previous.request = "";
+        previous.whyReceived = "";
+        previous.amount = null;
+        previous.urgency = null;
+        previous.confidence = 0;
+      }
+
+      state.analysis = null;
+      state.summaryExpanded = false;
+    }
+
+    // Supprime toute référence aux pages sélectionnées
+    function purgeFileMemory() {
+      state.pages.forEach(revokePagePreview);
+      state.pages = [];
+
+      state.fileSelectionId += 1;
+      state.isSelectingFile = false;
+      state.isCompressing = false;
 
       $("cameraInput").value = "";
       $("fileInput").value = "";
 
+      if ($("pagesList")) {
+        $("pagesList").innerHTML = "";
+      }
+
+      if ($("pagesCounter")) {
+        $("pagesCounter").textContent =
+          `0 / ${MAX_PAGES}`;
+      }
+
+      hidePagesLimitMessage();
+
       $("selectedFileCard").classList.add(
         "hidden"
       );
-
-      $("compressionMessage").classList.add(
-        "hidden"
-      );
-
-      $("selectedFileName").textContent = "";
-      $("selectedFileDetails").textContent = "";
     }
 
-    function clearPreviousAnalysis() {
-      state.analysis = null;
-      state.summaryExpanded = false;
-
-      clearRenderedResults();
-
-      $("assistantPanel").classList.add(
-        "hidden"
-      );
-
-      $("assistantOutput").innerHTML = "";
-
-      $("copyAssistantButton").classList.add(
-        "hidden"
-      );
-    }
-
-    function clearRenderedResults() {
+    // Remet l'écran résultat / assistant à l'état initial (textes inchangés)
+    function clearResultInterface() {
       $("documentType").textContent =
         "Document analysé";
 
@@ -2808,6 +3584,9 @@
       $("readMoreButton").classList.add(
         "hidden"
       );
+
+      $("readMoreButton").textContent =
+        "Lire la suite";
 
       $("requestTitle").textContent =
         "Les prochaines étapes";
@@ -2856,45 +3635,249 @@
 
       $("understandingDots").innerHTML = "";
 
+      // Personnage / bulle : état d'attente initial
       $("speechBubble").textContent =
         "J’ai compris l’essentiel !";
+
+      $("assistantTitle").textContent = "";
+
+      $("assistantPanel").classList.add(
+        "hidden"
+      );
+
+      $("assistantOutput").innerHTML = "";
+
+      $("copyAssistantButton").classList.add(
+        "hidden"
+      );
+
+      $("copyAssistantButton").textContent =
+        "Copier le résultat";
+
+      setAssistantButtonsDisabled(false);
+    }
+
+    // Alias conservé pour les appels existants de rendu
+    function clearRenderedResults() {
+      clearResultInterface();
+    }
+
+    function clearPreviousAnalysis() {
+      purgeAnalysisMemory();
+      clearResultInterface();
+    }
+
+    function clearFile() {
+      purgeFileMemory();
+      syncActionControls();
+    }
+
+    /*
+     * Remet l'application comme au premier lancement
+     * (thème sombre/clair conservé volontairement).
+     */
+    function resetApplicationState(options = {}) {
+      const showHome =
+        options.showHome !== false;
+
+      const clearManualText =
+        options.clearManualText !== false;
+
+      cancelInFlightAssist();
+      cancelInFlightAnalysis();
+      stopProgress();
+
+      purgeAnalysisMemory();
+      purgeFileMemory();
+      clearResultInterface();
+      resetLoadingDisplay();
+
+      if (clearManualText) {
+        $("manualText").value = "";
+      }
+
+      state.isAnalyzing = false;
+      state.isSelectingFile = false;
+      state.isCompressing = false;
+
+      syncActionControls();
+
+      if (showHome) {
+        showScreen("homeScreen");
+      }
+    }
+
+    // Active / désactive les CTA selon l'état (anti double-clic / compression)
+    function syncActionControls() {
+      const analyzeFileButton =
+        $("analyzeFileButton");
+
+      const analyzeTextButton =
+        $("analyzeTextButton");
+
+      const busy =
+        state.isAnalyzing ||
+        state.isCompressing ||
+        state.isSelectingFile;
+
+      const readyPages = getReadyPages();
+
+      const totalSize =
+        getPagesTotalSize();
+
+      const canAnalyzeFile =
+        !busy &&
+        readyPages.length > 0 &&
+        !hasPageErrors() &&
+        totalSize <= MAX_TOTAL_UPLOAD_SIZE &&
+        state.pages.length <= MAX_PAGES;
+
+      if (analyzeFileButton) {
+        analyzeFileButton.disabled =
+          !canAnalyzeFile;
+
+        analyzeFileButton.textContent =
+          readyPages.length > 1
+            ? `✨ Analyser les ${readyPages.length} pages`
+            : "✨ Analyser le document";
+      }
+
+      if (analyzeTextButton) {
+        analyzeTextButton.disabled =
+          busy;
+      }
+
+      const fileInputsBusy =
+        state.isAnalyzing ||
+        state.isCompressing ||
+        state.pages.length >= MAX_PAGES;
+
+      if ($("cameraInput")) {
+        $("cameraInput").disabled =
+          fileInputsBusy;
+      }
+
+      if ($("fileInput")) {
+        $("fileInput").disabled =
+          fileInputsBusy;
+      }
+    }
+
+    function canStartAnalysis() {
+      return !(
+        state.isAnalyzing ||
+        state.isCompressing ||
+        state.isSelectingFile
+      );
     }
 
     async function analyzeFile() {
-      if (!state.selectedFile) {
+      if (!canStartAnalysis()) {
+        return;
+      }
+
+      if (hasPageErrors()) {
+        showError(
+          "Pages à corriger",
+          "Retirez ou remplacez les pages en erreur avant d’analyser."
+        );
+
+        return;
+      }
+
+      // Snapshot ordonné : l’ordre UI = ordre backend
+      const pagesToAnalyze =
+        getReadyPages().map((page) => ({
+          id: page.id,
+          name: page.originalName,
+          mimeType:
+            page.file.type || page.mimeType,
+          size: page.file.size,
+          rotation: page.appliedRotation || 0,
+          file: page.file
+        }));
+
+      if (!pagesToAnalyze.length) {
         showError(
           "Aucun document",
-          "Choisissez un document."
+          "Ajoutez au moins une page à analyser."
         );
 
         return;
       }
 
-      if (
-        state.selectedFile.size >
-        MAX_DIRECT_FILE_SIZE
-      ) {
+      for (const page of pagesToAnalyze) {
+        if (page.size > MAX_DIRECT_FILE_SIZE) {
+          showError(
+            "Document trop volumineux",
+            `"${page.name}" dépasse la taille acceptée.`
+          );
+
+          return;
+        }
+      }
+
+      const totalSize =
+        pagesToAnalyze.reduce(
+          (sum, page) => sum + page.size,
+          0
+        );
+
+      if (totalSize > MAX_TOTAL_UPLOAD_SIZE) {
         showError(
-          "Document trop volumineux",
-          "Le système actuel ne peut pas encore envoyer ce fichier."
+          "Sélection trop volumineuse",
+          `Le total dépasse ${formatSize(MAX_TOTAL_UPLOAD_SIZE)}. Retirez des pages.`
         );
 
         return;
       }
 
-      const formData =
-        new FormData();
+      const formData = new FormData();
+
+      const manifest = {
+        pageCount: pagesToAnalyze.length,
+        pages: pagesToAnalyze.map(
+          (page, order) => ({
+            order,
+            id: page.id,
+            name: page.name,
+            mimeType: page.mimeType,
+            rotation: page.rotation,
+            field: `page_${order}`
+          })
+        )
+      };
 
       formData.append(
-        "file",
-        state.selectedFile,
-        state.selectedFile.name
+        "manifest",
+        JSON.stringify(manifest)
       );
+
+      pagesToAnalyze.forEach((page, order) => {
+        formData.append(
+          `page_${order}`,
+          page.file,
+          page.name
+        );
+      });
+
+      // Compatibilité mono-page (anciens clients / fallback serveur)
+      if (pagesToAnalyze.length === 1) {
+        formData.append(
+          "file",
+          pagesToAnalyze[0].file,
+          pagesToAnalyze[0].name
+        );
+      }
 
       await sendAnalysis(formData);
     }
 
     async function analyzeText() {
+      if (!canStartAnalysis()) {
+        return;
+      }
+
       const text =
         $("manualText").value.trim();
 
@@ -2919,37 +3902,57 @@
     }
 
     async function sendAnalysis(formData) {
-      if (state.activeController) {
-        state.activeController.abort();
+      // Empêche toute analyse parallèle (double clic, upload, compression)
+      if (!canStartAnalysis()) {
+        return;
       }
 
-      state.activeController =
+      cancelInFlightAssist();
+
+      if (state.activeController) {
+        state.activeController.abort();
+        state.activeController = null;
+      }
+
+      const controller =
         new AbortController();
 
-      state.requestNumber += 1;
+      state.activeController =
+        controller;
 
-      const currentRequestNumber =
-        state.requestNumber;
+      state.requestId += 1;
+      state.analysisId += 1;
 
-      clearPreviousAnalysis();
+      const requestId = state.requestId;
+      const analysisId = state.analysisId;
+
+      // Mémoire + UI résultats totalement vierges avant la nouvelle analyse
+      purgeAnalysisMemory();
+      clearResultInterface();
       resetLoadingDisplay();
+
+      state.isAnalyzing = true;
+      syncActionControls();
 
       showScreen("loadingScreen");
       startProgress();
 
       try {
         const response = await fetch(
-          `/api/analyze?request=${currentRequestNumber}&time=${Date.now()}`,
+          `/api/analyze?request=${requestId}&analysis=${analysisId}&time=${Date.now()}`,
           {
             method: "POST",
             body: formData,
             cache: "no-store",
-            signal:
-              state.activeController.signal,
+            signal: controller.signal,
 
             headers: {
+              "Cache-Control":
+                "no-store",
               "X-ExpliqueMoi-Request":
-                String(currentRequestNumber)
+                String(requestId),
+              "X-ExpliqueMoi-Analysis":
+                String(analysisId)
             }
           }
         );
@@ -2965,10 +3968,7 @@
           );
         }
 
-        if (
-          currentRequestNumber !==
-          state.requestNumber
-        ) {
+        if (!canCommitAnalysis(requestId, analysisId, controller)) {
           return;
         }
 
@@ -2982,31 +3982,25 @@
         const newAnalysis =
           normalizeAnalysis(data);
 
-        if (
-          currentRequestNumber !==
-          state.requestNumber
-        ) {
+        if (!canCommitAnalysis(requestId, analysisId, controller)) {
           return;
         }
-
-        state.analysis =
-          newAnalysis;
 
         finishProgress();
 
         await wait(450);
 
-        if (
-          currentRequestNumber !==
-          state.requestNumber
-        ) {
+        if (!canCommitAnalysis(requestId, analysisId, controller)) {
           return;
         }
 
-        renderAnalysis(
-          newAnalysis
-        );
+        // Commit atomique : aucune ancienne réponse ne peut passer ici
+        purgeAnalysisMemory();
+        clearResultInterface();
 
+        state.analysis = newAnalysis;
+
+        renderAnalysis(newAnalysis);
         showScreen("resultScreen");
       } catch (error) {
         if (
@@ -3015,12 +4009,12 @@
           return;
         }
 
-        if (
-          currentRequestNumber !==
-          state.requestNumber
-        ) {
+        if (!canCommitAnalysis(requestId, analysisId, controller)) {
           return;
         }
+
+        purgeAnalysisMemory();
+        clearResultInterface();
 
         showError(
           "Impossible d’analyser le document",
@@ -3029,10 +4023,12 @@
         );
       } finally {
         if (
-          currentRequestNumber ===
-          state.requestNumber
+          requestId === state.requestId &&
+          state.activeController === controller
         ) {
           state.activeController = null;
+          state.isAnalyzing = false;
+          syncActionControls();
         }
       }
     }
@@ -3667,9 +4663,13 @@
     async function requestAssistance(
       actionType
     ) {
-      if (!state.analysis) {
+      if (!state.analysis || state.isAnalyzing) {
         return;
       }
+
+      // Snapshot de l'analyse courante + id : ignore toute réponse assist obsolète
+      const analysisSnapshot = state.analysis;
+      const boundAnalysisId = state.analysisId;
 
       const configuration = {
         reply: {
@@ -3708,6 +4708,21 @@
       const current =
         configuration[actionType];
 
+      if (state.assistController) {
+        state.assistController.abort();
+      }
+
+      const controller =
+        new AbortController();
+
+      state.assistController =
+        controller;
+
+      state.assistRequestId += 1;
+
+      const assistRequestId =
+        state.assistRequestId;
+
       $("assistantTitle").textContent =
         current.title;
 
@@ -3733,23 +4748,37 @@
 
       try {
         const response = await fetch(
-          `/api/assist?time=${Date.now()}`,
+          `/api/assist?time=${Date.now()}&assist=${assistRequestId}`,
           {
             method: "POST",
 
             cache: "no-store",
 
+            signal: controller.signal,
+
             headers: {
               "Content-Type":
-                "application/json"
+                "application/json",
+              "Cache-Control":
+                "no-store"
             },
 
             body: JSON.stringify({
               actionType,
-              analysis: state.analysis
+              analysis: analysisSnapshot
             })
           }
         );
+
+        if (
+          assistRequestId !==
+            state.assistRequestId ||
+          boundAnalysisId !==
+            state.analysisId ||
+          controller.signal.aborted
+        ) {
+          return;
+        }
 
         let data;
 
@@ -3769,6 +4798,15 @@
           );
         }
 
+        if (
+          assistRequestId !==
+            state.assistRequestId ||
+          boundAnalysisId !==
+            state.analysisId
+        ) {
+          return;
+        }
+
         renderAssistantResult(
           data,
           actionType
@@ -3778,6 +4816,19 @@
           "hidden"
         );
       } catch (error) {
+        if (error.name === "AbortError") {
+          return;
+        }
+
+        if (
+          assistRequestId !==
+            state.assistRequestId ||
+          boundAnalysisId !==
+            state.analysisId
+        ) {
+          return;
+        }
+
         $("assistantOutput").innerHTML = `
           <div class="assistant-warning">
             <strong>
@@ -3790,7 +4841,15 @@
           </div>
         `;
       } finally {
-        setAssistantButtonsDisabled(false);
+        if (
+          assistRequestId ===
+            state.assistRequestId &&
+          state.assistController ===
+            controller
+        ) {
+          state.assistController = null;
+          setAssistantButtonsDisabled(false);
+        }
       }
     }
 
@@ -4151,6 +5210,10 @@
       message
     ) {
       stopProgress();
+      state.isAnalyzing = false;
+      state.isCompressing = false;
+      state.isSelectingFile = false;
+      syncActionControls();
 
       $("errorTitle").textContent =
         title;
@@ -4162,7 +5225,7 @@
     }
 
     function retryAnalysis() {
-      if (state.selectedFile) {
+      if (getReadyPages().length > 0) {
         analyzeFile();
         return;
       }
@@ -4180,21 +5243,11 @@
     }
 
     function resetApplication() {
-      state.requestNumber += 1;
-
-      if (state.activeController) {
-        state.activeController.abort();
-        state.activeController = null;
-      }
-
-      stopProgress();
-      clearFile();
-      clearPreviousAnalysis();
-      resetLoadingDisplay();
-
-      $("manualText").value = "";
-
-      showScreen("homeScreen");
+      // Retour immédiat à un état vierge (comme au premier lancement)
+      resetApplicationState({
+        showHome: true,
+        clearManualText: true
+      });
     }
 
     function restoreTheme() {
