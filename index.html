@@ -1558,6 +1558,168 @@
         );
     }
 
+    .tables-card {
+      background:
+        linear-gradient(
+          145deg,
+          var(--solid),
+          var(--blue-soft)
+        );
+    }
+
+    .tables-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .table-preview-item {
+      display: grid;
+      gap: 8px;
+
+      padding: 14px;
+
+      border: 1px solid var(--border);
+      border-radius: 17px;
+
+      background: var(--solid);
+    }
+
+    .table-preview-item strong {
+      font-size: 14px;
+    }
+
+    .table-preview-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .table-preview-scroll {
+      overflow-x: auto;
+    }
+
+    .table-preview-scroll table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .table-preview-scroll th,
+    .table-preview-scroll td {
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .table-preview-scroll th {
+      background: var(--background);
+      font-weight: 800;
+    }
+
+    .doc-chat-card {
+      margin-top: 4px;
+    }
+
+    .doc-chat-thread {
+      display: grid;
+      gap: 10px;
+
+      max-height: 320px;
+      overflow-y: auto;
+
+      margin: 12px 0;
+      padding: 4px;
+    }
+
+    .doc-chat-bubble {
+      padding: 12px 14px;
+
+      border-radius: 16px;
+
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .doc-chat-bubble.user {
+      justify-self: end;
+
+      max-width: 92%;
+
+      color: #ffffff;
+      background: var(--purple);
+    }
+
+    .doc-chat-bubble.assistant {
+      justify-self: start;
+
+      max-width: 96%;
+
+      border: 1px solid var(--border);
+      background: var(--solid);
+    }
+
+    .doc-chat-source {
+      display: block;
+
+      margin-top: 8px;
+
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .doc-chat-form {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .doc-chat-form textarea {
+      min-height: 74px;
+      resize: vertical;
+    }
+
+    .table-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+
+      display: grid;
+      place-items: center;
+
+      padding: 18px;
+
+      background: rgba(20, 16, 40, 0.45);
+    }
+
+    .table-modal.hidden {
+      display: none;
+    }
+
+    .table-modal-card {
+      width: min(920px, 100%);
+      max-height: min(80vh, 720px);
+      overflow: auto;
+
+      padding: 18px;
+
+      border-radius: 22px;
+
+      background: var(--solid);
+      box-shadow: var(--shadow);
+    }
+
+    .table-modal-header {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 12px;
+
+      margin-bottom: 12px;
+    }
+
     .proof-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -2446,6 +2608,75 @@
         ></div>
       </section>
 
+      <section
+        id="tablesCard"
+        class="card result-card tables-card hidden"
+      >
+        <div class="heading">
+          <div class="heading-icon">📊</div>
+
+          <div>
+            <span class="kicker">
+              Données structurées
+            </span>
+
+            <h2>
+              Tableaux détectés
+            </h2>
+          </div>
+        </div>
+
+        <div
+          id="tablesList"
+          class="tables-list"
+        ></div>
+      </section>
+
+      <section class="card result-card doc-chat-card">
+        <div class="heading">
+          <div class="heading-icon">💬</div>
+
+          <div>
+            <span class="kicker">
+              Assistant documentaire
+            </span>
+
+            <h2>
+              Posez une question
+            </h2>
+          </div>
+        </div>
+
+        <p class="table-preview-meta">
+          Les réponses s’appuient uniquement sur ce document, ses tableaux et ses preuves.
+        </p>
+
+        <div
+          id="docChatThread"
+          class="doc-chat-thread"
+          aria-live="polite"
+        ></div>
+
+        <form
+          id="docChatForm"
+          class="doc-chat-form"
+        >
+          <textarea
+            id="docChatInput"
+            placeholder="Ex. Quelle est la date limite ? Quel est le total TTC ?"
+            maxlength="500"
+          ></textarea>
+
+          <button
+            id="docChatSendButton"
+            class="button primary-button"
+            type="submit"
+          >
+            Envoyer
+          </button>
+        </form>
+      </section>
+
       <section class="card premium-zone">
         <div class="premium-heading">
           <div>
@@ -2557,6 +2788,40 @@
       </section>
     </section>
 
+    <div
+      id="tableModal"
+      class="table-modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tableModalTitle"
+    >
+      <div class="table-modal-card">
+        <div class="table-modal-header">
+          <div>
+            <span class="kicker">Tableau</span>
+            <h2 id="tableModalTitle">Tableau</h2>
+            <p
+              id="tableModalMeta"
+              class="table-preview-meta"
+            ></p>
+          </div>
+
+          <button
+            id="tableModalClose"
+            class="button secondary-button"
+            type="button"
+          >
+            Fermer
+          </button>
+        </div>
+
+        <div
+          id="tableModalBody"
+          class="table-preview-scroll"
+        ></div>
+      </div>
+    </div>
+
     <section id="errorScreen" class="screen">
       <div class="card error-card">
         <div class="error-icon">!</div>
@@ -2600,7 +2865,7 @@
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.2.0";
+    const APP_VERSION = "2.3.0";
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -2634,7 +2899,13 @@
       isSelectingFile: false,
       isCompressing: false,
       isAnalyzing: false,
-      isBusy: false
+      isBusy: false,
+      // Sprint 3 — conversation liée UNIQUEMENT au document courant
+      documentId: null,
+      chatHistory: [],
+      chatRequestId: 0,
+      chatController: null,
+      isChatting: false
     };
 
     const AnalysisErrorCode = {
@@ -2787,6 +3058,38 @@
             );
           });
         });
+
+      if ($("docChatForm")) {
+        $("docChatForm").addEventListener(
+          "submit",
+          handleDocChatSubmit
+        );
+      }
+
+      if ($("tablesList")) {
+        $("tablesList").addEventListener(
+          "click",
+          handleTablesListClick
+        );
+      }
+
+      if ($("tableModalClose")) {
+        $("tableModalClose").addEventListener(
+          "click",
+          closeTableModal
+        );
+      }
+
+      if ($("tableModal")) {
+        $("tableModal").addEventListener(
+          "click",
+          (event) => {
+            if (event.target === $("tableModal")) {
+              closeTableModal();
+            }
+          }
+        );
+      }
     }
 
     function prepareFileInput(event) {
@@ -3711,7 +4014,7 @@
       });
     }
 
-    // Annule une éventuelle requête /api/assist en cours
+    // Annule une éventuelle requête /api/assist ou /api/chat en cours
     function cancelInFlightAssist() {
       state.assistRequestId += 1;
 
@@ -3719,6 +4022,19 @@
         state.assistController.abort();
         state.assistController = null;
       }
+
+      cancelInFlightChat();
+    }
+
+    function cancelInFlightChat() {
+      state.chatRequestId += 1;
+
+      if (state.chatController) {
+        state.chatController.abort();
+        state.chatController = null;
+      }
+
+      state.isChatting = false;
     }
 
     // Seul le contexte transactionnel courant peut modifier l’UI
@@ -4094,6 +4410,18 @@
           previous.warnings.length = 0;
         }
 
+        if (Array.isArray(previous.tables)) {
+          previous.tables.length = 0;
+        }
+
+        if (Array.isArray(previous.timeline)) {
+          previous.timeline.length = 0;
+        }
+
+        if (Array.isArray(previous.amountsDetail)) {
+          previous.amountsDetail.length = 0;
+        }
+
         previous.documentType = "";
         previous.issuer = "";
         previous.summary = "";
@@ -4101,6 +4429,7 @@
         previous.whyReceived = "";
         previous.amount = null;
         previous.urgency = null;
+        previous.entities = null;
         previous.confidence = 0;
         previous.readingQuality = "";
         previous.pageErrors = null;
@@ -4108,6 +4437,7 @@
 
       state.analysis = null;
       state.summaryExpanded = false;
+      clearDocumentConversation();
     }
 
     // Supprime toute référence aux pages sélectionnées
@@ -4186,6 +4516,17 @@
       if ($("proofList")) {
         $("proofList").innerHTML = "";
       }
+
+      if ($("tablesList")) {
+        $("tablesList").innerHTML = "";
+      }
+
+      if ($("tablesCard")) {
+        $("tablesCard").classList.add("hidden");
+      }
+
+      clearDocChatThread();
+      closeTableModal();
 
       setTextIfPresent("mainDate", "Non trouvée");
       setTextIfPresent(
@@ -5098,6 +5439,22 @@
             data?.evidence
           ),
 
+        tables: normalizeTablesClient(
+          data?.tables
+        ),
+
+        timeline: normalizeTimelineClient(
+          data?.timeline
+        ),
+
+        amountsDetail: normalizeAmountsDetailClient(
+          data?.amounts_detail || data?.amountsDetail
+        ),
+
+        entities: normalizeEntitiesClient(
+          data?.entities
+        ),
+
         confidence,
 
         warnings,
@@ -5187,6 +5544,144 @@
         .filter((item) => item.quote);
     }
 
+    function normalizeTablesClient(tables) {
+      if (!Array.isArray(tables)) {
+        return [];
+      }
+
+      return tables
+        .slice(0, 8)
+        .map((table, index) => {
+          const columns = Array.isArray(table?.columns)
+            ? table.columns
+                .map((col) => cleanText(col))
+                .filter(Boolean)
+            : [];
+
+          const rows = Array.isArray(table?.rows)
+            ? table.rows
+                .slice(0, 40)
+                .map((row) => {
+                  if (Array.isArray(row)) {
+                    return row.map((cell) =>
+                      cleanText(String(cell ?? ""))
+                    );
+                  }
+
+                  return [cleanText(String(row ?? ""))];
+                })
+                .filter((row) =>
+                  row.some((cell) => cell)
+                )
+            : [];
+
+          const totals =
+            table?.totals &&
+            typeof table.totals === "object"
+              ? Object.fromEntries(
+                  Object.entries(table.totals)
+                    .map(([key, value]) => [
+                      cleanText(key),
+                      cleanText(String(value))
+                    ])
+                    .filter(
+                      ([key, value]) => key && value
+                    )
+                )
+              : {};
+
+          return {
+            id:
+              cleanText(table?.id) ||
+              `table_${index + 1}`,
+            title:
+              cleanText(table?.title) ||
+              `Tableau ${index + 1}`,
+            columns,
+            rows,
+            page:
+              cleanText(table?.page) ||
+              "Page non précisée",
+            confidence: normalizeConfidence(
+              table?.confidence
+            ),
+            totals,
+            notes: cleanText(table?.notes),
+            kind: cleanText(table?.kind) || "table"
+          };
+        })
+        .filter(
+          (table) =>
+            table.columns.length || table.rows.length
+        );
+    }
+
+    function normalizeTimelineClient(timeline) {
+      if (!Array.isArray(timeline)) {
+        return [];
+      }
+
+      return timeline
+        .slice(0, 12)
+        .map((item) => ({
+          date: cleanText(item?.date),
+          label: cleanText(item?.label),
+          meaning: cleanText(
+            item?.meaning || item?.description
+          )
+        }))
+        .filter((item) => item.date || item.label);
+    }
+
+    function normalizeAmountsDetailClient(items) {
+      if (!Array.isArray(items)) {
+        return [];
+      }
+
+      return items
+        .slice(0, 12)
+        .map((item) => ({
+          label: cleanText(item?.label || item?.type),
+          value: cleanText(
+            item?.value || item?.amount
+          ),
+          kind: cleanText(item?.kind || item?.nature),
+          page: cleanText(item?.page)
+        }))
+        .filter((item) => item.value);
+    }
+
+    function normalizeEntitiesClient(entities) {
+      const source =
+        entities && typeof entities === "object"
+          ? entities
+          : {};
+
+      const list = (value) =>
+        Array.isArray(value)
+          ? value
+              .map((item) => cleanText(String(item)))
+              .filter(Boolean)
+              .slice(0, 12)
+          : [];
+
+      return {
+        people: list(source.people || source.personnes),
+        addresses: list(
+          source.addresses || source.adresses
+        ),
+        references: list(
+          source.references || source.refs
+        ),
+        signatures: list(source.signatures),
+        organizations: list(
+          source.organizations ||
+            source.organismes ||
+            source.issuers
+        )
+      };
+    }
+
     function renderAnalysis(analysis) {
       clearRenderedAnalysis();
 
@@ -5260,6 +5755,10 @@
       renderEvidence(
         analysis.evidence
       );
+
+      renderTables(analysis.tables);
+
+      beginDocumentConversation(analysis);
 
       updateUnderstandingDisplay(
         analysis
@@ -5674,6 +6173,624 @@
           article
         );
       });
+    }
+
+    function renderTables(tables) {
+      const card = $("tablesCard");
+      const container = $("tablesList");
+
+      if (!card || !container) {
+        return;
+      }
+
+      container.innerHTML = "";
+
+      if (!Array.isArray(tables) || !tables.length) {
+        card.classList.add("hidden");
+        return;
+      }
+
+      card.classList.remove("hidden");
+
+      tables.forEach((table, index) => {
+        const item = document.createElement("article");
+        item.className = "table-preview-item";
+
+        const title = document.createElement("strong");
+        title.textContent = table.title || `Tableau ${index + 1}`;
+
+        const meta = document.createElement("div");
+        meta.className = "table-preview-meta";
+        meta.textContent = [
+          table.page,
+          table.columns?.length
+            ? `${table.columns.length} colonne(s)`
+            : null,
+          table.rows?.length
+            ? `${table.rows.length} ligne(s)`
+            : null,
+          table.confidence
+            ? `confiance ${table.confidence}%`
+            : null
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+        const preview = document.createElement("div");
+        preview.className = "table-preview-scroll";
+        preview.appendChild(
+          buildHtmlTable(table, 4)
+        );
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "button secondary-button";
+        button.dataset.tableIndex = String(index);
+        button.textContent = "Voir le tableau";
+
+        item.appendChild(title);
+        item.appendChild(meta);
+        item.appendChild(preview);
+        item.appendChild(button);
+        container.appendChild(item);
+      });
+    }
+
+    function buildHtmlTable(table, maxRows = 100) {
+      const el = document.createElement("table");
+      const columns = table.columns || [];
+      const rows = (table.rows || []).slice(0, maxRows);
+
+      if (columns.length) {
+        const thead = document.createElement("thead");
+        const tr = document.createElement("tr");
+
+        columns.forEach((col) => {
+          const th = document.createElement("th");
+          th.textContent = col;
+          tr.appendChild(th);
+        });
+
+        thead.appendChild(tr);
+        el.appendChild(thead);
+      }
+
+      const tbody = document.createElement("tbody");
+
+      rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        const cells = Array.isArray(row) ? row : [row];
+        const width = Math.max(
+          columns.length,
+          cells.length,
+          1
+        );
+
+        for (let i = 0; i < width; i += 1) {
+          const td = document.createElement("td");
+          td.textContent = cells[i] || "";
+          tr.appendChild(td);
+        }
+
+        tbody.appendChild(tr);
+      });
+
+      el.appendChild(tbody);
+
+      const totals = Object.entries(table.totals || {});
+
+      if (totals.length) {
+        const tfoot = document.createElement("tfoot");
+
+        totals.forEach(([key, value]) => {
+          const tr = document.createElement("tr");
+          const th = document.createElement("th");
+          th.colSpan = Math.max(columns.length - 1, 1);
+          th.textContent = key;
+          const td = document.createElement("td");
+          td.textContent = value;
+          tr.appendChild(th);
+          tr.appendChild(td);
+          tfoot.appendChild(tr);
+        });
+
+        el.appendChild(tfoot);
+      }
+
+      return el;
+    }
+
+    function handleTablesListClick(event) {
+      const button = event.target.closest(
+        "button[data-table-index]"
+      );
+
+      if (!button) {
+        return;
+      }
+
+      const index = Number(button.dataset.tableIndex);
+      const table = state.analysis?.tables?.[index];
+
+      if (!table) {
+        return;
+      }
+
+      openTableModal(table);
+    }
+
+    function openTableModal(table) {
+      const modal = $("tableModal");
+
+      if (!modal) {
+        return;
+      }
+
+      $("tableModalTitle").textContent =
+        table.title || "Tableau";
+
+      $("tableModalMeta").textContent = [
+        table.page,
+        table.notes,
+        table.kind ? `type : ${table.kind}` : null
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
+      const body = $("tableModalBody");
+      body.innerHTML = "";
+      body.appendChild(buildHtmlTable(table));
+
+      modal.classList.remove("hidden");
+    }
+
+    function closeTableModal() {
+      const modal = $("tableModal");
+
+      if (!modal) {
+        return;
+      }
+
+      modal.classList.add("hidden");
+
+      if ($("tableModalBody")) {
+        $("tableModalBody").innerHTML = "";
+      }
+    }
+
+    function clearDocumentConversation() {
+      cancelInFlightChat();
+      state.documentId = null;
+      state.chatHistory = [];
+      clearDocChatThread();
+
+      if ($("docChatInput")) {
+        $("docChatInput").value = "";
+      }
+    }
+
+    function beginDocumentConversation(analysis) {
+      cancelInFlightChat();
+      state.documentId = `doc_${Date.now()}_${state.analysisId}`;
+      state.chatHistory = [];
+      clearDocChatThread();
+
+      if ($("docChatInput")) {
+        $("docChatInput").value = "";
+      }
+
+      void analysis;
+    }
+
+    function clearDocChatThread() {
+      if ($("docChatThread")) {
+        $("docChatThread").innerHTML = "";
+      }
+    }
+
+    function appendDocChatBubble(role, content, source) {
+      const thread = $("docChatThread");
+
+      if (!thread) {
+        return;
+      }
+
+      const bubble = document.createElement("div");
+      bubble.className = `doc-chat-bubble ${role}`;
+      bubble.textContent = content;
+
+      if (role === "assistant" && source) {
+        const sourceEl = document.createElement("span");
+        sourceEl.className = "doc-chat-source";
+        sourceEl.textContent = source;
+        bubble.appendChild(sourceEl);
+      }
+
+      thread.appendChild(bubble);
+      thread.scrollTop = thread.scrollHeight;
+    }
+
+    async function handleDocChatSubmit(event) {
+      event.preventDefault();
+
+      if (
+        state.isAnalyzing ||
+        state.isChatting ||
+        !state.analysis ||
+        !state.documentId
+      ) {
+        return;
+      }
+
+      const input = $("docChatInput");
+      const question = cleanText(input?.value || "");
+
+      if (question.length < 2) {
+        return;
+      }
+
+      const documentId = state.documentId;
+      const analysisSnapshot = state.analysis;
+      const analysisId = state.analysisId;
+      const chatRequestId = ++state.chatRequestId;
+      const historySnapshot = state.chatHistory
+        .filter(
+          (item) =>
+            item &&
+            (item.role === "user" ||
+              item.role === "assistant")
+        )
+        .map((item) => ({
+          role: item.role,
+          content: item.content
+        }));
+
+      if (input) {
+        input.value = "";
+      }
+
+      appendDocChatBubble("user", question);
+      state.chatHistory.push({
+        role: "user",
+        content: question,
+        documentId
+      });
+
+      state.isChatting = true;
+      const sendButton = $("docChatSendButton");
+
+      if (sendButton) {
+        sendButton.disabled = true;
+      }
+
+      const controller = new AbortController();
+      state.chatController = controller;
+
+      try {
+        // Réponse locale d’abord (0 réseau) pour questions factuelles simples
+        const local = tryAnswerQuestionLocally(
+          question,
+          analysisSnapshot
+        );
+
+        let payload = null;
+
+        if (local) {
+          payload = local;
+        } else {
+          const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Cache-Control": "no-store",
+              "X-ExpliqueMoi-Document": documentId,
+              "X-ExpliqueMoi-Analysis": String(analysisId)
+            },
+            cache: "no-store",
+            signal: controller.signal,
+            body: JSON.stringify({
+              question,
+              analysis: analysisSnapshot,
+              documentId,
+              history: historySnapshot
+            })
+          });
+
+          payload = await response.json();
+
+          if (!response.ok || payload?.ok === false) {
+            throw new Error(
+              payload?.error?.message ||
+                "La réponse n’a pas pu être obtenue."
+            );
+          }
+        }
+
+        // Ignore toute réponse d’un ancien document / ancienne requête
+        if (
+          chatRequestId !== state.chatRequestId ||
+          documentId !== state.documentId ||
+          analysisId !== state.analysisId ||
+          state.analysis !== analysisSnapshot
+        ) {
+          return;
+        }
+
+        const answer =
+          cleanText(payload.answer) ||
+          "Je ne trouve pas cette information dans le document.";
+
+        const source =
+          cleanText(payload.source) ||
+          "Cette information provient du document analysé.";
+
+        appendDocChatBubble("assistant", answer, source);
+
+        state.chatHistory.push({
+          role: "assistant",
+          content: answer,
+          source,
+          documentId
+        });
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+
+        if (
+          chatRequestId !== state.chatRequestId ||
+          documentId !== state.documentId
+        ) {
+          return;
+        }
+
+        appendDocChatBubble(
+          "assistant",
+          error?.message ||
+            "Je ne trouve pas cette information dans le document.",
+          "Réponse non confirmée par le document."
+        );
+      } finally {
+        if (state.chatController === controller) {
+          state.chatController = null;
+        }
+
+        if (chatRequestId === state.chatRequestId) {
+          state.isChatting = false;
+
+          if (sendButton) {
+            sendButton.disabled = false;
+          }
+        }
+      }
+    }
+
+    function tryAnswerQuestionLocally(question, analysis) {
+      const q = cleanText(question).toLowerCase();
+
+      if (!q || !analysis) {
+        return null;
+      }
+
+      const cite = (source) =>
+        /^cette information/i.test(source)
+          ? source
+          : `Cette information provient ${
+              /^(du|de la|des|d’|d')/i.test(source)
+                ? source
+                : `de : ${source}`
+            }.`;
+
+      if (
+        /résume|resume|c['’]?est quoi|explique(-| )moi (ce|le) document/i.test(
+          q
+        )
+      ) {
+        return {
+          ok: true,
+          found: true,
+          mode: "local",
+          answer: analysis.summary,
+          source: cite("du résumé du document")
+        };
+      }
+
+      if (
+        /que dois[- ]je faire|quelles? actions?|prochaines? étapes?/i.test(
+          q
+        )
+      ) {
+        if (!analysis.actions?.length) {
+          return {
+            ok: true,
+            found: false,
+            mode: "local",
+            answer:
+              "Je ne trouve pas cette information dans le document.",
+            source: cite("du document analysé")
+          };
+        }
+
+        return {
+          ok: true,
+          found: true,
+          mode: "local",
+          answer: analysis.actions
+            .map((item, index) => {
+              const how = item.how
+                ? ` — ${item.how}`
+                : "";
+              return `${index + 1}. ${item.action}${how}`;
+            })
+            .join("\n"),
+          source: cite("de la liste des actions")
+        };
+      }
+
+      if (/date limite|échéance|avant quelle date|délai/i.test(q)) {
+        const deadline = (analysis.dates || []).find((item) =>
+          /limite|échéance|délai|avant le/i.test(
+            `${item.label || ""} ${item.meaning || ""}`
+          )
+        );
+
+        if (!deadline?.date) {
+          return {
+            ok: true,
+            found: false,
+            mode: "local",
+            answer:
+              "Je ne trouve pas cette information dans le document.",
+            source: cite("des dates du document")
+          };
+        }
+
+        return {
+          ok: true,
+          found: true,
+          mode: "local",
+          answer: `${deadline.date}${
+            deadline.meaning
+              ? ` — ${deadline.meaning}`
+              : ""
+          }`,
+          source: cite(
+            deadline.label
+              ? `de la date « ${deadline.label} »`
+              : "des dates du document"
+          )
+        };
+      }
+
+      if (/montant|combien|payer|ttc|ht|tva|total/i.test(q)) {
+        if (analysis.tables?.length && /total|ttc/i.test(q)) {
+          for (const table of analysis.tables) {
+            const totalEntry = Object.entries(
+              table.totals || {}
+            ).find(([key]) => /total|ttc/i.test(key));
+
+            if (totalEntry) {
+              return {
+                ok: true,
+                found: true,
+                mode: "local",
+                answer: `${totalEntry[0]} : ${totalEntry[1]}`,
+                source: cite(
+                  `du tableau « ${table.title} »`
+                )
+              };
+            }
+          }
+        }
+
+        if (
+          analysis.amount?.value &&
+          !/non trouvé|non trouvée|incertitude/i.test(
+            analysis.amount.value
+          )
+        ) {
+          return {
+            ok: true,
+            found: true,
+            mode: "local",
+            answer: `${analysis.amount.value}${
+              analysis.amount.meaning
+                ? ` (${analysis.amount.meaning})`
+                : ""
+            }`,
+            source: cite("du montant principal")
+          };
+        }
+
+        return {
+          ok: true,
+          found: false,
+          mode: "local",
+          answer:
+            "Je ne trouve pas cette information dans le document.",
+          source: cite("des montants du document")
+        };
+      }
+
+      if (
+        /expéditeur|émetteur|qui (a |l[’'])envoy|organisme|de la part/i.test(
+          q
+        )
+      ) {
+        if (analysis.issuer) {
+          return {
+            ok: true,
+            found: true,
+            mode: "local",
+            answer: analysis.issuer,
+            source: cite("de l’émetteur identifié")
+          };
+        }
+
+        return {
+          ok: true,
+          found: false,
+          mode: "local",
+          answer:
+            "Je ne trouve pas cette information dans le document.",
+          source: cite("du document analysé")
+        };
+      }
+
+      if (/pourquoi.*(reçu|courrier|lettre|mail)/i.test(q)) {
+        if (
+          analysis.whyReceived &&
+          !/non trouvée avec certitude|non indiquée/i.test(
+            analysis.whyReceived
+          )
+        ) {
+          return {
+            ok: true,
+            found: true,
+            mode: "local",
+            answer: analysis.whyReceived,
+            source: cite(
+              "de l’explication « pourquoi reçu »"
+            )
+          };
+        }
+
+        return {
+          ok: true,
+          found: false,
+          mode: "local",
+          answer:
+            "Je ne trouve pas cette information dans le document.",
+          source: cite("du document analysé")
+        };
+      }
+
+      if (
+        /explique (ce |le )?tableau/i.test(q) &&
+        analysis.tables?.length
+      ) {
+        const table = analysis.tables[0];
+        const preview = (table.rows || [])
+          .slice(0, 3)
+          .map((row) =>
+            (Array.isArray(row) ? row : [row]).join(" | ")
+          )
+          .join("\n");
+
+        return {
+          ok: true,
+          found: true,
+          mode: "local",
+          answer: `Le tableau « ${table.title} » (${table.page}) contient : ${
+            (table.columns || []).join(", ") ||
+            "colonnes non nommées"
+          }.${preview ? `\nAperçu :\n${preview}` : ""}`,
+          source: cite(`du tableau « ${table.title} »`)
+        };
+      }
+
+      // Raisonnement plus complexe → /api/chat (Gemini sur contexte déjà extrait)
+      return null;
     }
 
     async function requestAssistance(
@@ -6298,8 +7415,10 @@
     }
 
     function resetApplication() {
-      // Nouveau document : état parfaitement vierge
+      // Nouveau document : état parfaitement vierge + conversation effacée
       cancelInFlightAssist();
+      clearDocumentConversation();
+      closeTableModal();
 
       resetAnalysisRuntimeState({
         clearPages: true,

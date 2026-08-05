@@ -13,6 +13,12 @@ import {
   callGeminiForAnalysis,
   parseGeminiJson
 } from "../lib/geminiAnalysis.js";
+import {
+  normalizeTables,
+  normalizeTimeline,
+  normalizeEntities,
+  normalizeAmountsDetail
+} from "../lib/documentContext.js";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_TOTAL_SIZE = 20 * 1024 * 1024;
@@ -1316,7 +1322,18 @@ L'utilisateur doit savoir immédiatement :
 3. comment il doit le faire ;
 4. avant quelle date ;
 5. pourquoi il l'a reçu ;
-6. où ces informations apparaissent.
+6. où ces informations apparaissent ;
+7. quels tableaux / échéanciers / montants HT-TVA-TTC sont présents.
+
+LECTURE INTELLIGENTE :
+- Détecte tableaux, colonnes, lignes, cellules fusionnées, tableaux multi-pages.
+- Détecte échéanciers, tableaux administratifs, formulaires.
+- Extrais montants HT, TVA, TTC et totaux.
+- Extrais personnes, adresses, références, signatures, organismes.
+- Sur PDF scanné (images), lis les tableaux VISUELLEMENT.
+- Alimente résumé, dates, actions, montants, échéances et timeline
+  à partir des tableaux quand c'est pertinent.
+- N'invente aucune cellule.
 
 RÈGLES :
 - Ne fais jamais de résumé vague.
@@ -1337,6 +1354,7 @@ Réponds exclusivement avec ce JSON :
 
 {
   "document_type": "type précis et nom de l'organisme si visible",
+  "issuer": "organisme ou expéditeur si visible",
   "plain_summary": "une phrase très claire commençant par C'est...",
   "request": "ce que le document demande concrètement",
   "why_received": "raison probable ou explicite de réception",
@@ -1357,9 +1375,43 @@ Réponds exclusivement avec ce JSON :
       "meaning": "ce qui se passe à cette date"
     }
   ],
+  "timeline": [
+    {
+      "date": "date",
+      "label": "jalon",
+      "meaning": "ce qui se passe"
+    }
+  ],
   "amount": {
     "value": "montant principal ou Information non trouvée avec certitude",
     "meaning": "à quoi correspond ce montant"
+  },
+  "amounts_detail": [
+    {
+      "label": "HT | TVA | TTC | autre",
+      "value": "montant",
+      "kind": "HT | TVA | TTC | autre",
+      "page": "Page X"
+    }
+  ],
+  "tables": [
+    {
+      "title": "titre du tableau",
+      "columns": ["col1", "col2"],
+      "rows": [["v1", "v2"]],
+      "page": "Page X",
+      "confidence": 80,
+      "totals": { "Total TTC": "120,00 €" },
+      "notes": "précision éventuelle",
+      "kind": "invoice | schedule | form | table"
+    }
+  ],
+  "entities": {
+    "people": [],
+    "addresses": [],
+    "references": [],
+    "signatures": [],
+    "organizations": []
   },
   "evidence": [
     {
@@ -1373,6 +1425,7 @@ Réponds exclusivement avec ce JSON :
 }
 
 Important : confidence est un entier de 0 à 100 (pas une fraction 0–1).
+Si aucun tableau : "tables": [].
 
 Texte collé par l'utilisateur, s'il existe :
 ${pastedText || "Aucun texte collé."}
@@ -1423,6 +1476,8 @@ function validateResult(
   return {
     document_type: result.document_type || "Document non identifié",
 
+    issuer: cleanText(result.issuer) || "",
+
     plain_summary:
       result.plain_summary ||
       "C’est un document dont l’objet n’a pas été identifié avec certitude.",
@@ -1451,10 +1506,18 @@ function validateResult(
 
     dates: Array.isArray(result.dates) ? result.dates.slice(0, 5) : [],
 
+    timeline: normalizeTimeline(result.timeline),
+
     amount: result.amount || {
       value: "Information non trouvée avec certitude",
       meaning: ""
     },
+
+    amounts_detail: normalizeAmountsDetail(result.amounts_detail),
+
+    tables: normalizeTables(result.tables),
+
+    entities: normalizeEntities(result.entities),
 
     evidence: Array.isArray(result.evidence)
       ? result.evidence.slice(0, 6)
