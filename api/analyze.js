@@ -11,12 +11,47 @@ const MAX_PAGES = 10;
 const HETEROGENEOUS_BATCH_WARNING =
   "Ces pages semblent appartenir à plusieurs documents différents. Pour une explication plus précise, analysez-les séparément.";
 
+const ErrorCode = {
+  PDF_PROTECTED: "PDF_PROTECTED",
+  PDF_CORRUPTED: "PDF_CORRUPTED",
+  IMAGE_UNREADABLE: "IMAGE_UNREADABLE",
+  NO_USABLE_CONTENT: "NO_USABLE_CONTENT",
+  FILE_TOO_LARGE: "FILE_TOO_LARGE",
+  UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT",
+  NETWORK_ERROR: "NETWORK_ERROR",
+  API_TIMEOUT: "API_TIMEOUT",
+  EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
+  INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
+  UNKNOWN_ERROR: "UNKNOWN_ERROR"
+};
+
+function fail(code, message) {
+  return {
+    ok: false,
+    error: {
+      code,
+      message
+    },
+    warnings: []
+  };
+}
+
+function succeed(analysis, warnings = []) {
+  return {
+    ok: true,
+    analysis,
+    warnings: Array.isArray(warnings) ? warnings : []
+  };
+}
+
 export default async function handler(request, response) {
   if (request.method !== "POST") {
-    return response.status(405).json({
-      error: "Méthode non autorisée.",
-      error_kind: "batch"
-    });
+    return response.status(405).json(
+      fail(
+        ErrorCode.UNSUPPORTED_FORMAT,
+        "Méthode non autorisée."
+      )
+    );
   }
 
   // Contexte local à CETTE requête uniquement — jamais réutilisé
@@ -48,24 +83,41 @@ export default async function handler(request, response) {
         /pdf/i.test(`${item.mimeType || ""} ${item.message || ""}`)
       );
 
-      return response.status(400).json({
-        error: pdfFailure
-          ? pdfFailure.message ||
-            "Le PDF n’a pas pu être lu. Envoyez un PDF valide, seul."
-          : requestContext.pageErrors.length
-            ? "Aucune page exploitable n’a pu être extraite."
-            : "Aucun document ou texte exploitable n’a été reçu.",
-        error_kind: pdfFailure ? "pdf" : "batch",
-        page_errors: requestContext.pageErrors,
-        warnings: []
-      });
+      const pageMessage = requestContext.pageErrors[0]?.message || "";
+
+      let code = ErrorCode.NO_USABLE_CONTENT;
+      let message =
+        "Aucun document ou texte exploitable n’a été reçu.";
+
+      if (pdfFailure) {
+        if (/password|mot de passe|protégé|encrypted/i.test(pageMessage)) {
+          code = ErrorCode.PDF_PROTECTED;
+          message = "Ce PDF est protégé par un mot de passe.";
+        } else if (/corrompu|damaged|endommagé|malformed|invalid/i.test(pageMessage)) {
+          code = ErrorCode.PDF_CORRUPTED;
+          message = "Le fichier semble endommagé.";
+        } else {
+          code = ErrorCode.PDF_CORRUPTED;
+          message =
+            pdfFailure.message ||
+            "Le PDF n’a pas pu être lu. Envoyez un PDF valide, seul.";
+        }
+      } else if (requestContext.pageErrors.length) {
+        code = ErrorCode.IMAGE_UNREADABLE;
+        message =
+          "Aucune page exploitable n’a pu être extraite.";
+      }
+
+      return response.status(400).json(fail(code, message));
     }
 
     if (requestContext.pages.length > MAX_PAGES) {
-      return response.status(400).json({
-        error: "Le document dépasse la limite de 10 pages.",
-        error_kind: "batch"
-      });
+      return response.status(400).json(
+        fail(
+          ErrorCode.UNSUPPORTED_FORMAT,
+          "Le document dépasse la limite de 10 pages."
+        )
+      );
     }
 
     const totalSize = requestContext.pages.reduce(
@@ -74,19 +126,22 @@ export default async function handler(request, response) {
     );
 
     if (totalSize > MAX_TOTAL_SIZE) {
-      return response.status(413).json({
-        error: "La sélection dépasse la taille totale acceptée.",
-        error_kind: "batch"
-      });
+      return response.status(413).json(
+        fail(
+          ErrorCode.FILE_TOO_LARGE,
+          "La sélection dépasse la taille totale acceptée."
+        )
+      );
     }
 
     for (const page of requestContext.pages) {
       if (page.size > MAX_FILE_SIZE) {
-        return response.status(413).json({
-          error: `La page « ${page.name} » dépasse la limite de 10 Mo.`,
-          error_kind:
-            page.mimeType === "application/pdf" ? "pdf" : "page"
-        });
+        return response.status(413).json(
+          fail(
+            ErrorCode.FILE_TOO_LARGE,
+            `La page « ${page.name} » dépasse la limite de 10 Mo.`
+          )
+        );
       }
     }
 
@@ -141,7 +196,6 @@ export default async function handler(request, response) {
         (page) => page.mimeType === "application/pdf"
       );
 
-    // Chaque requête appelle Gemini indépendamment (pas de cache / état partagé)
     const geminiResult = await callGeminiForAnalysis(parts, {
       retries: pdfOnly || requestContext.pages.length === 1 ? 1 : 0
     });
@@ -149,14 +203,30 @@ export default async function handler(request, response) {
     if (!geminiResult.ok) {
       console.error(geminiResult.detail);
 
-      return response.status(502).json({
-        error: pdfOnly
-          ? "L’IA n’a pas pu lire ce PDF. Réessayez avec ce fichier seul."
-          : "L’IA n’a pas pu analyser le document.",
-        error_kind: pdfOnly ? "pdf" : "backend",
-        warnings: [],
-        page_errors: requestContext.pageErrors
-      });
+      const detail = geminiResult.detail || {};
+      const blocked =
+        detail?.promptFeedback?.blockReason ||
+        detail?.finishReason;
+
+      if (detail?.empty || blocked) {
+        return response.status(502).json(
+          fail(
+            ErrorCode.EMPTY_AI_RESPONSE,
+            "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants."
+          )
+        );
+      }
+
+      return response.status(502).json(
+        fail(
+          pdfOnly
+            ? ErrorCode.PDF_CORRUPTED
+            : ErrorCode.EMPTY_AI_RESPONSE,
+          pdfOnly
+            ? "L’IA n’a pas pu lire ce PDF. Réessayez avec ce fichier seul."
+            : "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants."
+        )
+      );
     }
 
     let result;
@@ -164,9 +234,11 @@ export default async function handler(request, response) {
     try {
       result = JSON.parse(geminiResult.rawText);
     } catch {
-      throw Object.assign(
-        new Error("Réponse IA illisible."),
-        { errorKind: "backend" }
+      return response.status(502).json(
+        fail(
+          ErrorCode.INVALID_AI_RESPONSE,
+          "La réponse du service d’analyse est illisible."
+        )
       );
     }
 
@@ -178,34 +250,40 @@ export default async function handler(request, response) {
     );
 
     if (!hasUsableContent(validated)) {
-      return response.status(422).json({
-        error:
-          "Aucun contenu exploitable n’a pu être extrait de ce document.",
-        error_kind: "batch",
-        reading_quality: "failed",
-        warnings: [],
-        page_errors: requestContext.pageErrors
-      });
+      return response.status(422).json(
+        fail(
+          ErrorCode.NO_USABLE_CONTENT,
+          "Aucun texte exploitable n’a été détecté."
+        )
+      );
     }
 
-    return response.status(200).json(validated);
+    return response.status(200).json(
+      succeed(validated, validated.warnings || [])
+    );
   } catch (error) {
     console.error(error);
 
-    const kind =
-      error?.errorKind ||
-      (/pdf/i.test(String(error?.message || ""))
-        ? "pdf"
-        : "backend");
+    const message = String(error?.message || "");
 
-    return response.status(500).json({
-      error: "Une erreur est survenue pendant l’analyse.",
-      error_kind: kind,
-      warnings: [],
-      page_errors: requestContext.pageErrors
-    });
+    let code = ErrorCode.UNKNOWN_ERROR;
+    let text =
+      "Une erreur est survenue pendant l’analyse.";
+
+    if (/password|mot de passe|encrypted/i.test(message)) {
+      code = ErrorCode.PDF_PROTECTED;
+      text = "Ce PDF est protégé par un mot de passe.";
+    } else if (/timeout/i.test(message)) {
+      code = ErrorCode.API_TIMEOUT;
+      text =
+        "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants.";
+    } else if (/pdf/i.test(message)) {
+      code = ErrorCode.PDF_CORRUPTED;
+      text = "Le fichier semble endommagé.";
+    }
+
+    return response.status(500).json(fail(code, text));
   } finally {
-    // Libère buffers et références temporaires de cette requête
     if (Array.isArray(requestContext.pages)) {
       for (const page of requestContext.pages) {
         if (page) {
@@ -572,10 +650,9 @@ function hasUsableContent(result) {
   const summary = cleanText(result.plain_summary);
   const request = cleanText(result.request);
   const documentType = cleanText(result.document_type);
-  const confidence = normalizeConfidence(result.confidence);
 
   const hasSummary =
-    summary.length >= 20 &&
+    summary.length >= 28 &&
     !/indisponible|non identifié|non trouvée avec certitude/i.test(
       summary
     );
@@ -590,15 +667,33 @@ function hasUsableContent(result) {
     documentType.length >= 3 &&
     !/non identifié/i.test(documentType);
 
+  const hasAction =
+    Array.isArray(result.actions) &&
+    result.actions.some((item) => {
+      const action =
+        typeof item === "string"
+          ? cleanText(item)
+          : cleanText(item?.action);
+
+      return (
+        action.length >= 4 &&
+        !/aucune action|à vérifier/i.test(action)
+      );
+    });
+
   const hasEvidence =
     Array.isArray(result.evidence) &&
-    result.evidence.length > 0;
+    result.evidence.some(
+      (item) => cleanText(item?.quote).length >= 6
+    );
 
+  // Pas de faux succès basé uniquement sur une confidence
   return (
     hasSummary ||
     hasRequest ||
-    (hasType && hasEvidence) ||
-    confidence >= 35
+    hasAction ||
+    hasEvidence ||
+    (hasType && (hasSummary || hasEvidence))
   );
 }
 

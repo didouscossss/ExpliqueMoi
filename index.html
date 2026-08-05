@@ -895,6 +895,12 @@
       line-height: 1.55;
     }
 
+    .error-reassurance {
+      margin: -8px 0 22px !important;
+      font-size: 0.92em;
+      opacity: 0.9;
+    }
+
     .progress {
       overflow: hidden;
 
@@ -2546,10 +2552,17 @@
         <div class="error-icon">!</div>
 
         <h2 id="errorTitle">
-          Impossible d’analyser le document
+          Échec de l’analyse
         </h2>
 
         <p id="errorMessage"></p>
+
+        <p
+          id="errorReassurance"
+          class="error-reassurance"
+        >
+          Aucun résultat incomplet n’a été conservé.
+        </p>
 
         <button
           id="retryButton"
@@ -2577,7 +2590,7 @@
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.1.0";
+    const APP_VERSION = "2.1.1";
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -2612,6 +2625,22 @@
       isCompressing: false,
       isAnalyzing: false,
       isBusy: false
+    };
+
+    const AnalysisErrorCode = {
+      PDF_PROTECTED: "PDF_PROTECTED",
+      PDF_CORRUPTED: "PDF_CORRUPTED",
+      IMAGE_UNREADABLE: "IMAGE_UNREADABLE",
+      NO_USABLE_CONTENT: "NO_USABLE_CONTENT",
+      FILE_TOO_LARGE: "FILE_TOO_LARGE",
+      UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT",
+      NETWORK_ERROR: "NETWORK_ERROR",
+      API_TIMEOUT: "API_TIMEOUT",
+      EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
+      INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
+      CANCELLED: "CANCELLED",
+      OBSOLETE: "OBSOLETE",
+      UNKNOWN_ERROR: "UNKNOWN_ERROR"
     };
 
     const AnalysisErrorKind = {
@@ -3619,34 +3648,27 @@
         purgeFileMemory();
       }
 
-      // 5. Progression + personnage + boutons
+      // 5. Progression + textes DOM + boutons
+      // Toujours purger les descriptifs de l’ancienne analyse
+      clearRenderedAnalysis();
+
       if (resetProgress) {
         stopProgress();
         resetLoadingDisplay();
       }
 
-      if (resetCharacter) {
-        clearResultInterface();
-      }
-
       if ($("errorTitle")) {
         $("errorTitle").textContent =
-          "Impossible d’analyser le document";
+          "Échec de l’analyse";
       }
 
       if ($("errorMessage")) {
         $("errorMessage").textContent = "";
       }
 
-      // Remet toujours le bandeau hors « Analyse partielle »
-      if ($("successBannerTitle")) {
-        $("successBannerTitle").textContent =
-          "Analyse terminée avec succès !";
-      }
-
-      if ($("successBannerMessage")) {
-        $("successBannerMessage").textContent =
-          "Votre document a été compris.";
+      if ($("errorReassurance")) {
+        $("errorReassurance").textContent =
+          "Aucun résultat incomplet n’a été conservé.";
       }
 
       state.isAnalyzing = false;
@@ -3743,97 +3765,283 @@
       );
     }
 
-    function createAnalysisError(kind, message) {
+    function createAnalysisError(code, message, extras = {}) {
       const error = new Error(message);
-      error.kind = kind;
+      error.code = code;
+      error.kind =
+        code === AnalysisErrorCode.NETWORK_ERROR
+          ? AnalysisErrorKind.NETWORK
+          : code === AnalysisErrorCode.PDF_PROTECTED ||
+              code === AnalysisErrorCode.PDF_CORRUPTED
+            ? AnalysisErrorKind.PDF
+            : code === AnalysisErrorCode.CANCELLED
+              ? AnalysisErrorKind.CANCELLED
+              : AnalysisErrorKind.BATCH;
       error.name =
-        kind === AnalysisErrorKind.CANCELLED
+        code === AnalysisErrorCode.CANCELLED
           ? "AbortError"
           : "AnalysisError";
+      error.retryable = extras.retryable !== false;
 
       return error;
     }
 
-    function classifyAnalysisError(error, data) {
+    /*
+     * Classification centralisée des erreurs d’analyse.
+     * Retourne toujours { code, title, message, retryable }.
+     */
+    function classifyAnalysisError(error, responseData) {
+      const payloadError =
+        responseData?.error &&
+        typeof responseData.error === "object"
+          ? responseData.error
+          : null;
+
+      const rawCode = cleanText(
+        payloadError?.code ||
+        error?.code ||
+        responseData?.error_code ||
+        responseData?.error_kind ||
+        error?.kind ||
+        ""
+      ).toUpperCase();
+
       const message = String(
-        error?.message || data?.error || ""
+        payloadError?.message ||
+        (typeof responseData?.error === "string"
+          ? responseData.error
+          : "") ||
+        error?.message ||
+        ""
       );
 
       if (
         error?.name === "AbortError" ||
+        error?.code === AnalysisErrorCode.CANCELLED ||
         error?.kind === AnalysisErrorKind.CANCELLED
       ) {
-        return AnalysisErrorKind.CANCELLED;
-      }
-
-      if (error?.kind === AnalysisErrorKind.OBSOLETE) {
-        return AnalysisErrorKind.OBSOLETE;
-      }
-
-      if (error?.kind) {
-        return error.kind;
+        return {
+          code: AnalysisErrorCode.CANCELLED,
+          title: "Échec de l’analyse",
+          message: "L’analyse a été annulée.",
+          retryable: true
+        };
       }
 
       if (
-        /failed to fetch|network|connexion|load failed/i.test(
-          message
-        )
+        error?.code === AnalysisErrorCode.OBSOLETE ||
+        error?.kind === AnalysisErrorKind.OBSOLETE
       ) {
-        return AnalysisErrorKind.NETWORK;
+        return {
+          code: AnalysisErrorCode.OBSOLETE,
+          title: "Échec de l’analyse",
+          message: "Cette analyse n’est plus d’actualité.",
+          retryable: true
+        };
       }
 
-      if (
-        /pdf|application\/pdf/i.test(message)
-      ) {
-        return AnalysisErrorKind.PDF;
+      const catalog = {
+        PDF_PROTECTED: {
+          code: AnalysisErrorCode.PDF_PROTECTED,
+          title: "Échec de l’analyse",
+          message:
+            "Ce PDF est protégé par un mot de passe.",
+          retryable: false
+        },
+        PDF_CORRUPTED: {
+          code: AnalysisErrorCode.PDF_CORRUPTED,
+          title: "Échec de l’analyse",
+          message: "Le fichier semble endommagé.",
+          retryable: false
+        },
+        IMAGE_UNREADABLE: {
+          code: AnalysisErrorCode.IMAGE_UNREADABLE,
+          title: "Échec de l’analyse",
+          message:
+            "Le texte du document est trop flou ou illisible.",
+          retryable: true
+        },
+        NO_USABLE_CONTENT: {
+          code: AnalysisErrorCode.NO_USABLE_CONTENT,
+          title: "Échec de l’analyse",
+          message:
+            "Aucun texte exploitable n’a été détecté.",
+          retryable: true
+        },
+        FILE_TOO_LARGE: {
+          code: AnalysisErrorCode.FILE_TOO_LARGE,
+          title: "Échec de l’analyse",
+          message: "Le fichier est trop volumineux.",
+          retryable: false
+        },
+        UNSUPPORTED_FORMAT: {
+          code: AnalysisErrorCode.UNSUPPORTED_FORMAT,
+          title: "Échec de l’analyse",
+          message:
+            "Le format du document n’est pas pris en charge.",
+          retryable: false
+        },
+        NETWORK_ERROR: {
+          code: AnalysisErrorCode.NETWORK_ERROR,
+          title: "Échec de l’analyse",
+          message: "La connexion a été interrompue.",
+          retryable: true
+        },
+        API_TIMEOUT: {
+          code: AnalysisErrorCode.API_TIMEOUT,
+          title: "Échec de l’analyse",
+          message:
+            "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants.",
+          retryable: true
+        },
+        EMPTY_AI_RESPONSE: {
+          code: AnalysisErrorCode.EMPTY_AI_RESPONSE,
+          title: "Échec de l’analyse",
+          message:
+            "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants.",
+          retryable: true
+        },
+        INVALID_AI_RESPONSE: {
+          code: AnalysisErrorCode.INVALID_AI_RESPONSE,
+          title: "Échec de l’analyse",
+          message:
+            "La réponse du service d’analyse est illisible.",
+          retryable: true
+        },
+        UNKNOWN_ERROR: {
+          code: AnalysisErrorCode.UNKNOWN_ERROR,
+          title: "Échec de l’analyse",
+          message:
+            "Une erreur inattendue est survenue pendant l’analyse.",
+          retryable: true
+        }
+      };
+
+      const codeAliases = {
+        PDF: "PDF_CORRUPTED",
+        PAGE: "IMAGE_UNREADABLE",
+        BATCH: "NO_USABLE_CONTENT",
+        BACKEND: "EMPTY_AI_RESPONSE",
+        NETWORK: "NETWORK_ERROR",
+        PDF_PROTECTED: "PDF_PROTECTED",
+        PDF_CORRUPTED: "PDF_CORRUPTED",
+        IMAGE_UNREADABLE: "IMAGE_UNREADABLE",
+        NO_USABLE_CONTENT: "NO_USABLE_CONTENT",
+        FILE_TOO_LARGE: "FILE_TOO_LARGE",
+        UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT",
+        NETWORK_ERROR: "NETWORK_ERROR",
+        API_TIMEOUT: "API_TIMEOUT",
+        EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
+        INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
+        UNKNOWN_ERROR: "UNKNOWN_ERROR"
+      };
+
+      let resolved =
+        codeAliases[rawCode] || null;
+
+      if (!resolved) {
+        if (
+          /password|mot de passe|encrypted|protégé/i.test(
+            message
+          )
+        ) {
+          resolved = "PDF_PROTECTED";
+        } else if (
+          /corrompu|damaged|endommagé|invalid pdf|malformed/i.test(
+            message
+          )
+        ) {
+          resolved = "PDF_CORRUPTED";
+        } else if (
+          /flou|illisible|unreadable|blur/i.test(
+            message
+          )
+        ) {
+          resolved = "IMAGE_UNREADABLE";
+        } else if (
+          /trop volumineux|too large|413|payload/i.test(
+            message
+          )
+        ) {
+          resolved = "FILE_TOO_LARGE";
+        } else if (
+          /format|unsupported|compatible/i.test(
+            message
+          )
+        ) {
+          resolved = "UNSUPPORTED_FORMAT";
+        } else if (
+          /failed to fetch|network|connexion|load failed/i.test(
+            message
+          )
+        ) {
+          resolved = "NETWORK_ERROR";
+        } else if (
+          /timeout|timed out/i.test(message)
+        ) {
+          resolved = "API_TIMEOUT";
+        } else if (
+          /réponse ia vide|empty|aucune réponse/i.test(
+            message
+          )
+        ) {
+          resolved = "EMPTY_AI_RESPONSE";
+        } else if (
+          /illisible|invalid json|parse/i.test(
+            message
+          )
+        ) {
+          resolved = "INVALID_AI_RESPONSE";
+        } else if (
+          /aucun.*exploitable|no usable|non détecté/i.test(
+            message
+          )
+        ) {
+          resolved = "NO_USABLE_CONTENT";
+        } else {
+          resolved = "UNKNOWN_ERROR";
+        }
       }
 
-      if (
-        data?.errorKind === AnalysisErrorKind.PDF ||
-        data?.error_kind === AnalysisErrorKind.PDF
-      ) {
-        return AnalysisErrorKind.PDF;
-      }
+      const entry =
+        catalog[resolved] || catalog.UNKNOWN_ERROR;
 
-      if (
-        data?.errorKind === AnalysisErrorKind.PAGE ||
-        data?.error_kind === AnalysisErrorKind.PAGE
-      ) {
-        return AnalysisErrorKind.PAGE;
-      }
-
-      if (!data && message) {
-        return AnalysisErrorKind.BACKEND;
-      }
-
-      return AnalysisErrorKind.BATCH;
+      return {
+        code: entry.code,
+        title: entry.title,
+        message:
+          cleanText(message) &&
+          resolved !== "UNKNOWN_ERROR"
+            ? cleanText(message) || entry.message
+            : entry.message,
+        retryable: entry.retryable
+      };
     }
 
-    function titleForAnalysisError(kind) {
-      switch (kind) {
-        case AnalysisErrorKind.NETWORK:
-          return "Connexion interrompue";
-        case AnalysisErrorKind.PDF:
-          return "PDF illisible";
-        case AnalysisErrorKind.PAGE:
-          return "Page illisible";
-        case AnalysisErrorKind.BACKEND:
-          return "Erreur du serveur";
-        case AnalysisErrorKind.BATCH:
-          return "Analyse impossible";
-        default:
-          return "Impossible d’analyser le document";
+    function titleForAnalysisError(classified) {
+      if (
+        classified &&
+        typeof classified === "object" &&
+        classified.title
+      ) {
+        return classified.title;
       }
+
+      return "Échec de l’analyse";
     }
 
-    function messageForAnalysisError(kind, message) {
-      if (kind === AnalysisErrorKind.NETWORK) {
-        return "Vérifiez votre connexion Internet puis réessayez.";
+    function messageForAnalysisError(classified, fallback) {
+      if (
+        classified &&
+        typeof classified === "object" &&
+        classified.message
+      ) {
+        return classified.message;
       }
 
       return (
-        cleanText(message) ||
-        "Une erreur inattendue est survenue."
+        cleanText(fallback) ||
+        "Une erreur inattendue est survenue pendant l’analyse."
       );
     }
 
@@ -3908,111 +4116,159 @@
       );
     }
 
-    // Remet l'écran résultat / assistant à l'état initial (textes inchangés)
-    function clearResultInterface() {
-      $("documentType").textContent =
-        "Document analysé";
-
-      $("issuer").textContent = "";
-
-      $("documentCategoryTag").textContent =
-        "Document";
-
-      $("summaryText").textContent = "";
-
-      $("summaryText").classList.add(
-        "collapsed"
+    /*
+     * Remet chaque zone de résultat à son texte initial neutre.
+     * Aucun résidu de l’ancien document ne doit rester dans le DOM.
+     */
+    function clearRenderedAnalysis() {
+      setTextIfPresent(
+        "documentType",
+        "Document analysé"
       );
-
-      $("readMoreButton").classList.add(
-        "hidden"
+      setTextIfPresent("issuer", "");
+      setTextIfPresent(
+        "documentCategoryTag",
+        "Document"
       );
+      setTextIfPresent("summaryText", "");
 
-      $("readMoreButton").textContent =
-        "Lire la suite";
-
-      $("requestTitle").textContent =
-        "Les prochaines étapes";
-
-      $("actionList").innerHTML = "";
-      $("proofList").innerHTML = "";
-
-      $("mainDate").textContent =
-        "Non trouvée";
-
-      $("mainDateMeaning").textContent =
-        "Aucune date certaine";
-
-      $("mainAmount").textContent =
-        "Non trouvé";
-
-      $("mainAmountMeaning").textContent =
-        "Aucun montant certain";
-
-      $("attentionIcon").textContent = "?";
-      $("attentionIcon").style.background =
-        "var(--purple)";
-
-      $("attentionTitle").textContent =
-        "À vérifier";
-
-      $("attentionMessage").textContent =
-        "Vérifiez les informations";
-
-      $("actionCount").textContent =
-        "0 action";
-
-      $("whyReceived").textContent = "";
-
-      $("understandingCard").dataset.level =
-        "good";
-
-      $("understandingFace").textContent =
-        "😌";
-
-      $("understandingTitle").textContent =
-        "J’ai compris l’essentiel";
-
-      $("understandingMessage").textContent =
-        "Je peux vous expliquer les informations principales.";
-
-      $("understandingDots").innerHTML = "";
-
-      // Personnage / bulle : état d'attente initial
-      $("speechBubble").textContent =
-        "J’ai compris l’essentiel !";
-
-      if ($("successBannerTitle")) {
-        $("successBannerTitle").textContent =
-          "Analyse terminée avec succès !";
+      if ($("summaryText")) {
+        $("summaryText").classList.add(
+          "collapsed"
+        );
       }
 
-      if ($("successBannerMessage")) {
-        $("successBannerMessage").textContent =
-          "Votre document a été compris.";
+      if ($("readMoreButton")) {
+        $("readMoreButton").classList.add(
+          "hidden"
+        );
+        $("readMoreButton").textContent =
+          "Lire la suite";
       }
 
-      $("assistantTitle").textContent = "";
-
-      $("assistantPanel").classList.add(
-        "hidden"
+      setTextIfPresent(
+        "requestTitle",
+        "Les prochaines étapes"
       );
 
-      $("assistantOutput").innerHTML = "";
+      if ($("actionList")) {
+        $("actionList").innerHTML = "";
+      }
 
-      $("copyAssistantButton").classList.add(
-        "hidden"
+      if ($("proofList")) {
+        $("proofList").innerHTML = "";
+      }
+
+      setTextIfPresent("mainDate", "Non trouvée");
+      setTextIfPresent(
+        "mainDateMeaning",
+        "Aucune date certaine"
+      );
+      setTextIfPresent("mainAmount", "Non trouvé");
+      setTextIfPresent(
+        "mainAmountMeaning",
+        "Aucun montant certain"
       );
 
-      $("copyAssistantButton").textContent =
-        "Copier le résultat";
+      if ($("attentionIcon")) {
+        $("attentionIcon").textContent = "?";
+        $("attentionIcon").style.background =
+          "var(--purple)";
+      }
+
+      setTextIfPresent(
+        "attentionTitle",
+        "À vérifier"
+      );
+      setTextIfPresent(
+        "attentionMessage",
+        "Vérifiez les informations"
+      );
+      setTextIfPresent("actionCount", "0 action");
+      setTextIfPresent("whyReceived", "");
+
+      if ($("understandingCard")) {
+        $("understandingCard").dataset.level =
+          "good";
+      }
+
+      setTextIfPresent(
+        "understandingFace",
+        "😌"
+      );
+      setTextIfPresent(
+        "understandingTitle",
+        "J’ai compris l’essentiel"
+      );
+      setTextIfPresent(
+        "understandingMessage",
+        "Je peux vous expliquer les informations principales."
+      );
+
+      if ($("understandingDots")) {
+        $("understandingDots").innerHTML = "";
+      }
+
+      setTextIfPresent(
+        "speechBubble",
+        "J’ai compris l’essentiel !"
+      );
+
+      setTextIfPresent(
+        "successBannerTitle",
+        "Analyse terminée avec succès !"
+      );
+      setTextIfPresent(
+        "successBannerMessage",
+        "Votre document a été compris."
+      );
+
+      setTextIfPresent("assistantTitle", "");
+
+      if ($("assistantPanel")) {
+        $("assistantPanel").classList.add(
+          "hidden"
+        );
+      }
+
+      if ($("assistantOutput")) {
+        $("assistantOutput").innerHTML = "";
+      }
+
+      if ($("copyAssistantButton")) {
+        $("copyAssistantButton").classList.add(
+          "hidden"
+        );
+        $("copyAssistantButton").textContent =
+          "Copier le résultat";
+      }
 
       setAssistantButtonsDisabled(false);
+
+      if ($("retryButton")) {
+        $("retryButton").style.display = "";
+      }
+
+      // state.analysis déjà vidé via purgeAnalysisMemory
+      state.analysisWarnings = [];
+      state.summaryExpanded = false;
     }
 
-    // Alias conservé pour les appels existants de rendu
+    function setTextIfPresent(id, value) {
+      const element = $(id);
+
+      if (element) {
+        element.textContent = value;
+      }
+    }
+
+    // Alias conservés
+    function clearResultInterface() {
+      clearRenderedAnalysis();
+    }
+
     function clearRenderedResults() {
-      clearResultInterface();
+      clearRenderedAnalysis();
     }
 
     function clearPreviousAnalysis() {
@@ -4195,9 +4451,12 @@
 
       if (hasPageErrors()) {
         showError(
-          "Pages à corriger",
+          "Échec de l’analyse",
           "Retirez ou remplacez les pages en erreur avant d’analyser.",
-          { keepRuntimeClean: true }
+          {
+            keepRuntimeClean: true,
+            code: AnalysisErrorCode.IMAGE_UNREADABLE
+          }
         );
 
         return;
@@ -4217,9 +4476,12 @@
 
       if (!pagesToAnalyze.length) {
         showError(
-          "Aucun document",
-          "Ajoutez au moins une page à analyser.",
-          { keepRuntimeClean: true }
+          "Échec de l’analyse",
+          "Aucun texte exploitable n’a été détecté.",
+          {
+            keepRuntimeClean: true,
+            code: AnalysisErrorCode.NO_USABLE_CONTENT
+          }
         );
 
         return;
@@ -4228,9 +4490,13 @@
       for (const page of pagesToAnalyze) {
         if (page.size > MAX_DIRECT_FILE_SIZE) {
           showError(
-            "Document trop volumineux",
-            `"${page.name}" dépasse la taille acceptée.`,
-            { keepRuntimeClean: true }
+            "Échec de l’analyse",
+            "Le fichier est trop volumineux.",
+            {
+              keepRuntimeClean: true,
+              code: AnalysisErrorCode.FILE_TOO_LARGE,
+              retryable: false
+            }
           );
 
           return;
@@ -4245,9 +4511,13 @@
 
       if (totalSize > MAX_TOTAL_UPLOAD_SIZE) {
         showError(
-          "Sélection trop volumineuse",
-          `Le total dépasse ${formatSize(MAX_TOTAL_UPLOAD_SIZE)}. Retirez des pages.`,
-          { keepRuntimeClean: true }
+          "Échec de l’analyse",
+          "Le fichier est trop volumineux.",
+          {
+            keepRuntimeClean: true,
+            code: AnalysisErrorCode.FILE_TOO_LARGE,
+            retryable: false
+          }
         );
 
         return;
@@ -4329,9 +4599,12 @@
 
       if (text.length < 30) {
         showError(
-          "Texte trop court",
-          "Collez plusieurs phrases.",
-          { keepRuntimeClean: true }
+          "Échec de l’analyse",
+          "Aucun texte exploitable n’a été détecté.",
+          {
+            keepRuntimeClean: true,
+            code: AnalysisErrorCode.NO_USABLE_CONTENT
+          }
         );
 
         return;
@@ -4430,8 +4703,8 @@
           data = await response.json();
         } catch {
           throw createAnalysisError(
-            AnalysisErrorKind.BACKEND,
-            "Réponse du serveur illisible."
+            AnalysisErrorCode.INVALID_AI_RESPONSE,
+            "La réponse du service d’analyse est illisible."
           );
         }
 
@@ -4441,24 +4714,43 @@
           return;
         }
 
-        if (!response.ok) {
-          const kind = classifyAnalysisError(
-            null,
-            data
-          );
+        // Nouveau format { ok, analysis, warnings } + compat ancien
+        const isExplicitFailure =
+          data?.ok === false ||
+          (data?.error &&
+            typeof data.error === "object" &&
+            data.error.code);
+
+        if (!response.ok || isExplicitFailure) {
+          const classified =
+            classifyAnalysisError(null, data);
 
           throw createAnalysisError(
-            kind === AnalysisErrorKind.BATCH &&
-              !data?.error
-              ? AnalysisErrorKind.BACKEND
-              : kind,
-            data?.error ||
-            "Analyse impossible."
+            classified.code,
+            classified.message,
+            { retryable: classified.retryable }
           );
         }
 
-        const newAnalysis =
-          normalizeAnalysis(data);
+        const analysisPayload =
+          data?.ok === true && data?.analysis
+            ? data.analysis
+            : data;
+
+        const responseWarnings = Array.isArray(
+          data?.warnings
+        )
+          ? data.warnings
+          : Array.isArray(
+              analysisPayload?.warnings
+            )
+            ? analysisPayload.warnings
+            : [];
+
+        const newAnalysis = normalizeAnalysis({
+          ...analysisPayload,
+          warnings: responseWarnings
+        });
 
         context.backendResponse = data;
         context.warnings =
@@ -4472,8 +4764,8 @@
 
         if (!isAnalysisUsable(newAnalysis)) {
           throw createAnalysisError(
-            AnalysisErrorKind.BATCH,
-            "Aucun contenu exploitable n’a pu être extrait de ce document."
+            AnalysisErrorCode.NO_USABLE_CONTENT,
+            "Aucun texte exploitable n’a été détecté."
           );
         }
 
@@ -4491,35 +4783,30 @@
           return;
         }
 
-        // Commit atomique d’un seul état final cohérent
+        // Commit atomique : succès uniquement (jamais « partielle »)
         purgeAnalysisMemory();
-        clearResultInterface();
-
-        // « Analyse partielle » UNIQUEMENT si lecture réellement partielle
-        // (warnings / reading_quality) — jamais à cause d’une confidence 0–1 mal lue
-        const finalStatus =
-          newAnalysis.readingQuality ===
-            "partial"
-            ? "partial"
-            : "success";
+        clearRenderedAnalysis();
 
         state.analysis = newAnalysis;
         state.analysisWarnings =
           newAnalysis.warnings.slice();
         state.lastBackendResponse = null;
-        state.finalStatus = finalStatus;
-        context.status = finalStatus;
+        state.finalStatus = "success";
+        context.status = "success";
 
         renderAnalysis(newAnalysis);
         showScreen("resultScreen");
       } catch (error) {
         if (
           error?.name === "AbortError" ||
+          error?.code ===
+            AnalysisErrorCode.CANCELLED ||
           error?.kind ===
             AnalysisErrorKind.CANCELLED
         ) {
           context.status =
             AnalysisErrorKind.CANCELLED;
+          state.finalStatus = "cancelled";
           return;
         }
 
@@ -4532,21 +4819,10 @@
           return;
         }
 
-        const kind = classifyAnalysisError(
-          error,
-          null
-        );
+        const classified =
+          classifyAnalysisError(error, null);
 
-        const errorTitle =
-          titleForAnalysisError(kind);
-
-        const errorMessage =
-          messageForAnalysisError(
-            kind,
-            error.message
-          );
-
-        // Un seul état final : erreur (jamais partielle + échec)
+        // Un seul état final : error (jamais résultat + échec)
         context.status = "error";
         context.error = error;
         context.warnings = [];
@@ -4565,9 +4841,13 @@
         state.isBusy = false;
 
         showError(
-          errorTitle,
-          errorMessage,
-          { fromAnalysis: true }
+          classified.title,
+          classified.message,
+          {
+            fromAnalysis: true,
+            code: classified.code,
+            retryable: classified.retryable
+          }
         );
       } finally {
         // Libère les données temporaires de CETTE transaction
@@ -4603,30 +4883,45 @@
       );
 
       const hasSummary =
-        summary.length >= 20 &&
-        !/indisponible|non identifié|non trouvée avec certitude/i.test(
+        summary.length >= 28 &&
+        !/indisponible|non identifié|non trouvée avec certitude|résumé indisponible/i.test(
           summary
-        );
-
-      const hasRequest =
-        request.length >= 8 &&
-        !/aucune demande|non trouvée avec certitude/i.test(
-          request
         );
 
       const hasType =
         documentType.length >= 3 &&
         !/non identifié/i.test(documentType);
 
+      const hasRequest =
+        request.length >= 8 &&
+        !/aucune demande|non trouvée avec certitude|à vérifier/i.test(
+          request
+        );
+
+      const hasAction =
+        Array.isArray(analysis.actions) &&
+        analysis.actions.some(
+          (item) =>
+            cleanText(item?.action).length >= 4 &&
+            !/aucune action|à vérifier/i.test(
+              item.action
+            )
+        );
+
       const hasEvidence =
         Array.isArray(analysis.evidence) &&
-        analysis.evidence.length > 0;
+        analysis.evidence.some(
+          (item) =>
+            cleanText(item?.quote).length >= 6
+        );
 
+      // Succès uniquement avec un minimum de contenu fiable
       return (
         hasSummary ||
         hasRequest ||
-        (hasType && hasEvidence) ||
-        analysis.confidence >= 35
+        hasAction ||
+        hasEvidence ||
+        (hasType && (hasSummary || hasEvidence))
       );
     }
 
@@ -4865,26 +5160,24 @@
     }
 
     function renderAnalysis(analysis) {
-      clearRenderedResults();
+      clearRenderedAnalysis();
 
-      const isPartial =
-        analysis.readingQuality === "partial" ||
-        (Array.isArray(analysis.warnings) &&
-          analysis.warnings.length > 0);
+      // Succès uniquement — jamais « Analyse partielle »
+      setTextIfPresent(
+        "successBannerTitle",
+        "Analyse terminée avec succès !"
+      );
 
-      if ($("successBannerTitle")) {
-        $("successBannerTitle").textContent =
-          isPartial
-            ? "Analyse partielle"
-            : "Analyse terminée avec succès !";
-      }
+      const hasWarnings =
+        Array.isArray(analysis.warnings) &&
+        analysis.warnings.length > 0;
 
-      if ($("successBannerMessage")) {
-        $("successBannerMessage").textContent =
-          isPartial
-            ? "Certaines informations n’ont pas pu être lues avec certitude."
-            : "Votre document a été compris.";
-      }
+      setTextIfPresent(
+        "successBannerMessage",
+        hasWarnings
+          ? "Votre document a été compris. Quelques détails secondaires restent à vérifier."
+          : "Votre document a été compris."
+      );
 
       $("documentType").textContent =
         analysis.documentType;
@@ -4901,12 +5194,10 @@
 
       let summaryText = analysis.summary;
 
-      if (
-        Array.isArray(analysis.warnings) &&
-        analysis.warnings.length
-      ) {
+      // Avertissement discret uniquement si l’analyse est réellement exploitable
+      if (hasWarnings) {
         summaryText =
-          `${analysis.summary}\n\n${analysis.warnings[0]}`;
+          `${analysis.summary}\n\n⚠️ ${analysis.warnings[0]}`;
       }
 
       $("summaryText").textContent =
@@ -5909,24 +6200,16 @@
     ) {
       stopProgress();
 
-      // Un seul état final d’erreur (jamais combiné à une analyse partielle)
+      // Un seul état final d’échec — aucun résultat partiel conservé
       state.finalStatus = "error";
       state.analysisWarnings = [];
+      state.analysis = null;
       state.isAnalyzing = false;
       state.isBusy = false;
       state.isCompressing = false;
       state.isSelectingFile = false;
 
-      // Efface tout résidu d’« Analyse partielle » avant l’écran d’erreur
-      if ($("successBannerTitle")) {
-        $("successBannerTitle").textContent =
-          "Analyse terminée avec succès !";
-      }
-
-      if ($("successBannerMessage")) {
-        $("successBannerMessage").textContent =
-          "Votre document a été compris.";
-      }
+      clearRenderedAnalysis();
 
       if (options.keepRuntimeClean) {
         state.lastFormData = null;
@@ -5940,10 +6223,24 @@
       syncActionControls();
 
       $("errorTitle").textContent =
-        title;
+        title || "Échec de l’analyse";
 
       $("errorMessage").textContent =
-        message;
+        message ||
+        "Aucun texte exploitable n’a été détecté.";
+
+      if ($("errorReassurance")) {
+        $("errorReassurance").textContent =
+          "Aucun résultat incomplet n’a été conservé.";
+      }
+
+      // Masquer Réessayer si non retryable
+      if ($("retryButton")) {
+        $("retryButton").style.display =
+          options.retryable === false
+            ? "none"
+            : "";
+      }
 
       showScreen("errorScreen");
     }
