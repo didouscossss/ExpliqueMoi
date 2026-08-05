@@ -34,6 +34,7 @@ const ErrorCode = {
   API_TIMEOUT: "API_TIMEOUT",
   EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
   INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
+  API_QUOTA_EXCEEDED: "API_QUOTA_EXCEEDED",
   UNKNOWN_ERROR: "UNKNOWN_ERROR"
 };
 
@@ -557,8 +558,26 @@ function buildDirectParts(text, pages, heterogeneous) {
         `Nom: ${page.name}\n` +
         `Type: ${page.mimeType}\n` +
         `Rotation déclarée: ${page.rotation}°\n` +
-        `Ordre: ${page.order}`
+        `Ordre: ${page.order}` +
+        (page.pdfHasText && page.pdfFullText
+          ? `\nTexte sélectionnable détecté: oui (${page.pdfPageCount || "?"} pages)`
+          : page.mimeType === "application/pdf"
+            ? "\nTexte sélectionnable détecté: non (PDF probablement scanné)"
+            : "")
     });
+
+    // Pour les PDF numériques, joindre aussi le texte extrait :
+    // Gemini échoue parfois sur inlineData PDF même valide.
+    if (
+      page.mimeType === "application/pdf" &&
+      page.pdfFullText &&
+      page.pdfFullText.replace(/\s+/g, "").length >= 20
+    ) {
+      parts.push({
+        text:
+          "TEXTE SÉLECTIONNABLE EXTRAIT DU PDF :\n" + page.pdfFullText
+      });
+    }
 
     parts.push({
       inlineData: {
@@ -810,6 +829,28 @@ function respondGeminiFailure(
     );
   }
 
+  const upstreamMessage = String(
+    detail?.error?.message || detail?.message || ""
+  );
+
+  if (
+    detail.httpStatus === 429 ||
+    /quota|rate limit|exceeded your current quota/i.test(upstreamMessage)
+  ) {
+    return response.status(429).json(
+      fail(
+        ErrorCode.API_QUOTA_EXCEEDED,
+        "Le quota du service d’analyse est dépassé. Réessayez dans une minute.",
+        {
+          mode: pdfProcessing.mode,
+          pageCount: pdfProcessing.pageCount,
+          upstreamStatus: detail.httpStatus || 429,
+          upstreamMessage: upstreamMessage.slice(0, 240)
+        }
+      )
+    );
+  }
+
   const blocked =
     detail?.promptFeedback?.blockReason || detail?.finishReason;
 
@@ -828,10 +869,6 @@ function respondGeminiFailure(
       )
     );
   }
-
-  const upstreamMessage = String(
-    detail?.error?.message || detail?.message || ""
-  );
 
   if (pdfOnly) {
     return response.status(502).json(

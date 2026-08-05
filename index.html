@@ -2649,6 +2649,7 @@
       API_TIMEOUT: "API_TIMEOUT",
       EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
       INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
+      API_QUOTA_EXCEEDED: "API_QUOTA_EXCEEDED",
       CANCELLED: "CANCELLED",
       OBSOLETE: "OBSOLETE",
       UNKNOWN_ERROR: "UNKNOWN_ERROR"
@@ -3926,6 +3927,13 @@
             "La réponse du service d’analyse est illisible.",
           retryable: true
         },
+        API_QUOTA_EXCEEDED: {
+          code: AnalysisErrorCode.API_QUOTA_EXCEEDED,
+          title: "Échec de l’analyse",
+          message:
+            "Le quota du service d’analyse est dépassé. Réessayez dans une minute.",
+          retryable: true
+        },
         UNKNOWN_ERROR: {
           code: AnalysisErrorCode.UNKNOWN_ERROR,
           title: "Échec de l’analyse",
@@ -3952,6 +3960,7 @@
         API_TIMEOUT: "API_TIMEOUT",
         EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
         INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
+        API_QUOTA_EXCEEDED: "API_QUOTA_EXCEEDED",
         UNKNOWN_ERROR: "UNKNOWN_ERROR"
       };
 
