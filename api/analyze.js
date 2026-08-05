@@ -8,60 +8,119 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_TOTAL_SIZE = 20 * 1024 * 1024;
 const MAX_PAGES = 10;
 
+const HETEROGENEOUS_BATCH_WARNING =
+  "Ces pages semblent appartenir à plusieurs documents différents. Pour une explication plus précise, analysez-les séparément.";
+
 export default async function handler(request, response) {
   if (request.method !== "POST") {
     return response.status(405).json({
-      error: "Méthode non autorisée."
+      error: "Méthode non autorisée.",
+      error_kind: "batch"
     });
   }
+
+  // Contexte local à CETTE requête uniquement — jamais réutilisé
+  const requestContext = {
+    pages: [],
+    manifest: null,
+    pageErrors: [],
+    warnings: [],
+    rawBody: null
+  };
 
   try {
     const formData = await readMultipartRequest(request);
 
     const text = String(formData.get("text") || "").trim();
-    const pages = await extractPages(formData);
+    const clientBatchWarning = String(
+      formData.get("batch_warning") || ""
+    ).trim();
 
-    if (!pages.length && text.length < 20) {
+    // Manifeste toujours recréé/parsé à zéro pour cette requête
+    requestContext.manifest = parseManifest(formData);
+
+    const extraction = await extractPages(formData, requestContext.manifest);
+    requestContext.pages = extraction.pages;
+    requestContext.pageErrors = extraction.pageErrors;
+
+    if (!requestContext.pages.length && text.length < 20) {
+      const pdfFailure = requestContext.pageErrors.find((item) =>
+        /pdf/i.test(`${item.mimeType || ""} ${item.message || ""}`)
+      );
+
       return response.status(400).json({
-        error: "Aucun document ou texte exploitable n’a été reçu."
+        error: pdfFailure
+          ? pdfFailure.message ||
+            "Le PDF n’a pas pu être lu. Envoyez un PDF valide, seul."
+          : requestContext.pageErrors.length
+            ? "Aucune page exploitable n’a pu être extraite."
+            : "Aucun document ou texte exploitable n’a été reçu.",
+        error_kind: pdfFailure ? "pdf" : "batch",
+        page_errors: requestContext.pageErrors,
+        warnings: []
       });
     }
 
-    if (pages.length > MAX_PAGES) {
+    if (requestContext.pages.length > MAX_PAGES) {
       return response.status(400).json({
-        error: "Le document dépasse la limite de 10 pages."
+        error: "Le document dépasse la limite de 10 pages.",
+        error_kind: "batch"
       });
     }
 
-    const totalSize = pages.reduce(
+    const totalSize = requestContext.pages.reduce(
       (sum, page) => sum + page.size,
       0
     );
 
     if (totalSize > MAX_TOTAL_SIZE) {
       return response.status(413).json({
-        error: "La sélection dépasse la taille totale acceptée."
+        error: "La sélection dépasse la taille totale acceptée.",
+        error_kind: "batch"
       });
     }
 
-    for (const page of pages) {
+    for (const page of requestContext.pages) {
       if (page.size > MAX_FILE_SIZE) {
         return response.status(413).json({
-          error: `La page « ${page.name} » dépasse la limite de 10 Mo.`
+          error: `La page « ${page.name} » dépasse la limite de 10 Mo.`,
+          error_kind:
+            page.mimeType === "application/pdf" ? "pdf" : "page"
         });
       }
     }
 
+    const heterogeneous =
+      requestContext.manifest?.heterogeneous === true ||
+      detectHeterogeneousPages(requestContext.pages);
+
+    if (heterogeneous) {
+      requestContext.warnings.push(HETEROGENEOUS_BATCH_WARNING);
+    } else if (clientBatchWarning) {
+      requestContext.warnings.push(clientBatchWarning);
+    }
+
+    for (const pageError of requestContext.pageErrors) {
+      requestContext.warnings.push(
+        pageError.message ||
+          `La page « ${pageError.name || "?"} » n’a pas pu être lue.`
+      );
+    }
+
     const parts = [
       {
-        text: buildPrompt(text, pages.length)
+        text: buildPrompt(
+          text,
+          requestContext.pages.length,
+          heterogeneous
+        )
       }
     ];
 
-    for (const page of pages) {
+    for (const page of requestContext.pages) {
       parts.push({
         text:
-          `--- Page ${page.order + 1} / ${pages.length} ---\n` +
+          `--- Page ${page.order + 1} / ${requestContext.pages.length} ---\n` +
           `Nom: ${page.name}\n` +
           `Type: ${page.mimeType}\n` +
           `Rotation déclarée: ${page.rotation}°\n` +
@@ -103,8 +162,19 @@ export default async function handler(request, response) {
     if (!geminiResponse.ok) {
       console.error(geminiData);
 
+      const pdfOnly =
+        requestContext.pages.length > 0 &&
+        requestContext.pages.every(
+          (page) => page.mimeType === "application/pdf"
+        );
+
       return response.status(502).json({
-        error: "L’IA n’a pas pu analyser le document."
+        error: pdfOnly
+          ? "L’IA n’a pas pu lire ce PDF. Réessayez avec ce fichier seul."
+          : "L’IA n’a pas pu analyser le document.",
+        error_kind: pdfOnly ? "pdf" : "backend",
+        warnings: [],
+        page_errors: requestContext.pageErrors
       });
     }
 
@@ -112,18 +182,72 @@ export default async function handler(request, response) {
       geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!rawText) {
-      throw new Error("Réponse IA vide.");
+      throw Object.assign(new Error("Réponse IA vide."), {
+        errorKind: "backend"
+      });
     }
 
-    const result = JSON.parse(rawText);
+    let result;
 
-    return response.status(200).json(validateResult(result));
+    try {
+      result = JSON.parse(rawText);
+    } catch {
+      throw Object.assign(
+        new Error("Réponse IA illisible."),
+        { errorKind: "backend" }
+      );
+    }
+
+    const validated = validateResult(
+      result,
+      requestContext.warnings,
+      requestContext.pageErrors,
+      heterogeneous
+    );
+
+    if (!hasUsableContent(validated)) {
+      return response.status(422).json({
+        error:
+          "Aucun contenu exploitable n’a pu être extrait de ce document.",
+        error_kind: "batch",
+        reading_quality: "failed",
+        warnings: [],
+        page_errors: requestContext.pageErrors
+      });
+    }
+
+    return response.status(200).json(validated);
   } catch (error) {
     console.error(error);
 
+    const kind =
+      error?.errorKind ||
+      (/pdf/i.test(String(error?.message || ""))
+        ? "pdf"
+        : "backend");
+
     return response.status(500).json({
-      error: "Une erreur est survenue pendant l’analyse."
+      error: "Une erreur est survenue pendant l’analyse.",
+      error_kind: kind,
+      warnings: [],
+      page_errors: requestContext.pageErrors
     });
+  } finally {
+    // Libère buffers et références temporaires de cette requête
+    if (Array.isArray(requestContext.pages)) {
+      for (const page of requestContext.pages) {
+        if (page) {
+          page.base64 = null;
+          page.bytes = null;
+        }
+      }
+    }
+
+    requestContext.pages = [];
+    requestContext.manifest = null;
+    requestContext.pageErrors = [];
+    requestContext.warnings = [];
+    requestContext.rawBody = null;
   }
 }
 
@@ -136,36 +260,70 @@ async function readMultipartRequest(request) {
 
   const body = Buffer.concat(chunks);
 
-  const nativeRequest = new Request("http://localhost/api/analyze", {
-    method: "POST",
-    headers: {
-      "content-type": request.headers["content-type"] || ""
-    },
-    body
-  });
+  try {
+    const nativeRequest = new Request(
+      "http://localhost/api/analyze",
+      {
+        method: "POST",
+        headers: {
+          "content-type":
+            request.headers["content-type"] || ""
+        },
+        body
+      }
+    );
 
-  return nativeRequest.formData();
+    return nativeRequest.formData();
+  } finally {
+    chunks.length = 0;
+  }
+}
+
+function parseManifest(formData) {
+  const rawManifest = formData.get("manifest");
+
+  if (typeof rawManifest !== "string" || !rawManifest.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawManifest);
+
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    // Copie locale neuve — aucun état global
+    return {
+      pageCount: Number(parsed.pageCount) || 0,
+      createdAt: Number(parsed.createdAt) || Date.now(),
+      heterogeneous: parsed.heterogeneous === true,
+      pages: Array.isArray(parsed.pages)
+        ? parsed.pages.map((item, index) => ({
+            order: Number(item?.order) || index,
+            id: cleanText(item?.id),
+            name: cleanText(item?.name),
+            mimeType: cleanText(item?.mimeType),
+            rotation: normalizeRotation(item?.rotation),
+            field:
+              cleanText(item?.field) || `page_${index}`
+          }))
+        : []
+    };
+  } catch {
+    return null;
+  }
 }
 
 /*
  * Accepte :
  * - multi-pages via manifest + page_N
  * - mono-fichier legacy via "file"
+ * Les erreurs d’extraction sont isolées page par page.
  */
-async function extractPages(formData) {
+async function extractPages(formData, manifest) {
   const pages = [];
-
-  let manifest = null;
-
-  const rawManifest = formData.get("manifest");
-
-  if (typeof rawManifest === "string" && rawManifest.trim()) {
-    try {
-      manifest = JSON.parse(rawManifest);
-    } catch {
-      manifest = null;
-    }
-  }
+  const pageErrors = [];
 
   if (Array.isArray(manifest?.pages) && manifest.pages.length) {
     const ordered = [...manifest.pages].sort(
@@ -173,59 +331,146 @@ async function extractPages(formData) {
     );
 
     for (const [index, meta] of ordered.entries()) {
-      const field =
-        meta.field || `page_${index}`;
+      const field = meta.field || `page_${index}`;
 
-      const file = formData.get(field);
+      try {
+        const file = formData.get(field);
 
-      if (!file || typeof file === "string") {
-        continue;
+        if (!file || typeof file === "string") {
+          pageErrors.push({
+            name: meta.name || field,
+            mimeType: meta.mimeType || "",
+            page: `Page ${index + 1}`,
+            message: `La page « ${meta.name || field} » est absente ou illisible.`
+          });
+          continue;
+        }
+
+        const page = await readPageFile(file, {
+          order: index,
+          name: meta.name,
+          mimeType: meta.mimeType,
+          rotation: meta.rotation
+        });
+
+        pages.push(page);
+      } catch (error) {
+        const mimeType = meta.mimeType || "";
+        const isPdf = mimeType === "application/pdf";
+
+        pageErrors.push({
+          name: meta.name || field,
+          mimeType,
+          page: `Page ${index + 1}`,
+          message: isPdf
+            ? `Le PDF « ${meta.name || "document"} » n’a pas pu être lu.`
+            : `La page « ${meta.name || field} » n’a pas pu être lue.`
+        });
       }
-
-      const bytes = Buffer.from(await file.arrayBuffer());
-
-      pages.push({
-        order: index,
-        name:
-          cleanText(meta.name) ||
-          file.name ||
-          `page-${index + 1}`,
-        mimeType:
-          cleanText(meta.mimeType) ||
-          file.type ||
-          "application/octet-stream",
-        rotation: normalizeRotation(meta.rotation),
-        size: bytes.length,
-        base64: bytes.toString("base64")
-      });
     }
 
-    // Manifest exploitable : format multi-pages
     if (pages.length) {
-      return pages;
+      return { pages, pageErrors };
     }
 
     // Manifest présent mais pages illisibles → fallback legacy "file"
   }
 
-  // Format historique : un seul champ "file" (et/ou texte collé)
-  const legacyFile = formData.get("file");
+  try {
+    const legacyFile = formData.get("file");
 
-  if (legacyFile && typeof legacyFile !== "string") {
-    const bytes = Buffer.from(await legacyFile.arrayBuffer());
+    if (legacyFile && typeof legacyFile !== "string") {
+      const page = await readPageFile(legacyFile, {
+        order: 0,
+        name: legacyFile.name || "document",
+        mimeType: legacyFile.type || "application/octet-stream",
+        rotation: 0
+      });
 
-    pages.push({
-      order: 0,
-      name: legacyFile.name || "document",
-      mimeType:
-        legacyFile.type || "application/octet-stream",
-      rotation: 0,
-      size: bytes.length,
-      base64: bytes.toString("base64")
+      pages.push(page);
+    }
+  } catch (error) {
+    pageErrors.push({
+      name: "document",
+      mimeType: "",
+      page: "Page 1",
+      message:
+        error?.message ||
+        "Le document n’a pas pu être lu."
     });
   }
 
-  return pages;
+  return { pages, pageErrors };
+}
+
+async function readPageFile(file, meta = {}) {
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  try {
+    const mimeType =
+      cleanText(meta.mimeType) ||
+      file.type ||
+      "application/octet-stream";
+
+    if (!bytes.length) {
+      throw Object.assign(
+        new Error("Fichier vide."),
+        {
+          errorKind:
+            mimeType === "application/pdf" ? "pdf" : "page"
+        }
+      );
+    }
+
+    // Chaque PDF/image est lu uniquement depuis SES propres données
+    return {
+      order: Number(meta.order) || 0,
+      name:
+        cleanText(meta.name) ||
+        file.name ||
+        `page-${(Number(meta.order) || 0) + 1}`,
+      mimeType,
+      rotation: normalizeRotation(meta.rotation),
+      size: bytes.length,
+      base64: bytes.toString("base64"),
+      bytes: null
+    };
+  } finally {
+    // bytes local libéré après encodage (réf. GC)
+  }
+}
+
+function detectHeterogeneousPages(pages) {
+  if (!Array.isArray(pages) || pages.length < 2) {
+    return false;
+  }
+
+  const hasPdf = pages.some(
+    (page) => page.mimeType === "application/pdf"
+  );
+
+  const hasImage = pages.some((page) =>
+    String(page.mimeType || "").startsWith("image/")
+  );
+
+  if (hasPdf && hasImage) {
+    return true;
+  }
+
+  const stems = pages
+    .map((page) =>
+      String(page.name || "")
+        .toLowerCase()
+        .replace(/\.[^.]+$/, "")
+        .replace(
+          /[-_\s]?(page|img|image|scan|doc|document)?[-_\s]?\d+$/i,
+          ""
+        )
+        .trim()
+    )
+    .filter(Boolean);
+
+  return new Set(stems).size > 1;
 }
 
 function normalizeRotation(value) {
@@ -243,18 +488,63 @@ function cleanText(value) {
     : "";
 }
 
-function buildPrompt(pastedText, pageCount) {
+function hasUsableContent(result) {
+  const summary = cleanText(result.plain_summary);
+  const request = cleanText(result.request);
+  const documentType = cleanText(result.document_type);
+
+  const hasSummary =
+    summary.length >= 20 &&
+    !/indisponible|non identifié|non trouvée avec certitude/i.test(
+      summary
+    );
+
+  const hasRequest =
+    request.length >= 8 &&
+    !/aucune demande|non trouvée avec certitude/i.test(
+      request
+    );
+
+  const hasType =
+    documentType.length >= 3 &&
+    !/non identifié/i.test(documentType);
+
+  const hasEvidence =
+    Array.isArray(result.evidence) &&
+    result.evidence.length > 0;
+
+  return (
+    hasSummary ||
+    hasRequest ||
+    (hasType && hasEvidence) ||
+    Number(result.confidence) >= 35
+  );
+}
+
+function buildPrompt(pastedText, pageCount, heterogeneous) {
   const multiPageRules =
     pageCount > 1
       ? `
 DOCUMENT MULTI-PAGES :
-- Tu reçois ${pageCount} pages d'UN SEUL document, déjà ordonnées.
-- Analyse-les comme un document unique et cohérent.
+- Tu reçois ${pageCount} pages, déjà ordonnées.
+- Analyse-les comme un ensemble.
 - Si une page est illisible, continue avec les autres.
+- Ne fais pas échouer tout le lot pour une seule page illisible.
 - Signale clairement les passages illisibles sans inventer leur contenu.
 - Dans evidence.page, indique "Page 1", "Page 2", etc. selon l'ordre fourni.
 `
       : "";
+
+  const heterogeneousRules = heterogeneous
+    ? `
+LOT HÉTÉROGÈNE :
+- Les pages semblent pouvoir appartenir à plusieurs documents différents.
+- N’invente pas de lien entre elles.
+- Explique uniquement ce qui est lisible avec certitude.
+- Indique dans plain_summary si le contenu paraît mélangé.
+- Mets confidence plus bas si les pages sont incohérentes entre elles.
+`
+    : "";
 
   return `
 Tu es ExpliqueMoi, un assistant qui explique les documents français
@@ -284,7 +574,8 @@ RÈGLES :
 - Pour chaque conclusion importante, cite le passage exact.
 - En matière fiscale, juridique ou médicale, explique sans prétendre
   remplacer un professionnel.
-${multiPageRules}
+- Ne prétends jamais qu'un document est lu complètement s'il ne l'est pas.
+${multiPageRules}${heterogeneousRules}
 Réponds exclusivement avec ce JSON :
 
 {
@@ -320,7 +611,8 @@ Réponds exclusivement avec ce JSON :
       "explanation": "ce que prouve ce passage"
     }
   ],
-  "confidence": 0
+  "confidence": 0,
+  "reading_quality": "full | partial"
 }
 
 Texte collé par l'utilisateur, s'il existe :
@@ -328,7 +620,49 @@ ${pastedText || "Aucun texte collé."}
   `.trim();
 }
 
-function validateResult(result) {
+function validateResult(
+  result,
+  extraWarnings = [],
+  pageErrors = [],
+  heterogeneous = false
+) {
+  const warnings = [];
+
+  const pushWarning = (value) => {
+    const text = cleanText(value);
+
+    if (text && !warnings.includes(text)) {
+      warnings.push(text);
+    }
+  };
+
+  extraWarnings.forEach(pushWarning);
+
+  if (Array.isArray(result?.warnings)) {
+    result.warnings.forEach(pushWarning);
+  }
+
+  if (heterogeneous) {
+    pushWarning(HETEROGENEOUS_BATCH_WARNING);
+  }
+
+  let readingQuality = cleanText(
+    result?.reading_quality
+  ).toLowerCase();
+
+  if (!["full", "partial", "failed"].includes(readingQuality)) {
+    readingQuality =
+      warnings.length ||
+      pageErrors.length ||
+      Number(result?.confidence) < 55
+        ? "partial"
+        : "full";
+  }
+
+  if (pageErrors.length && readingQuality === "full") {
+    readingQuality = "partial";
+  }
+
   return {
     document_type:
       result.document_type || "Document non identifié",
@@ -377,6 +711,12 @@ function validateResult(result) {
 
     confidence: Number.isFinite(result.confidence)
       ? Math.max(0, Math.min(100, result.confidence))
-      : 0
+      : 0,
+
+    reading_quality: readingQuality,
+    warnings,
+    page_errors: pageErrors,
+    heterogeneous: heterogeneous === true,
+    batch_heterogeneous: heterogeneous === true
   };
 }
