@@ -2865,7 +2865,7 @@
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.3.2";
+    const APP_VERSION = "2.3.3";
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -2920,6 +2920,12 @@
       PDF_CORRUPTED: "PDF_CORRUPTED",
       PDF_NO_USABLE_CONTENT: "PDF_NO_USABLE_CONTENT",
       IMAGE_UNREADABLE: "IMAGE_UNREADABLE",
+      IMAGE_DECODE_FAILED: "IMAGE_DECODE_FAILED",
+      IMAGE_COMPRESSION_FAILED: "IMAGE_COMPRESSION_FAILED",
+      IMAGE_TOO_LARGE_AFTER_COMPRESSION:
+        "IMAGE_TOO_LARGE_AFTER_COMPRESSION",
+      UNSUPPORTED_IMAGE_FORMAT: "UNSUPPORTED_IMAGE_FORMAT",
+      BATCH_TOO_LARGE: "BATCH_TOO_LARGE",
       NO_USABLE_CONTENT: "NO_USABLE_CONTENT",
       FILE_TOO_LARGE: "FILE_TOO_LARGE",
       UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT",
@@ -2951,11 +2957,12 @@
     const MAX_DIRECT_FILE_SIZE =
       4 * 1024 * 1024;
 
-    const MAX_IMAGE_SIZE =
-      30 * 1024 * 1024;
+    // Seuil extrême de sécurité décodage — on tente toujours la compression avant.
+    const MAX_IMAGE_DECODE_ATTEMPT =
+      80 * 1024 * 1024;
 
     const MAX_TOTAL_UPLOAD_SIZE =
-      15 * 1024 * 1024;
+      4 * 1024 * 1024;
 
     const ALLOWED_PAGE_TYPES = [
       "application/pdf",
@@ -2963,6 +2970,13 @@
       "image/png",
       "image/webp"
     ];
+
+    const IMAGE_COMPRESS_MIME = new Set([
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp"
+    ]);
 
     document.addEventListener(
       "DOMContentLoaded",
@@ -3188,6 +3202,12 @@
           return;
         }
 
+        await finalizeBatchCompression(selectionId);
+
+        if (selectionId !== state.fileSelectionId) {
+          return;
+        }
+
         renderPagesList();
         updateBatchCompositionHint();
         syncActionControls();
@@ -3222,6 +3242,7 @@
      */
     async function addPageFromFile(file, selectionId) {
       const pageId = createPageId();
+      const compressToken = createCompressToken();
 
       const page = {
         id: pageId,
@@ -3233,29 +3254,43 @@
         rotation: 0,
         appliedRotation: 0,
         status: "ready",
-        statusMessage: "Prêt",
-        sizeLabel: formatSize(file.size)
+        statusMessage: "Prête",
+        sizeLabel: formatSize(file.size),
+        compressToken,
+        compressController: null,
+        compression: null,
+        errorCode: null
       };
 
       if (file.type === "application/pdf") {
         if (file.size > MAX_DIRECT_FILE_SIZE) {
           page.status = "error";
           page.statusMessage =
-            "PDF trop volumineux (max. 3,2 Mo)";
+            "PDF trop volumineux (max. 4 Mo)";
+          page.errorCode =
+            AnalysisErrorCode.FILE_TOO_LARGE;
           page.file = null;
         }
-      } else if (file.type.startsWith("image/")) {
-        if (file.size > MAX_IMAGE_SIZE) {
+      } else if (IMAGE_COMPRESS_MIME.has(file.type)) {
+        if (file.size > MAX_IMAGE_DECODE_ATTEMPT) {
           page.status = "error";
           page.statusMessage =
-            "Image trop volumineuse (max. 30 Mo)";
+            "Échec de la compression";
+          page.errorCode =
+            AnalysisErrorCode.IMAGE_DECODE_FAILED;
           page.file = null;
         } else {
-          page.previewUrl =
-            trackObjectUrl(
-              URL.createObjectURL(file)
-            );
+          page.previewUrl = trackObjectUrl(
+            URL.createObjectURL(file)
+          );
         }
+      } else if (file.type.startsWith("image/")) {
+        page.status = "error";
+        page.statusMessage =
+          "Format d’image non pris en charge.";
+        page.errorCode =
+          AnalysisErrorCode.UNSUPPORTED_IMAGE_FORMAT;
+        page.file = null;
       }
 
       if (selectionId !== state.fileSelectionId) {
@@ -3269,8 +3304,7 @@
 
       if (
         page.status === "ready" &&
-        page.mimeType.startsWith("image/") &&
-        page.originalSize > MAX_DIRECT_FILE_SIZE
+        IMAGE_COMPRESS_MIME.has(page.mimeType)
       ) {
         await compressPage(page.id, selectionId);
       }
@@ -3278,217 +3312,245 @@
       enforceTotalSizeLimit();
     }
 
+    function createCompressToken() {
+      return `cmp-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 9)}`;
+    }
+
+    async function loadImageCompressionModule() {
+      return import("./lib/imageCompression.js");
+    }
+
     // Compresse une page image sans retirer les autres en cas d’échec
-    async function compressPage(pageId, selectionId) {
+    async function compressPage(
+      pageId,
+      selectionId,
+      options = {}
+    ) {
       const page = findPageById(pageId);
 
       if (!page || !page.file) {
-        return;
+        return null;
       }
 
+      if (page.compressController) {
+        try {
+          page.compressController.abort();
+        } catch {
+          // ignore
+        }
+      }
+
+      const controller = new AbortController();
+      const compressToken =
+        page.compressToken || createCompressToken();
+
+      page.compressToken = compressToken;
+      page.compressController = controller;
       page.status = "compressing";
-      page.statusMessage =
-        "Compression en cours…";
+      page.statusMessage = "Compression en cours…";
+      page.errorCode = null;
 
       state.isCompressing = true;
       renderPagesList();
       syncActionControls();
 
       try {
-        const compressedFile =
-          await renderImageFile(
-            page.file,
-            page.rotation,
-            page.originalName
-          );
+        const {
+          compressImageForDocument,
+          formatSizeFr
+        } = await loadImageCompressionModule();
 
-        if (
-          selectionId !== state.fileSelectionId ||
-          !findPageById(pageId)
-        ) {
-          return;
+        if (!isCompressionCurrent(pageId, selectionId, compressToken)) {
+          return null;
+        }
+
+        const result = await compressImageForDocument(
+          page.file,
+          {
+            rotation: options.rotation ?? page.rotation ?? 0,
+            force: options.force === true,
+            signal: controller.signal,
+            targetMaxBytes: options.targetMaxBytes
+          }
+        );
+
+        if (!isCompressionCurrent(pageId, selectionId, compressToken)) {
+          return null;
         }
 
         const current = findPageById(pageId);
+
+        if (!current) {
+          return null;
+        }
+
+        if (result.status === "aborted") {
+          return null;
+        }
+
+        if (result.status === "error") {
+          current.status = "error";
+          current.statusMessage =
+            result.message || "Échec de la compression";
+          current.errorCode =
+            result.errorCode ||
+            AnalysisErrorCode.IMAGE_COMPRESSION_FAILED;
+          current.compression = result;
+
+          if (
+            result.errorCode ===
+              AnalysisErrorCode.IMAGE_TOO_LARGE_AFTER_COMPRESSION &&
+            result.compressedFile
+          ) {
+            // On conserve le meilleur essai pour éventuel retrait manuel
+            revokePagePreview(current);
+            current.file = result.compressedFile;
+            current.mimeType =
+              result.compressedFile.type;
+            current.sizeLabel = formatSize(
+              result.compressedFile.size
+            );
+            current.previewUrl = trackObjectUrl(
+              URL.createObjectURL(result.compressedFile)
+            );
+          } else {
+            current.file = null;
+          }
+
+          return result;
+        }
 
         revokePagePreview(current);
-        current.file = compressedFile;
-        current.mimeType = compressedFile.type;
-        current.previewUrl =
-          trackObjectUrl(
-            URL.createObjectURL(compressedFile)
-          );
+        current.file = result.compressedFile;
+        current.mimeType = result.compressedFile.type;
+        current.previewUrl = trackObjectUrl(
+          URL.createObjectURL(result.compressedFile)
+        );
         current.status = "ready";
-        current.statusMessage =
-          `Compressé : ${formatSize(current.originalSize)} → ${formatSize(compressedFile.size)}`;
-        current.sizeLabel =
-          formatSize(compressedFile.size);
-      } catch {
+        current.compression = result;
+        current.errorCode = null;
+        current.sizeLabel = formatSize(
+          result.compressedFile.size
+        );
+
+        if (result.wasCompressed) {
+          current.statusMessage =
+            result.message ||
+            `${formatSizeFr(result.originalSize)} → ${formatSizeFr(result.compressedSize)}`;
+        } else {
+          current.statusMessage = "Prête";
+        }
+
+        return result;
+      } catch (error) {
         if (
-          selectionId !== state.fileSelectionId ||
-          !findPageById(pageId)
+          error?.name === "AbortError" ||
+          !isCompressionCurrent(pageId, selectionId, compressToken)
         ) {
-          return;
+          return null;
         }
 
         const current = findPageById(pageId);
 
+        if (!current) {
+          return null;
+        }
+
         current.status = "error";
-        current.statusMessage =
-          "Compression impossible";
+        current.statusMessage = "Échec de la compression";
+        current.errorCode =
+          AnalysisErrorCode.IMAGE_COMPRESSION_FAILED;
         current.file = null;
+        return null;
       } finally {
+        const current = findPageById(pageId);
+
+        if (
+          current &&
+          current.compressController === controller
+        ) {
+          current.compressController = null;
+        }
+
         if (selectionId === state.fileSelectionId) {
-          state.isCompressing =
-            state.pages.some(
-              (item) => item.status === "compressing"
-            );
+          state.isCompressing = state.pages.some(
+            (item) => item.status === "compressing"
+          );
           renderPagesList();
           syncActionControls();
+          enforceTotalSizeLimit();
         }
       }
     }
 
-    /*
-     * Redessine une image avec rotation + compression JPEG lisible.
-     * Max côté 1900px, qualité dégressive jusqu’à ~2,9 Mo.
+    function isCompressionCurrent(
+      pageId,
+      selectionId,
+      compressToken
+    ) {
+      if (selectionId !== state.fileSelectionId) {
+        return false;
+      }
+
+      const page = findPageById(pageId);
+
+      return Boolean(
+        page && page.compressToken === compressToken
+      );
+    }
+
+    /**
+     * Seconde passe sur les plus grosses images si le lot > 4 Mo.
      */
-    async function renderImageFile(
-      sourceFile,
-      rotation = 0,
-      originalName = "page.jpg"
-    ) {
-      const bitmap =
-        await createImageBitmap(sourceFile);
-
-      const normalized =
-        ((rotation % 360) + 360) % 360;
-
-      const swap =
-        normalized === 90 ||
-        normalized === 270;
-
-      const ratio = Math.min(
-        1,
-        1900 /
-          Math.max(
-            bitmap.width,
-            bitmap.height
-          )
-      );
-
-      const drawWidth =
-        Math.round(bitmap.width * ratio);
-
-      const drawHeight =
-        Math.round(bitmap.height * ratio);
-
-      const canvas =
-        document.createElement("canvas");
-
-      canvas.width =
-        swap ? drawHeight : drawWidth;
-
-      canvas.height =
-        swap ? drawWidth : drawHeight;
-
-      const context =
-        canvas.getContext("2d");
-
-      if (!context) {
-        bitmap.close();
-        throw new Error(
-          "Compression indisponible."
-        );
+    async function finalizeBatchCompression(selectionId) {
+      if (selectionId !== state.fileSelectionId) {
+        return;
       }
 
-      context.fillStyle = "#ffffff";
+      const total = getPagesTotalSize();
 
-      context.fillRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
-
-      context.save();
-      context.translate(
-        canvas.width / 2,
-        canvas.height / 2
-      );
-      context.rotate(
-        (normalized * Math.PI) / 180
-      );
-      context.drawImage(
-        bitmap,
-        -drawWidth / 2,
-        -drawHeight / 2,
-        drawWidth,
-        drawHeight
-      );
-      context.restore();
-
-      bitmap.close();
-
-      let quality = 0.82;
-
-      let imageBlob =
-        await createCanvasBlob(
-          canvas,
-          quality
-        );
-
-      while (
-        imageBlob.size >
-          2.9 * 1024 * 1024 &&
-        quality > 0.45
-      ) {
-        quality -= 0.07;
-
-        imageBlob =
-          await createCanvasBlob(
-            canvas,
-            quality
-          );
+      if (total <= MAX_TOTAL_UPLOAD_SIZE) {
+        hidePagesLimitMessage();
+        return;
       }
 
-      const baseName =
-        String(originalName || "page")
-          .replace(/\.[^.]+$/, "");
+      const imagePages = state.pages
+        .filter(
+          (page) =>
+            page.status === "ready" &&
+            page.file &&
+            IMAGE_COMPRESS_MIME.has(page.mimeType)
+        )
+        .sort(
+          (a, b) =>
+            (b.file?.size || 0) - (a.file?.size || 0)
+        );
 
-      return new File(
-        [imageBlob],
-        `${baseName}-page.jpg`,
-        {
-          type: "image/jpeg",
-          lastModified: Date.now()
+      for (const page of imagePages) {
+        if (selectionId !== state.fileSelectionId) {
+          return;
         }
-      );
-    }
 
-    function createCanvasBlob(
-      canvas,
-      quality
-    ) {
-      return new Promise(
-        (resolve, reject) => {
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                resolve(blob);
-              } else {
-                reject(
-                  new Error(
-                    "Compression impossible"
-                  )
-                );
-              }
-            },
-            "image/jpeg",
-            quality
-          );
+        if (getPagesTotalSize() <= MAX_TOTAL_UPLOAD_SIZE) {
+          break;
         }
-      );
+
+        page.compressToken = createCompressToken();
+
+        await compressPage(page.id, selectionId, {
+          force: true,
+          targetMaxBytes: 700 * 1024,
+          rotation: 0
+        });
+      }
+
+      if (selectionId !== state.fileSelectionId) {
+        return;
+      }
+
+      enforceTotalSizeLimit();
     }
 
     function createPageId() {
@@ -3537,6 +3599,14 @@
     }
 
     function enforceTotalSizeLimit() {
+      const stillCompressing = state.pages.some(
+        (page) => page.status === "compressing"
+      );
+
+      if (stillCompressing) {
+        return;
+      }
+
       const total = state.pages.reduce(
         (sum, page) =>
           sum + (page.file?.size || 0),
@@ -3544,12 +3614,13 @@
       );
 
       if (total <= MAX_TOTAL_UPLOAD_SIZE) {
+        hidePagesLimitMessage();
         return;
       }
 
       showPagesLimitMessage(
-        `La sélection dépasse ${formatSize(MAX_TOTAL_UPLOAD_SIZE)}. ` +
-        "Retirez des pages ou utilisez des photos plus légères."
+        `BATCH_TOO_LARGE : le lot fait ${formatSize(total)} après compression (max. ${formatSize(MAX_TOTAL_UPLOAD_SIZE)}). ` +
+        "Retirez une photo ou choisissez des fichiers plus légers."
       );
     }
 
@@ -3660,7 +3731,15 @@
                       ? "PDF"
                       : "Image"
                   }
-                  · ${escapeHtml(page.sizeLabel || formatSize(page.originalSize))}
+                  · ${escapeHtml(
+                    page.compression?.wasCompressed
+                      ? page.statusMessage
+                      : page.sizeLabel ||
+                        formatSize(
+                          page.file?.size ||
+                            page.originalSize
+                        )
+                  )}
                   ${rotationLabel}
                 </span>
                 <span class="page-status ${statusClass}">
@@ -3712,7 +3791,6 @@
                   data-page-id="${page.id}"
                   aria-label="Supprimer la page ${index + 1}"
                   title="Supprimer"
-                  ${page.status === "compressing" ? "disabled" : ""}
                 >
                   ×
                 </button>
@@ -3769,12 +3847,35 @@
         return;
       }
 
-      revokePagePreview(state.pages[index]);
-      state.pages.splice(index, 1);
+      const [removed] = state.pages.splice(index, 1);
+
+      // Invalide toute compression en cours pour cette page
+      if (removed) {
+        removed.compressToken = createCompressToken();
+
+        if (removed.compressController) {
+          try {
+            removed.compressController.abort();
+          } catch {
+            // ignore
+          }
+
+          removed.compressController = null;
+        }
+
+        revokePagePreview(removed);
+        removed.file = null;
+        removed.compression = null;
+      }
+
+      state.isCompressing = state.pages.some(
+        (item) => item.status === "compressing"
+      );
 
       hidePagesLimitMessage();
       renderPagesList();
       updateBatchCompositionHint();
+      enforceTotalSizeLimit();
       syncActionControls();
     }
 
@@ -3813,75 +3914,47 @@
       if (
         !page ||
         !page.file ||
-        !page.mimeType.startsWith("image/") ||
+        !IMAGE_COMPRESS_MIME.has(page.mimeType) ||
         page.status === "compressing" ||
         state.isAnalyzing
       ) {
         return;
       }
 
-      const selectionId =
-        state.fileSelectionId;
+      const selectionId = state.fileSelectionId;
+      page.compressToken = createCompressToken();
+      page.statusMessage = "Compression en cours…";
 
-      page.status = "compressing";
-      page.statusMessage =
-        "Rotation en cours…";
+      const result = await compressPage(pageId, selectionId, {
+        rotation: 90,
+        force: true
+      });
 
-      state.isCompressing = true;
+      if (
+        selectionId !== state.fileSelectionId ||
+        !findPageById(pageId) ||
+        !result ||
+        result.status === "error"
+      ) {
+        return;
+      }
+
+      const current = findPageById(pageId);
+
+      if (!current) {
+        return;
+      }
+
+      current.appliedRotation =
+        ((current.appliedRotation || 0) + 90) % 360;
+      current.rotation = 0;
+
+      if (!current.statusMessage || current.statusMessage === "Prête") {
+        current.statusMessage = "Prête";
+      }
+
       renderPagesList();
       syncActionControls();
-
-      try {
-        const rotatedFile =
-          await renderImageFile(
-            page.file,
-            90,
-            page.originalName
-          );
-
-        if (
-          selectionId !== state.fileSelectionId ||
-          !findPageById(pageId)
-        ) {
-          return;
-        }
-
-        const current = findPageById(pageId);
-
-        // Fichier déjà tourné : on mémorise l’angle cumulé pour le manifeste
-        revokePagePreview(current);
-        current.file = rotatedFile;
-        current.mimeType = rotatedFile.type;
-        current.appliedRotation =
-          ((current.appliedRotation || 0) + 90) %
-          360;
-        current.rotation = 0;
-        current.previewUrl =
-          trackObjectUrl(
-            URL.createObjectURL(rotatedFile)
-          );
-        current.status = "ready";
-        current.statusMessage = "Prêt";
-        current.sizeLabel =
-          formatSize(rotatedFile.size);
-      } catch {
-        if (!findPageById(pageId)) {
-          return;
-        }
-
-        const current = findPageById(pageId);
-
-        current.status = "error";
-        current.statusMessage =
-          "Rotation impossible";
-      } finally {
-        state.isCompressing =
-          state.pages.some(
-            (item) => item.status === "compressing"
-          );
-        renderPagesList();
-        syncActionControls();
-      }
     }
 
     function formatSize(bytes) {
@@ -4203,6 +4276,38 @@
             "Le texte du document est trop flou ou illisible.",
           retryable: true
         },
+        IMAGE_DECODE_FAILED: {
+          code: AnalysisErrorCode.IMAGE_DECODE_FAILED,
+          title: "Échec de l’analyse",
+          message: "Impossible de lire cette image.",
+          retryable: true
+        },
+        IMAGE_COMPRESSION_FAILED: {
+          code: AnalysisErrorCode.IMAGE_COMPRESSION_FAILED,
+          title: "Échec de l’analyse",
+          message: "Échec de la compression",
+          retryable: true
+        },
+        IMAGE_TOO_LARGE_AFTER_COMPRESSION: {
+          code: AnalysisErrorCode.IMAGE_TOO_LARGE_AFTER_COMPRESSION,
+          title: "Échec de l’analyse",
+          message:
+            "Image encore trop lourde après compression.",
+          retryable: false
+        },
+        UNSUPPORTED_IMAGE_FORMAT: {
+          code: AnalysisErrorCode.UNSUPPORTED_IMAGE_FORMAT,
+          title: "Échec de l’analyse",
+          message: "Format d’image non pris en charge.",
+          retryable: false
+        },
+        BATCH_TOO_LARGE: {
+          code: AnalysisErrorCode.BATCH_TOO_LARGE,
+          title: "Échec de l’analyse",
+          message:
+            "Le lot dépasse 4 Mo après compression. Retirez une photo ou utilisez des fichiers plus légers.",
+          retryable: false
+        },
         NO_USABLE_CONTENT: {
           code: AnalysisErrorCode.NO_USABLE_CONTENT,
           title: "Échec de l’analyse",
@@ -4449,7 +4554,24 @@
 
     // Supprime toute référence aux pages sélectionnées
     function purgeFileMemory() {
-      state.pages.forEach(revokePagePreview);
+      state.pages.forEach((page) => {
+        page.compressToken = createCompressToken();
+
+        if (page.compressController) {
+          try {
+            page.compressController.abort();
+          } catch {
+            // ignore
+          }
+
+          page.compressController = null;
+        }
+
+        revokePagePreview(page);
+        page.file = null;
+        page.compression = null;
+      });
+
       state.pages = [];
       revokeAllObjectUrls();
 
@@ -4888,10 +5010,10 @@
       if (totalSize > MAX_TOTAL_UPLOAD_SIZE) {
         showError(
           "Échec de l’analyse",
-          "Le fichier est trop volumineux.",
+          "Le lot dépasse 4 Mo après compression. Retirez une photo ou utilisez des fichiers plus légers.",
           {
             keepRuntimeClean: true,
-            code: AnalysisErrorCode.FILE_TOO_LARGE,
+            code: AnalysisErrorCode.BATCH_TOO_LARGE,
             retryable: false
           }
         );
