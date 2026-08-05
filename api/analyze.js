@@ -6,7 +6,8 @@ export const config = {
 
 import {
   inspectPdf,
-  rasterizePdfPages
+  rasterizePdfPages,
+  MAX_PDF_PAGES
 } from "../lib/pdfProcessing.js";
 import {
   callGeminiForAnalysis,
@@ -18,46 +19,21 @@ import {
   normalizeEntities,
   normalizeAmountsDetail
 } from "../lib/documentContext.js";
-import {
-  MAX_DOCUMENT_SIZE,
-  buildTooLargeMessage,
-  planPdfChunks,
-  formatBytesFr
-} from "../lib/pdfChunking.js";
-import { analyzeLongPdf } from "../lib/longPdfAnalysis.js";
-import {
-  determineAnalysisQuality,
-  qualityToReadingQuality
-} from "../lib/analysisQuality.js";
-import {
-  normalizeDateEntries,
-  mergeDates,
-  extractDatesFromTables
-} from "../lib/dateNormalization.js";
 
-const MAX_FILE_SIZE = MAX_DOCUMENT_SIZE;
-const MAX_TOTAL_SIZE = MAX_DOCUMENT_SIZE;
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_TOTAL_SIZE = 20 * 1024 * 1024;
+const MAX_PAGES = MAX_PDF_PAGES;
 const VERCEL_BODY_SOFT_LIMIT = 4.4 * 1024 * 1024;
 
 const HETEROGENEOUS_BATCH_WARNING =
   "Ces pages semblent appartenir à plusieurs documents différents. Pour une explication plus précise, analysez-les séparément.";
 
-/** Budget serveur sous maxDuration Vercel (60s) — laisse de la marge pour la réponse. */
-const REQUEST_BUDGET_MS = 54000;
-/** Minimum pour tenter le fallback OCR pages→images (après échec direct). */
-const PAGE_IMAGES_MIN_REMAINING_MS = 12000;
-
 const ErrorCode = {
   PDF_PROTECTED: "PDF_PROTECTED",
   PDF_CORRUPTED: "PDF_CORRUPTED",
   PDF_NO_USABLE_CONTENT: "PDF_NO_USABLE_CONTENT",
-  PDF_NO_TEXT: "PDF_NO_TEXT",
-  PDF_PROCESSING_FAILED: "PDF_PROCESSING_FAILED",
-  OCR_IMPOSSIBLE: "OCR_IMPOSSIBLE",
   IMAGE_UNREADABLE: "IMAGE_UNREADABLE",
   NO_USABLE_CONTENT: "NO_USABLE_CONTENT",
-  FILE_NOT_RECEIVED: "FILE_NOT_RECEIVED",
-  INVALID_MULTIPART: "INVALID_MULTIPART",
   FILE_TOO_LARGE: "FILE_TOO_LARGE",
   UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT",
   NETWORK_ERROR: "NETWORK_ERROR",
@@ -65,7 +41,6 @@ const ErrorCode = {
   EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
   INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
   API_QUOTA_EXCEEDED: "API_QUOTA_EXCEEDED",
-  GEMINI_ERROR: "GEMINI_ERROR",
   UNKNOWN_ERROR: "UNKNOWN_ERROR"
 };
 
@@ -117,45 +92,24 @@ export default async function handler(request, response) {
   };
 
   try {
-    const deadlineAt = Date.now() + REQUEST_BUDGET_MS;
-    requestContext.deadlineAt = deadlineAt;
-
-    let formData;
-    let bodySize = 0;
-
-    try {
-      ({ formData, bodySize } = await readMultipartRequest(request));
-    } catch (multipartError) {
-      return response.status(400).json(
-        fail(
-          ErrorCode.INVALID_MULTIPART,
-          "La requête multipart est invalide ou incomplète.",
-          {
-            message: String(multipartError?.message || multipartError)
-          }
-        )
-      );
-    }
-
+    const { formData, bodySize } = await readMultipartRequest(request);
     requestContext.rawBodySize = bodySize;
 
     requestContext.diagnostics.push({
       step: "upload",
       receivedBytes: bodySize,
       contentType: String(request.headers["content-type"] || ""),
-      overVercelSoftLimit: bodySize > VERCEL_BODY_SOFT_LIMIT,
-      deadlineAt
+      overVercelSoftLimit: bodySize > VERCEL_BODY_SOFT_LIMIT
     });
 
     if (bodySize > VERCEL_BODY_SOFT_LIMIT) {
       return response.status(413).json(
         fail(
           ErrorCode.FILE_TOO_LARGE,
-          buildTooLargeMessage(bodySize, VERCEL_BODY_SOFT_LIMIT),
+          "La requête dépasse la limite de taille du serveur (≈ 4,5 Mo sur Vercel). Réduisez le fichier ou le nombre de pages.",
           {
             receivedBytes: bodySize,
-            limitBytes: VERCEL_BODY_SOFT_LIMIT,
-            title: "Fichier trop volumineux"
+            limitBytes: VERCEL_BODY_SOFT_LIMIT
           }
         )
       );
@@ -183,21 +137,7 @@ export default async function handler(request, response) {
         name: page.name,
         mimeType: page.mimeType,
         size: page.size,
-        order: page.order,
-        empty: !page.size,
-        hasBase64: Boolean(page.base64 && page.base64.length > 32)
-      }))
-    });
-
-    // Logs temporaires diagnostic pipeline (Vercel function logs)
-    console.info("[analyze] upload", {
-      bodySize,
-      pageCount: requestContext.pages.length,
-      pages: requestContext.pages.map((page) => ({
-        name: page.name,
-        mimeType: page.mimeType,
-        size: page.size,
-        empty: !page.size
+        order: page.order
       }))
     });
 
@@ -205,7 +145,16 @@ export default async function handler(request, response) {
       return respondEmptyInput(response, requestContext);
     }
 
-    // Limite unique : 4 Mo par fichier et pour le lot complet (pas de limite de pages)
+    if (requestContext.pages.length > MAX_PAGES) {
+      return response.status(400).json(
+        fail(
+          ErrorCode.UNSUPPORTED_FORMAT,
+          "Le document dépasse la limite de 10 pages.",
+          { pageCount: requestContext.pages.length }
+        )
+      );
+    }
+
     const totalSize = requestContext.pages.reduce(
       (sum, page) => sum + page.size,
       0
@@ -215,12 +164,8 @@ export default async function handler(request, response) {
       return response.status(413).json(
         fail(
           ErrorCode.FILE_TOO_LARGE,
-          buildTooLargeMessage(totalSize, MAX_TOTAL_SIZE),
-          {
-            totalSize,
-            limitBytes: MAX_TOTAL_SIZE,
-            title: "Fichier trop volumineux"
-          }
+          "La sélection dépasse la taille totale acceptée.",
+          { totalSize }
         )
       );
     }
@@ -230,13 +175,8 @@ export default async function handler(request, response) {
         return response.status(413).json(
           fail(
             ErrorCode.FILE_TOO_LARGE,
-            buildTooLargeMessage(page.size, MAX_FILE_SIZE),
-            {
-              name: page.name,
-              size: page.size,
-              limitBytes: MAX_FILE_SIZE,
-              title: "Fichier trop volumineux"
-            }
+            `La page « ${page.name} » dépasse la limite de 10 Mo.`,
+            { name: page.name, size: page.size }
           )
         );
       }
@@ -277,233 +217,38 @@ export default async function handler(request, response) {
       requestContext.pdfMeta.length > 0 &&
       requestContext.pdfMeta.every((meta) => meta.scanned);
 
-    const totalPdfPages = summarizePageCount(requestContext);
-
     let pdfProcessing = {
       mode: "direct",
-      pageCount: totalPdfPages,
-      totalPages: totalPdfPages,
-      processedPages: 0,
+      pageCount: summarizePageCount(requestContext),
       readablePages: [],
       failedPages: [],
-      chunkCount: 1,
       hasText: requestContext.pdfMeta.some((meta) => meta.hasText),
       scanned: scannedPdf,
       diagnostics: requestContext.diagnostics
     };
 
-    // -------- PDF long : traitement par lots --------
-    const singlePdfPage = pdfOnly ? requestContext.pages[0] : null;
-    const longPlan =
-      singlePdfPage && requestContext.pages.length === 1
-        ? planPdfChunks({
-            pageCount: singlePdfPage.pdfPageCount || 0,
-            fileSize: singlePdfPage.size,
-            textLength: (singlePdfPage.pdfPageTexts || []).reduce(
-              (sum, item) => sum + String(item?.text || "").length,
-              0
-            ),
-            scanned: singlePdfPage.pdfScanned === true,
-            pageTexts: singlePdfPage.pdfPageTexts || []
-          })
-        : null;
+    // -------- Niveau 1 : analyse directe --------
+    let analysisResult = await analyzeWithParts(
+      buildDirectParts(text, requestContext.pages, heterogeneous),
+      {
+        retries: pdfOnly || requestContext.pages.length === 1 ? 1 : 0,
+        label: "direct"
+      },
+      requestContext
+    );
 
-    if (longPlan && longPlan.mode === "chunked" && longPlan.chunkCount > 1) {
-      const longResult = await analyzeLongPdf({
-        page: singlePdfPage,
-        text,
-        heterogeneous,
-        buildPrompt,
-        validateResult,
-        hasUsableContent,
-        deadlineAt: requestContext.deadlineAt
-      });
-
-      requestContext.diagnostics.push(...(longResult.diagnostics || []));
-
-      pdfProcessing = {
-        mode: "chunked",
-        pageCount: totalPdfPages,
-        totalPages: totalPdfPages,
-        processedPages: (longResult.merged.processedPages || []).length,
-        readablePages: longResult.merged.processedPages || [],
-        failedPages: longResult.merged.failedPages || [],
-        chunkCount: longPlan.chunkCount,
-        hasText: pdfProcessing.hasText,
-        scanned: scannedPdf,
-        diagnostics: requestContext.diagnostics
-      };
-
-      if (!longResult.merged.ok || !longResult.merged.analysis) {
-        return response.status(422).json(
-          fail(
-            ErrorCode.PDF_NO_USABLE_CONTENT,
-            "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
-            {
-              pageCount: totalPdfPages,
-              totalPages: totalPdfPages,
-              failedPages:
-                longResult.merged.failedPages?.length
-                  ? longResult.merged.failedPages
-                  : Array.from({ length: totalPdfPages }, (_, i) => i + 1),
-              chunkCount: longPlan.chunkCount,
-              mode: "chunked"
-            }
-          )
-        );
-      }
-
-      const validated = validateResult(
-        longResult.merged.analysis,
-        [
-          ...requestContext.warnings,
-          ...(longResult.merged.warnings || [])
-        ],
-        requestContext.pageErrors,
-        heterogeneous
-      );
-
-      if (!hasUsableContent(validated)) {
-        return response.status(422).json(
-          fail(
-            ErrorCode.PDF_NO_USABLE_CONTENT,
-            "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
-            {
-              pageCount: totalPdfPages,
-              failedPages: pdfProcessing.failedPages,
-              mode: "chunked"
-            }
-          )
-        );
-      }
-
-      return response.status(200).json(
-        succeed(validated, validated.warnings || [], {
-          mode: "chunked",
-          totalPages: totalPdfPages,
-          processedPages: pdfProcessing.processedPages,
-          failedPages: pdfProcessing.failedPages,
-          chunkCount: longPlan.chunkCount,
-          pageCount: totalPdfPages,
-          readablePages: pdfProcessing.readablePages,
-          hasText: pdfProcessing.hasText,
-          scanned: scannedPdf
-        })
-      );
-    }
-
-    const remainingMs = () =>
-      (requestContext.deadlineAt || Date.now()) - Date.now();
-
-    let analysisResult = null;
     let mode = "direct";
 
-    // PDF scanné (sans texte) : OCR pages→images EN PREMIER
-    if (pdfOnly && scannedPdf) {
-      requestContext.diagnostics.push({
-        step: "scanned_pdf_prefer_page_images",
-        pageCount: totalPdfPages,
-        remainingMs: remainingMs()
-      });
-
-      const rasterFirst = await buildPageImageParts(
-        text,
-        requestContext,
-        heterogeneous
-      );
-
-      if (rasterFirst.ok) {
-        mode = "page_images";
-        pdfProcessing = {
-          ...pdfProcessing,
-          mode: "page_images",
-          pageCount: rasterFirst.pageCount,
-          readablePages: rasterFirst.readablePages,
-          failedPages: rasterFirst.failedPages,
-          diagnostics: requestContext.diagnostics
-        };
-
-        analysisResult = await analyzeWithParts(
-          rasterFirst.parts,
-          {
-            retries: 0,
-            maxModels: 3,
-            timeoutMs: Math.min(32000, Math.max(10000, remainingMs() - 4000)),
-            label: "page_images_scanned"
-          },
-          requestContext
-        );
-
-        if (
-          analysisResult.ok &&
-          rasterFirst.failedPages.length &&
-          rasterFirst.readablePages.length
-        ) {
-          requestContext.warnings.push(
-            `Certaines pages n’ont pas pu être lues : ${rasterFirst.failedPages.join(", ")}.`
-          );
-        }
-      } else if (rasterFirst.code === ErrorCode.PDF_PROTECTED) {
-        return response.status(400).json(
-          fail(ErrorCode.PDF_PROTECTED, rasterFirst.message, {
-            pageCount: rasterFirst.pageCount || 0
-          })
-        );
-      } else {
-        requestContext.diagnostics.push({
-          step: "scanned_raster_failed",
-          code: rasterFirst.code || null,
-          message: rasterFirst.message || null
-        });
-      }
-    }
-
-    // -------- Niveau 1 : analyse directe (PDF texte / images) --------
-    if (!analysisResult || !analysisResult.ok || analysisResult.emptyOrUnusable) {
-      // Pour un scanné déjà tenté en images, ne retenter direct que s’il reste du budget
-      const skipDirect =
-        pdfOnly &&
-        scannedPdf &&
-        analysisResult &&
-        remainingMs() < PAGE_IMAGES_MIN_REMAINING_MS;
-
-      if (!skipDirect) {
-        analysisResult = await analyzeWithParts(
-          buildDirectParts(text, requestContext.pages, heterogeneous),
-          {
-            retries: 0,
-            maxModels: 3,
-            timeoutMs: pdfOnly ? 28000 : 26000,
-            label: "direct"
-          },
-          requestContext
-        );
-        mode = mode === "page_images" ? mode : "direct";
-      }
-    }
-
-    // Niveau 2 : fallback OCR pages→images si le direct échoue / est vide
-    // (obligatoire avant tout « Aucun contenu exploitable »)
-    const directQuotaHit = isQuotaDetail(analysisResult?.detail);
-    const directMissingKey = analysisResult?.detail?.missingKey === true;
+    // Niveau 2 uniquement si le direct échoue / est vide / inutilisable
+    // (y compris PDF scannés : Gemini direct échoue souvent → rasterisation)
+    const directQuotaHit = isQuotaDetail(analysisResult.detail);
     const shouldFallbackToImages =
       pdfOnly &&
-      mode !== "page_images" &&
       !directQuotaHit &&
-      !directMissingKey &&
-      !isTimeoutDetail(analysisResult?.detail) &&
-      remainingMs() >= PAGE_IMAGES_MIN_REMAINING_MS &&
-      (!analysisResult?.ok || analysisResult?.emptyOrUnusable);
+      (!analysisResult.ok || analysisResult.emptyOrUnusable);
 
     // -------- Niveau 2 : pages → images --------
     if (shouldFallbackToImages) {
-      requestContext.diagnostics.push({
-        step: "fallback_page_images",
-        reason: analysisResult?.ok
-          ? "empty_or_unusable"
-          : "direct_failed",
-        remainingMs: remainingMs()
-      });
       const raster = await buildPageImageParts(
         text,
         requestContext,
@@ -523,12 +268,7 @@ export default async function handler(request, response) {
 
         const imageResult = await analyzeWithParts(
           raster.parts,
-          {
-            retries: 0,
-            maxModels: 3,
-            timeoutMs: Math.min(28000, Math.max(8000, remainingMs() - 3000)),
-            label: "page_images"
-          },
+          { retries: 1, label: "page_images" },
           requestContext
         );
 
@@ -571,8 +311,8 @@ export default async function handler(request, response) {
 
         return response.status(422).json(
           fail(
-            ErrorCode.OCR_IMPOSSIBLE,
-            "Impossible de convertir les pages du PDF en images lisibles.",
+            ErrorCode.PDF_NO_USABLE_CONTENT,
+            "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
             {
               pageCount: pdfProcessing.pageCount,
               failedPages:
@@ -583,18 +323,17 @@ export default async function handler(request, response) {
                       (_, i) => i + 1
                     ),
               directError: summarizeGeminiFailure(analysisResult),
-              rasterError: raster.message || raster.code,
-              scanned: scannedPdf
+              rasterError: raster.message || raster.code
             }
           )
         );
       }
     }
 
-    if (!analysisResult || !analysisResult.ok) {
+    if (!analysisResult.ok) {
       return respondGeminiFailure(
         response,
-        analysisResult || { ok: false, detail: { message: "Analyse non démarrée." } },
+        analysisResult,
         pdfOnly,
         pdfProcessing
       );
@@ -660,23 +399,12 @@ export default async function handler(request, response) {
       );
     }
 
-    const readable =
-      pdfProcessing.readablePages?.length
-        ? pdfProcessing.readablePages
-        : Array.from(
-            { length: pdfProcessing.pageCount || 0 },
-            (_, i) => i + 1
-          );
-
     return response.status(200).json(
       succeed(validated, validated.warnings || [], {
         mode: pdfProcessing.mode,
         pageCount: pdfProcessing.pageCount,
-        totalPages: pdfProcessing.pageCount,
-        processedPages: readable.length,
-        readablePages: readable,
-        failedPages: pdfProcessing.failedPages || [],
-        chunkCount: pdfProcessing.chunkCount || 1,
+        readablePages: pdfProcessing.readablePages,
+        failedPages: pdfProcessing.failedPages,
         hasText: pdfProcessing.hasText,
         scanned: pdfProcessing.scanned
       })
@@ -717,7 +445,6 @@ function respondEmptyInput(response, requestContext) {
   );
 
   const pageMessage = requestContext.pageErrors[0]?.message || "";
-  const receivedBytes = Number(requestContext.rawBodySize) || 0;
 
   let code = ErrorCode.NO_USABLE_CONTENT;
   let message = "Aucun document ou texte exploitable n’a été reçu.";
@@ -740,18 +467,9 @@ function respondEmptyInput(response, requestContext) {
   } else if (requestContext.pageErrors.length) {
     code = ErrorCode.IMAGE_UNREADABLE;
     message = "Aucune page exploitable n’a pu être extraite.";
-  } else if (receivedBytes > 0) {
-    code = ErrorCode.FILE_NOT_RECEIVED;
-    message =
-      "Le fichier n’a pas été reçu correctement. Réessayez avec une photo ou un PDF.";
   }
 
-  return response.status(400).json(
-    fail(code, message, {
-      receivedBytes,
-      pageErrors: requestContext.pageErrors?.length || 0
-    })
-  );
+  return response.status(400).json(fail(code, message));
 }
 
 async function inspectIncomingPdfs(requestContext) {
@@ -763,7 +481,7 @@ async function inspectIncomingPdfs(requestContext) {
     const bytes = Buffer.from(page.base64, "base64");
 
     try {
-      const meta = await inspectPdf(bytes);
+      const meta = await inspectPdf(bytes, { maxPages: MAX_PAGES });
 
       requestContext.pdfMeta.push({
         name: page.name,
@@ -895,6 +613,7 @@ async function buildPageImageParts(text, requestContext, heterogeneous) {
       page.bytes || Buffer.from(page.base64 || "", "base64");
 
     const raster = await rasterizePdfPages(bytes, {
+      maxPages: MAX_PAGES,
       rotation: page.rotation,
       pageTexts: page.pdfPageTexts || []
     });
@@ -1035,9 +754,7 @@ async function analyzeWithParts(parts, options, requestContext) {
 
   const geminiResult = await callGeminiForAnalysis(parts, {
     retries: options.retries,
-    timeoutMs: options.timeoutMs || 28000,
-    maxModels: options.maxModels || 3,
-    deadlineAt: requestContext.deadlineAt || Date.now() + 40000
+    timeoutMs: 50000
   });
 
   requestContext.diagnostics.push({
@@ -1162,69 +879,22 @@ function respondGeminiFailure(
   }
 
   if (pdfOnly) {
-    const common = {
-      pageCount: pdfProcessing.pageCount,
-      mode: pdfProcessing.mode,
-      scanned: pdfProcessing.scanned === true,
-      upstreamStatus: detail.httpStatus || null,
-      upstreamMessage: upstreamMessage.slice(0, 240),
-      model: analysisResult.model || detail.model || null,
-      diagnostics: (pdfProcessing.diagnostics || []).slice(-8)
-    };
-
-    // Ne pas masquer une panne Gemini derrière « PDF sans contenu »
-    if (detail.httpStatus || detail.network || detail.budgetExhausted) {
-      return response.status(502).json(
-        fail(
-          ErrorCode.GEMINI_ERROR,
-          "Le service d’analyse a échoué sur ce PDF. Réessayez dans quelques instants.",
-          common
-        )
-      );
-    }
-
-    if (pdfProcessing.mode === "page_images") {
-      return response.status(422).json(
-        fail(
-          ErrorCode.OCR_IMPOSSIBLE,
-          "Le PDF scanné n’a pas pu être lu (OCR impossible).",
-          {
-            ...common,
-            failedPages:
-              pdfProcessing.failedPages?.length
-                ? pdfProcessing.failedPages
-                : Array.from(
-                    { length: pdfProcessing.pageCount || 0 },
-                    (_, i) => i + 1
-                  )
-          }
-        )
-      );
-    }
-
-    if (pdfProcessing.scanned || pdfProcessing.hasText === false) {
-      return response.status(422).json(
-        fail(
-          ErrorCode.PDF_NO_TEXT,
-          "Ce PDF ne contient pas de texte extractible. La lecture par images a aussi échoué.",
-          common
-        )
-      );
-    }
-
     return response.status(502).json(
       fail(
-        ErrorCode.PDF_PROCESSING_FAILED,
-        "Le traitement du PDF a échoué. Réessayez avec un autre fichier ou une photo.",
+        ErrorCode.PDF_NO_USABLE_CONTENT,
+        "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
         {
-          ...common,
+          pageCount: pdfProcessing.pageCount,
           failedPages:
             pdfProcessing.failedPages?.length
               ? pdfProcessing.failedPages
               : Array.from(
                   { length: pdfProcessing.pageCount || 0 },
                   (_, i) => i + 1
-                )
+                ),
+          mode: pdfProcessing.mode,
+          upstreamStatus: detail.httpStatus || null,
+          upstreamMessage: upstreamMessage.slice(0, 240)
         }
       )
     );
@@ -1232,27 +902,13 @@ function respondGeminiFailure(
 
   return response.status(502).json(
     fail(
-      ErrorCode.GEMINI_ERROR,
+      ErrorCode.EMPTY_AI_RESPONSE,
       "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants.",
       {
-        mode: pdfProcessing.mode,
-        pageCount: pdfProcessing.pageCount,
         upstreamStatus: detail.httpStatus || null,
-        upstreamMessage: upstreamMessage.slice(0, 240),
-        model: analysisResult.model || null
+        upstreamMessage: upstreamMessage.slice(0, 240)
       }
     )
-  );
-}
-
-function isTimeoutDetail(detail) {
-  if (!detail || typeof detail !== "object") {
-    return false;
-  }
-
-  return (
-    detail.timeout === true ||
-    detail.budgetExhausted === true
   );
 }
 
@@ -1441,59 +1097,6 @@ async function extractPages(formData, manifest) {
     }
   }
 
-  // Nouveau format sans manifeste obligatoire : page_0, page_1, …
-  const discovered = [];
-
-  for (let index = 0; index < 40; index += 1) {
-    const field = `page_${index}`;
-    const file = formData.get(field);
-
-    if (!file || typeof file === "string") {
-      if (index === 0) {
-        // aussi pages[0][file] éventuel
-        const alt = formData.get(`pages[${index}][file]`);
-        if (alt && typeof alt !== "string") {
-          discovered.push({ file: alt, order: index });
-          continue;
-        }
-      }
-      // trou dans la séquence → on arrête après page_0 manquant
-      if (index > 0 && !discovered.length) {
-        break;
-      }
-      if (index > 0) {
-        break;
-      }
-      continue;
-    }
-
-    discovered.push({ file, order: index });
-  }
-
-  for (const item of discovered) {
-    try {
-      const page = await readPageFile(item.file, {
-        order: item.order,
-        name: item.file.name || `page-${item.order + 1}`,
-        mimeType: item.file.type || "application/octet-stream",
-        rotation: 0
-      });
-      pages.push(page);
-    } catch (error) {
-      pageErrors.push({
-        name: item.file?.name || `page-${item.order + 1}`,
-        mimeType: item.file?.type || "",
-        page: `Page ${item.order + 1}`,
-        message: error?.message || "Le document n’a pas pu être lu."
-      });
-    }
-  }
-
-  if (pages.length) {
-    return { pages, pageErrors };
-  }
-
-  // Ancien format mono-fichier
   try {
     const legacyFile = formData.get("file");
 
@@ -1727,32 +1330,10 @@ LECTURE INTELLIGENTE :
 - Détecte échéanciers, tableaux administratifs, formulaires.
 - Extrais montants HT, TVA, TTC et totaux.
 - Extrais personnes, adresses, références, signatures, organismes.
-- Détecte les champs de formulaire (form_fields) et les justificatifs
-  demandés (required_documents).
 - Sur PDF scanné (images), lis les tableaux VISUELLEMENT.
 - Alimente résumé, dates, actions, montants, échéances et timeline
   à partir des tableaux quand c'est pertinent.
-- N'invente aucune cellule ni donnée personnelle.
-
-DATES — OBLIGATOIRE :
-- Extrais TOUTES les dates visibles (paragraphes, en-têtes, tableaux, échéanciers).
-- Pour chaque date : raw, type, label, page, source, context, confidence.
-- Types : document_date, issue_date, reception_date, deadline, payment_date,
-  appointment_date, start_date, end_date, period, birth_date, signature_date, unknown.
-- Ne jamais ignorer une date parce qu'elle semble secondaire.
-- Ne jamais inventer une année absente.
-- Ne jamais confondre date du document et date limite.
-- Ne jamais n'en garder qu'une seule s'il y en a plusieurs.
-- Dates relatives (« sous 30 jours », « dans un délai de 2 mois ») :
-  relativeValue + relativeUnit, normalized=null, needsUserConfirmation=true.
-- Les dates des tableaux doivent aussi apparaître dans "dates".
-
-READING_QUALITY :
-- "full" si le contenu PRINCIPAL est fiable (type, résumé, demande, actions,
-  dates/montants importants), même si une note secondaire, signature ou
-  cellule vide manque.
-- "partial" UNIQUEMENT si une partie IMPORTANTE du document est illisible
-  ou manquante (ex. page essentielle illisible, demande principale absente).
+- N'invente aucune cellule.
 
 RÈGLES :
 - Ne fais jamais de résumé vague.
@@ -1767,6 +1348,7 @@ RÈGLES :
 - Pour chaque conclusion importante, cite le passage exact.
 - En matière fiscale, juridique ou médicale, explique sans prétendre
   remplacer un professionnel.
+- Ne prétends jamais qu'un document est lu complètement s'il ne l'est pas.
 ${modeRules}${multiPageRules}${heterogeneousRules}
 Réponds exclusivement avec ce JSON :
 
@@ -1788,16 +1370,9 @@ Réponds exclusivement avec ce JSON :
   ],
   "dates": [
     {
-      "raw": "15 septembre 2026",
-      "normalized": "2026-09-15",
-      "type": "deadline",
-      "label": "Date limite de réponse",
-      "page": "3",
-      "source": "paragraphe",
-      "context": "Vous devez répondre avant le 15 septembre 2026.",
-      "confidence": 96,
-      "date": "15 septembre 2026",
-      "meaning": "date limite de réponse"
+      "date": "date",
+      "label": "date limite | date du document | date de prélèvement | autre",
+      "meaning": "ce qui se passe à cette date"
     }
   ],
   "timeline": [
@@ -1838,27 +1413,6 @@ Réponds exclusivement avec ce JSON :
     "signatures": [],
     "organizations": []
   },
-  "form_fields": [
-    {
-      "id": "field_1",
-      "label": "Nom",
-      "type": "text",
-      "required": true,
-      "page": 1,
-      "currentValue": "",
-      "help": "Indiquez votre nom de famille.",
-      "source": null
-    }
-  ],
-  "required_documents": [
-    {
-      "id": "doc_1",
-      "label": "Justificatif de domicile",
-      "reason": "demandé explicitement",
-      "page": "Page 1",
-      "required": true
-    }
-  ],
   "evidence": [
     {
       "page": "Page X ou emplacement",
@@ -1872,7 +1426,6 @@ Réponds exclusivement avec ce JSON :
 
 Important : confidence est un entier de 0 à 100 (pas une fraction 0–1).
 Si aucun tableau : "tables": [].
-Si aucune date : "dates": [].
 
 Texte collé par l'utilisateur, s'il existe :
 ${pastedText || "Aucun texte collé."}
@@ -1907,15 +1460,20 @@ function validateResult(
 
   const confidence = normalizeConfidence(result?.confidence);
 
-  const tables = normalizeTables(result.tables);
+  let readingQuality = cleanText(result?.reading_quality).toLowerCase();
 
-  // Dates enrichies + dates extraites des tableaux (sans tronquer à 5)
-  const dates = mergeDates([
-    ...normalizeDateEntries(result.dates || [], { max: 40 }),
-    ...extractDatesFromTables(tables)
-  ]);
+  if (!["full", "partial", "failed"].includes(readingQuality)) {
+    readingQuality =
+      warnings.length || pageErrors.length || confidence < 55
+        ? "partial"
+        : "full";
+  }
 
-  const draft = {
+  if (pageErrors.length && readingQuality === "full") {
+    readingQuality = "partial";
+  }
+
+  return {
     document_type: result.document_type || "Document non identifié",
 
     issuer: cleanText(result.issuer) || "",
@@ -1946,7 +1504,7 @@ function validateResult(
       ? result.actions.slice(0, 3)
       : [],
 
-    dates,
+    dates: Array.isArray(result.dates) ? result.dates.slice(0, 5) : [],
 
     timeline: normalizeTimeline(result.timeline),
 
@@ -1957,15 +1515,7 @@ function validateResult(
 
     amounts_detail: normalizeAmountsDetail(result.amounts_detail),
 
-    tables,
-
-    form_fields: normalizeFormFields(
-      result.form_fields || result.formFields
-    ),
-
-    required_documents: normalizeRequiredDocuments(
-      result.required_documents || result.requiredDocuments
-    ),
+    tables: normalizeTables(result.tables),
 
     entities: normalizeEntities(result.entities),
 
@@ -1973,83 +1523,12 @@ function validateResult(
       ? result.evidence.slice(0, 6)
       : [],
 
-    confidence
-  };
+    confidence,
 
-  const failedFromPages = pageErrors
-    .map((item) => {
-      const match = String(item?.page || "").match(/(\d+)/);
-      return match ? Number(match[1]) : null;
-    })
-    .filter((value) => Number.isFinite(value));
-
-  const quality = determineAnalysisQuality(draft, {
-    failedPages: failedFromPages,
-    totalPages: 0,
-    warnings,
-    pageErrors
-  });
-
-  // Ne plus forcer « partial » dès qu’un warning secondaire existe
-  const readingQuality = qualityToReadingQuality(quality);
-
-  const importantWarnings = warnings.filter((text) =>
-    /hétérogène|heterogene|page|illisible|difficile|montant|contradic/i.test(
-      text
-    )
-  );
-
-  if (quality.status === "warning") {
-    (quality.reasons || []).forEach(pushWarning);
-  }
-
-  return {
-    ...draft,
     reading_quality: readingQuality,
-    quality,
-    warnings:
-      quality.status === "success"
-        ? importantWarnings.slice(0, 2)
-        : [...new Set([...importantWarnings, ...warnings])].slice(0, 6),
+    warnings,
     page_errors: pageErrors,
     heterogeneous: heterogeneous === true,
     batch_heterogeneous: heterogeneous === true
   };
-}
-
-function normalizeFormFields(fields) {
-  if (!Array.isArray(fields)) {
-    return [];
-  }
-
-  return fields
-    .slice(0, 40)
-    .map((field, index) => ({
-      id: cleanText(field?.id) || `field_${index + 1}`,
-      label: cleanText(field?.label) || `Champ ${index + 1}`,
-      type: cleanText(field?.type) || "text",
-      required: field?.required === true,
-      page: Number(field?.page) || cleanText(field?.page) || null,
-      currentValue: cleanText(field?.currentValue || field?.current_value),
-      help: cleanText(field?.help),
-      source: cleanText(field?.source) || null
-    }))
-    .filter((field) => field.label);
-}
-
-function normalizeRequiredDocuments(items) {
-  if (!Array.isArray(items)) {
-    return [];
-  }
-
-  return items
-    .slice(0, 30)
-    .map((item, index) => ({
-      id: cleanText(item?.id) || `doc_${index + 1}`,
-      label: cleanText(item?.label || item?.name) || `Pièce ${index + 1}`,
-      reason: cleanText(item?.reason || item?.why),
-      page: cleanText(item?.page),
-      required: item?.required !== false
-    }))
-    .filter((item) => item.label);
 }
