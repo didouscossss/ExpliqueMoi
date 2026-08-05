@@ -6,8 +6,7 @@ export const config = {
 
 import {
   inspectPdf,
-  rasterizePdfPages,
-  MAX_PDF_PAGES
+  rasterizePdfPages
 } from "../lib/pdfProcessing.js";
 import {
   callGeminiForAnalysis,
@@ -19,10 +18,18 @@ import {
   normalizeEntities,
   normalizeAmountsDetail
 } from "../lib/documentContext.js";
+import {
+  MAX_DOCUMENT_SIZE,
+  buildTooLargeMessage,
+  planPdfChunks
+} from "../lib/pdfChunking.js";
+import { analyzeLongPdf } from "../lib/longPdfAnalysis.js";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const MAX_TOTAL_SIZE = 20 * 1024 * 1024;
-const MAX_PAGES = MAX_PDF_PAGES;
+// Limite unique côté document : 4 Mo (pas de limite de pages PDF).
+const MAX_FILE_SIZE = MAX_DOCUMENT_SIZE;
+const MAX_TOTAL_SIZE = MAX_DOCUMENT_SIZE;
+// Limite de fichiers dans un lot multi-photos (≠ pages internes d’un PDF).
+const MAX_UPLOAD_FILES = 10;
 const VERCEL_BODY_SOFT_LIMIT = 4.4 * 1024 * 1024;
 
 const HETEROGENEOUS_BATCH_WARNING =
@@ -145,11 +152,11 @@ export default async function handler(request, response) {
       return respondEmptyInput(response, requestContext);
     }
 
-    if (requestContext.pages.length > MAX_PAGES) {
+    if (requestContext.pages.length > MAX_UPLOAD_FILES) {
       return response.status(400).json(
         fail(
           ErrorCode.UNSUPPORTED_FORMAT,
-          "Le document dépasse la limite de 10 pages.",
+          "Le lot dépasse la limite de 10 fichiers.",
           { pageCount: requestContext.pages.length }
         )
       );
@@ -164,8 +171,12 @@ export default async function handler(request, response) {
       return response.status(413).json(
         fail(
           ErrorCode.FILE_TOO_LARGE,
-          "La sélection dépasse la taille totale acceptée.",
-          { totalSize }
+          buildTooLargeMessage(totalSize, MAX_TOTAL_SIZE),
+          {
+            totalSize,
+            limitBytes: MAX_TOTAL_SIZE,
+            title: "Fichier trop volumineux"
+          }
         )
       );
     }
@@ -175,8 +186,13 @@ export default async function handler(request, response) {
         return response.status(413).json(
           fail(
             ErrorCode.FILE_TOO_LARGE,
-            `La page « ${page.name} » dépasse la limite de 10 Mo.`,
-            { name: page.name, size: page.size }
+            buildTooLargeMessage(page.size, MAX_FILE_SIZE),
+            {
+              name: page.name,
+              size: page.size,
+              limitBytes: MAX_FILE_SIZE,
+              title: "Fichier trop volumineux"
+            }
           )
         );
       }
@@ -217,15 +233,119 @@ export default async function handler(request, response) {
       requestContext.pdfMeta.length > 0 &&
       requestContext.pdfMeta.every((meta) => meta.scanned);
 
+    const totalPdfPages = summarizePageCount(requestContext);
+
     let pdfProcessing = {
       mode: "direct",
-      pageCount: summarizePageCount(requestContext),
+      pageCount: totalPdfPages,
+      totalPages: totalPdfPages,
+      processedPages: 0,
       readablePages: [],
       failedPages: [],
+      chunkCount: 1,
       hasText: requestContext.pdfMeta.some((meta) => meta.hasText),
       scanned: scannedPdf,
       diagnostics: requestContext.diagnostics
     };
+
+    // -------- PDF long : découpage (chunking) sans limite de pages --------
+    const singlePdfPage = pdfOnly ? requestContext.pages[0] : null;
+    const longPlan =
+      singlePdfPage && requestContext.pages.length === 1
+        ? planPdfChunks({
+            pageCount: singlePdfPage.pdfPageCount || 0,
+            fileSize: singlePdfPage.size,
+            textLength: (singlePdfPage.pdfPageTexts || []).reduce(
+              (sum, item) => sum + String(item?.text || "").length,
+              0
+            ),
+            scanned: singlePdfPage.pdfScanned === true,
+            pageTexts: singlePdfPage.pdfPageTexts || []
+          })
+        : null;
+
+    if (longPlan && longPlan.mode === "chunked" && longPlan.chunkCount > 1) {
+      const longResult = await analyzeLongPdf({
+        page: singlePdfPage,
+        text,
+        heterogeneous,
+        buildPrompt,
+        validateResult,
+        hasUsableContent
+      });
+
+      requestContext.diagnostics.push(...(longResult.diagnostics || []));
+
+      pdfProcessing = {
+        mode: "chunked",
+        pageCount: totalPdfPages,
+        totalPages: totalPdfPages,
+        processedPages: (longResult.merged.processedPages || []).length,
+        readablePages: longResult.merged.processedPages || [],
+        failedPages: longResult.merged.failedPages || [],
+        chunkCount: longPlan.chunkCount,
+        hasText: pdfProcessing.hasText,
+        scanned: scannedPdf,
+        diagnostics: requestContext.diagnostics
+      };
+
+      if (!longResult.merged.ok || !longResult.merged.analysis) {
+        return response.status(422).json(
+          fail(
+            ErrorCode.PDF_NO_USABLE_CONTENT,
+            "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
+            {
+              pageCount: totalPdfPages,
+              totalPages: totalPdfPages,
+              failedPages:
+                longResult.merged.failedPages?.length
+                  ? longResult.merged.failedPages
+                  : Array.from({ length: totalPdfPages }, (_, i) => i + 1),
+              chunkCount: longPlan.chunkCount,
+              mode: "chunked"
+            }
+          )
+        );
+      }
+
+      const validated = validateResult(
+        longResult.merged.analysis,
+        [
+          ...requestContext.warnings,
+          ...(longResult.merged.warnings || [])
+        ],
+        requestContext.pageErrors,
+        heterogeneous
+      );
+
+      if (!hasUsableContent(validated)) {
+        return response.status(422).json(
+          fail(
+            ErrorCode.PDF_NO_USABLE_CONTENT,
+            "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
+            {
+              pageCount: totalPdfPages,
+              failedPages: pdfProcessing.failedPages,
+              mode: "chunked"
+            }
+          )
+        );
+      }
+
+      return response.status(200).json(
+        succeed(validated, validated.warnings || [], {
+          mode: "chunked",
+          totalPages: totalPdfPages,
+          processedPages: pdfProcessing.processedPages,
+          failedPages: pdfProcessing.failedPages,
+          chunkCount: longPlan.chunkCount,
+          pageCount: totalPdfPages,
+          readablePages: pdfProcessing.readablePages,
+          hasText: pdfProcessing.hasText,
+          scanned: scannedPdf
+        })
+      );
+    }
 
     // -------- Niveau 1 : analyse directe --------
     let analysisResult = await analyzeWithParts(
@@ -481,7 +601,7 @@ async function inspectIncomingPdfs(requestContext) {
     const bytes = Buffer.from(page.base64, "base64");
 
     try {
-      const meta = await inspectPdf(bytes, { maxPages: MAX_PAGES });
+      const meta = await inspectPdf(bytes);
 
       requestContext.pdfMeta.push({
         name: page.name,
@@ -613,7 +733,6 @@ async function buildPageImageParts(text, requestContext, heterogeneous) {
       page.bytes || Buffer.from(page.base64 || "", "base64");
 
     const raster = await rasterizePdfPages(bytes, {
-      maxPages: MAX_PAGES,
       rotation: page.rotation,
       pageTexts: page.pdfPageTexts || []
     });

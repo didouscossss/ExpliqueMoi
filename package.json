@@ -1,13 +1,14 @@
 {
   "name": "expliquemoi",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "private": true,
   "type": "module",
   "description": "ExpliqueMoi — analyse de documents français",
   "scripts": {
     "test:pdf": "node scripts/test-pdf-suite.mjs",
     "test:pdf:local": "node scripts/run-local-analyze.mjs",
-    "test:assist": "node scripts/test-assist-actions.mjs"
+    "test:assist": "node scripts/test-assist-actions.mjs",
+    "test:pdf-pages": "node scripts/test-pdf-page-limit.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",
