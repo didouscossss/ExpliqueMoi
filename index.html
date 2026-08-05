@@ -2640,6 +2640,30 @@
         </section>
       </div>
 
+      <section
+        id="importantDatesCard"
+        class="card result-card hidden"
+      >
+        <div class="heading">
+          <div class="heading-icon">📅</div>
+
+          <div>
+            <span class="kicker">
+              Dates importantes
+            </span>
+
+            <h2>
+              Calendrier du document
+            </h2>
+          </div>
+        </div>
+
+        <ul
+          id="importantDatesList"
+          class="evidence-list"
+        ></ul>
+      </section>
+
       <section class="card result-card actions-card">
         <div class="heading">
           <div class="heading-icon">✅</div>
@@ -3085,7 +3109,7 @@
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.4.2";
+    const APP_VERSION = "2.4.3";
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -5030,6 +5054,14 @@
         $("tablesCard").classList.add("hidden");
       }
 
+      if ($("importantDatesList")) {
+        $("importantDatesList").innerHTML = "";
+      }
+
+      if ($("importantDatesCard")) {
+        $("importantDatesCard").classList.add("hidden");
+      }
+
       clearDocChatThread();
       closeTableModal();
 
@@ -5859,36 +5891,20 @@
             .filter((item) => item.message)
         : [];
 
-      let readingQuality = cleanText(
-        data?.reading_quality
-      ).toLowerCase();
-
       const confidence = normalizeConfidence(
         data?.confidence
       );
 
-      if (
-        !["full", "partial", "failed"].includes(
-          readingQuality
-        )
-      ) {
-        readingQuality =
-          warnings.length ||
-          pageErrors.length ||
-          confidence < 55
-            ? "partial"
-            : "full";
-      }
+      const tables = normalizeTablesClient(
+        data?.tables
+      );
 
-      // Warnings de lot hétérogène / pages → partial explicite
-      if (
-        (warnings.length || pageErrors.length) &&
-        readingQuality === "full"
-      ) {
-        readingQuality = "partial";
-      }
+      const dates = normalizeDates(
+        data?.dates,
+        tables
+      );
 
-      return {
+      const draft = {
         documentType:
           cleanText(data?.document_type) ||
           "Document non identifié",
@@ -5914,8 +5930,7 @@
         actions:
           normalizeActions(data?.actions),
 
-        dates:
-          normalizeDates(data?.dates),
+        dates,
 
         amount: {
           value:
@@ -5948,9 +5963,7 @@
             data?.evidence
           ),
 
-        tables: normalizeTablesClient(
-          data?.tables
-        ),
+        tables,
 
         timeline: normalizeTimelineClient(
           data?.timeline
@@ -5975,8 +5988,166 @@
         confidence,
 
         warnings,
-        pageErrors,
+        pageErrors
+      };
+
+      const failedPages = pageErrors
+        .map((item) => {
+          const match = String(item.page || "").match(/(\d+)/);
+          return match ? Number(match[1]) : null;
+        })
+        .filter((value) => Number.isFinite(value));
+
+      const quality =
+        data?.quality && typeof data.quality === "object"
+          ? data.quality
+          : determineAnalysisQuality(draft, {
+              failedPages,
+              warnings,
+              pageErrors
+            });
+
+      // readingQuality dérivé de la qualité réelle — plus de forçage sur warning secondaire
+      const readingQuality =
+        quality.status === "error"
+          ? "failed"
+          : quality.status === "warning"
+            ? "partial"
+            : "full";
+
+      return {
+        ...draft,
+        quality,
         readingQuality
+      };
+    }
+
+    /*
+     * Statut success | warning | error.
+     * Un champ secondaire manquant ne dégrade PAS toute l’analyse.
+     */
+    function determineAnalysisQuality(analysis = {}, processingInfo = {}) {
+      const summary = cleanText(analysis.summary);
+      const request = cleanText(analysis.request);
+      const documentType = cleanText(analysis.documentType);
+      const issuer = cleanText(analysis.issuer);
+      const actions = Array.isArray(analysis.actions)
+        ? analysis.actions
+        : [];
+      const dates = Array.isArray(analysis.dates)
+        ? analysis.dates
+        : [];
+      const evidence = Array.isArray(analysis.evidence)
+        ? analysis.evidence
+        : [];
+      const failedPages = Array.isArray(processingInfo.failedPages)
+        ? processingInfo.failedPages
+        : [];
+      const confidence = normalizeConfidence(
+        analysis.confidence
+      );
+
+      const placeholder =
+        /non identifié|indisponible|non trouvée|non trouvé|à vérifier|raison non indiquée|aucune demande|information non trouvée/i;
+
+      const hasType =
+        documentType.length >= 3 &&
+        !placeholder.test(documentType);
+      const hasSummary =
+        summary.length >= 28 &&
+        !placeholder.test(summary);
+      const hasRequest =
+        request.length >= 8 &&
+        !placeholder.test(request);
+      const hasActions = actions.some(
+        (item) =>
+          cleanText(item?.action).length >= 4 &&
+          !placeholder.test(item.action)
+      );
+      const hasIssuer =
+        issuer.length >= 2 &&
+        !placeholder.test(issuer);
+      const hasEvidence = evidence.some(
+        (item) => cleanText(item?.quote).length >= 6
+      );
+
+      const mainSignals = [
+        hasType,
+        hasSummary,
+        hasRequest,
+        hasActions,
+        hasIssuer && hasSummary
+      ].filter(Boolean).length;
+
+      const importantMissingFields = [];
+      const reasons = [];
+
+      if (!hasType) importantMissingFields.push("document_type");
+      if (!hasSummary) importantMissingFields.push("plain_summary");
+      if (!hasRequest) importantMissingFields.push("request");
+      if (!hasActions) importantMissingFields.push("actions");
+
+      if (
+        (mainSignals < 2 && !hasSummary) ||
+        (!hasSummary && !hasRequest && !hasActions && !hasEvidence)
+      ) {
+        reasons.push(
+          "Aucun contenu principal fiable n’a pu être extrait."
+        );
+        return {
+          status: "error",
+          confidence,
+          reasons,
+          importantMissingFields,
+          failedPages
+        };
+      }
+
+      const expectsAction =
+        /mise en demeure|relance|convocation|facture|avis|sommation|rappel/i.test(
+          `${documentType} ${summary}`
+        );
+
+      if (expectsAction && !hasRequest && !hasActions) {
+        importantMissingFields.push("request_or_actions");
+        reasons.push(
+          "La demande principale ou les actions à réaliser restent incertaines."
+        );
+      }
+
+      if (failedPages.length >= 2) {
+        reasons.push(
+          `Certaines pages importantes n’ont pas pu être lues : ${failedPages.join(", ")}.`
+        );
+      } else if (
+        failedPages.length === 1 &&
+        !hasSummary
+      ) {
+        reasons.push(
+          `La page ${failedPages[0]} n’a pas pu être lue correctement.`
+        );
+      }
+
+      if (reasons.length) {
+        return {
+          status: "warning",
+          confidence: Math.max(confidence, hasSummary ? 60 : confidence),
+          reasons,
+          importantMissingFields,
+          failedPages
+        };
+      }
+
+      // Dates absentes, signature illisible, cellule vide, page blanche :
+      // ne déclenchent PAS un statut partiel global.
+      void dates;
+
+      return {
+        status: "success",
+        confidence: Math.max(confidence, 70),
+        reasons: [],
+        importantMissingFields: [],
+        failedPages
       };
     }
 
@@ -6012,26 +6183,181 @@
         });
     }
 
-    function normalizeDates(dates) {
-      if (!Array.isArray(dates)) {
-        return [];
+    function normalizeDates(dates, tables = []) {
+      const list = Array.isArray(dates) ? dates.slice() : [];
+
+      // Dates présentes dans les tableaux → analyse principale
+      if (Array.isArray(tables)) {
+        tables.forEach((table) => {
+          const columns = Array.isArray(table.columns)
+            ? table.columns
+            : [];
+          const rows = Array.isArray(table.rows)
+            ? table.rows
+            : [];
+
+          rows.forEach((row, rowIndex) => {
+            if (!Array.isArray(row)) return;
+
+            row.forEach((cell, colIndex) => {
+              const value = cleanText(String(cell ?? ""));
+              if (
+                !value ||
+                !/(?:\d{1,2}[\/\-.]\d{1,2}|\d{4}-\d{2}-\d{2}|1er\s+\w+|\d{1,2}\s+[A-Za-zéèêàâùûôîç]+)/i.test(
+                  value
+                )
+              ) {
+                return;
+              }
+
+              list.push({
+                raw: value,
+                date: value,
+                label:
+                  cleanText(columns[colIndex]) ||
+                  cleanText(table.title) ||
+                  "Date (tableau)",
+                type: inferDateType(
+                  columns[colIndex] || "",
+                  table.title || ""
+                ),
+                page: table.page,
+                source: "tableau",
+                context: `Tableau « ${cleanText(table.title) || "sans titre"} », ligne ${rowIndex + 1}`,
+                meaning: `Ligne ${rowIndex + 1}`,
+                confidence: 88
+              });
+            });
+          });
+        });
       }
 
-      return dates
-        .map((item) => ({
-          date:
-            cleanText(item?.date),
+      const normalized = list
+        .map((item) => normalizeOneClientDate(item))
+        .filter((item) => item && (item.raw || item.date));
 
-          label:
-            cleanText(item?.label),
+      // Déduplication soft : même date + même type + même page
+      const seen = new Map();
 
-          meaning:
-            cleanText(
-              item?.meaning ||
-              item?.explication
-            )
-        }))
-        .filter((item) => item.date);
+      normalized.forEach((item) => {
+        const key = [
+          item.normalized || item.raw || item.date,
+          item.type || "unknown",
+          item.page == null ? "" : String(item.page)
+        ].join("|");
+
+        const prev = seen.get(key);
+
+        if (!prev || (item.confidence || 0) > (prev.confidence || 0)) {
+          seen.set(key, item);
+        }
+      });
+
+      return [...seen.values()].slice(0, 40);
+    }
+
+    function inferDateType(label = "", meaning = "") {
+      const hint = `${label} ${meaning}`.toLowerCase();
+
+      if (/limite|deadline|échéance|echeance|délai|delai|avant/.test(hint)) {
+        return "deadline";
+      }
+      if (/paiement|prélèvement|prelevement|règlement|reglement/.test(hint)) {
+        return "payment_date";
+      }
+      if (/rendez-vous|rdv|convocation|audience/.test(hint)) {
+        return "appointment_date";
+      }
+      if (/début|debut|start/.test(hint)) return "start_date";
+      if (/fin|end|jusqu/.test(hint)) return "end_date";
+      if (/période|periode|trimestre/.test(hint)) return "period";
+      if (/courrier|document|émission|emission|édition|edition/.test(hint)) {
+        return "document_date";
+      }
+
+      return "unknown";
+    }
+
+    function normalizeOneClientDate(item) {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const raw = cleanText(
+        item.raw || item.date || item.value
+      );
+      const label = cleanText(item.label);
+      const meaning = cleanText(
+        item.meaning || item.context || item.explication
+      );
+      const type =
+        cleanText(item.type) ||
+        inferDateType(label, meaning);
+
+      let normalized = cleanText(item.normalized) || null;
+
+      // ISO / JJ/MM/AAAA — sans inventer d’année
+      const iso = raw.match(
+        /\b(20\d{2}|19\d{2})-(\d{1,2})-(\d{1,2})\b/
+      );
+      const fr = raw.match(
+        /\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2}|19\d{2})\b/
+      );
+
+      if (!normalized && iso) {
+        normalized = `${iso[1]}-${String(iso[2]).padStart(2, "0")}-${String(iso[3]).padStart(2, "0")}`;
+      } else if (!normalized && fr) {
+        normalized = `${fr[3]}-${String(fr[2]).padStart(2, "0")}-${String(fr[1]).padStart(2, "0")}`;
+      }
+
+      const relativeMatch = raw.match(
+        /(?:sous|dans(?:\s+un)?\s+délai\s+de|dans)\s+(\d+)\s+(jours?|semaines?|mois)/i
+      );
+
+      if (relativeMatch) {
+        const unitRaw = relativeMatch[2].toLowerCase();
+        const relativeUnit = /semaine/.test(unitRaw)
+          ? "weeks"
+          : /mois/.test(unitRaw)
+            ? "months"
+            : "days";
+
+        return {
+          raw,
+          date: raw,
+          normalized: null,
+          type: type === "unknown" ? "deadline" : type,
+          label: label || "Délai relatif",
+          meaning,
+          context: meaning,
+          page: item.page ?? null,
+          source: cleanText(item.source) || "paragraphe",
+          confidence: normalizeConfidence(item.confidence) || 70,
+          relativeValue: Number(relativeMatch[1]),
+          relativeUnit,
+          needsUserConfirmation: true
+        };
+      }
+
+      if (!raw && !normalized) {
+        return null;
+      }
+
+      return {
+        raw: raw || normalized,
+        date: raw || normalized,
+        normalized,
+        type,
+        label: label || "Date",
+        meaning,
+        context: meaning,
+        page: item.page ?? null,
+        source: cleanText(item.source) || "paragraphe",
+        confidence: normalizeConfidence(item.confidence) || 80,
+        relativeValue: item.relativeValue ?? null,
+        relativeUnit: item.relativeUnit ?? null,
+        needsUserConfirmation: item.needsUserConfirmation === true
+      };
     }
 
     function normalizeEvidence(evidence) {
@@ -6227,21 +6553,38 @@
     function renderAnalysis(analysis) {
       clearRenderedAnalysis();
 
-      // Succès uniquement — jamais « Analyse partielle »
+      const quality =
+        analysis.quality ||
+        determineAnalysisQuality(analysis, {
+          failedPages: (analysis.pageErrors || [])
+            .map((item) => {
+              const match = String(item.page || "").match(/(\d+)/);
+              return match ? Number(match[1]) : null;
+            })
+            .filter((value) => Number.isFinite(value))
+        });
+
+      const ui =
+        quality.status === "warning"
+          ? {
+              bannerTitle: "Analyse terminée",
+              bannerMessage:
+                quality.reasons?.[0] ||
+                "Le document a été compris, mais certaines informations secondaires sont difficiles à lire."
+            }
+          : {
+              bannerTitle: "Analyse terminée avec succès !",
+              bannerMessage: "Votre document a été compris."
+            };
+
       setTextIfPresent(
         "successBannerTitle",
-        "Analyse terminée avec succès !"
+        ui.bannerTitle
       );
-
-      const hasWarnings =
-        Array.isArray(analysis.warnings) &&
-        analysis.warnings.length > 0;
 
       setTextIfPresent(
         "successBannerMessage",
-        hasWarnings
-          ? "Votre document a été compris. Quelques détails secondaires restent à vérifier."
-          : "Votre document a été compris."
+        ui.bannerMessage
       );
 
       $("documentType").textContent =
@@ -6259,10 +6602,13 @@
 
       let summaryText = analysis.summary;
 
-      // Avertissement discret uniquement si l’analyse est réellement exploitable
-      if (hasWarnings) {
+      // Avertissement discret uniquement si WARNING réel (pas un faux partiel)
+      if (
+        quality.status === "warning" &&
+        (quality.reasons?.[0] || analysis.warnings?.[0])
+      ) {
         summaryText =
-          `${analysis.summary}\n\n⚠️ ${analysis.warnings[0]}`;
+          `${analysis.summary}\n\n⚠️ ${quality.reasons?.[0] || analysis.warnings[0]}`;
       }
 
       $("summaryText").textContent =
@@ -6280,6 +6626,8 @@
       renderMainDate(
         analysis.dates
       );
+
+      renderImportantDates(analysis.dates);
 
       $("mainAmount").textContent =
         analysis.amount.value;
@@ -6427,14 +6775,13 @@
     function updateUnderstandingDisplay(
       analysis
     ) {
-      const score =
-        calculateUnderstandingScore(
-          analysis
-        );
+      const quality =
+        analysis.quality ||
+        determineAnalysisQuality(analysis);
 
       let status;
 
-      if (score >= 82) {
+      if (quality.status === "success") {
         status = {
           level: "excellent",
           face: "😊",
@@ -6443,24 +6790,15 @@
             "Le document est clair. J’ai retrouvé les informations principales et les actions à réaliser.",
           dots: 4
         };
-      } else if (score >= 62) {
-        status = {
-          level: "good",
-          face: "😌",
-          title: "J’ai compris l’essentiel",
-          message:
-            "Je peux bien vous expliquer le document. Quelques détails secondaires peuvent rester à confirmer.",
-          dots: 3
-        };
-      } else if (score >= 38) {
+      } else if (quality.status === "warning") {
         status = {
           level: "medium",
           face: "🤔",
-          title:
-            "Quelques points sont à vérifier",
+          title: "Document compris, avec quelques réserves",
           message:
-            "J’ai compris le sujet général, mais certaines informations sont absentes ou difficiles à lire.",
-          dots: 2
+            quality.reasons?.[0] ||
+            "Le document a été compris, mais certaines informations secondaires sont difficiles à lire.",
+          dots: 3
         };
       } else {
         status = {
@@ -6603,18 +6941,96 @@
 
       const date =
         dates.find((item) =>
+          item.type === "deadline" ||
           /limite|échéance|paiement|réponse|avant/i.test(
-            `${item.label} ${item.meaning}`
+            `${item.label} ${item.meaning} ${item.type || ""}`
           )
         ) || dates[0];
 
       $("mainDate").textContent =
-        date.date;
+        date.raw || date.date || date.normalized || "Non trouvée";
 
       $("mainDateMeaning").textContent =
-        date.meaning ||
         date.label ||
+        date.meaning ||
+        date.context ||
         "Date mentionnée";
+    }
+
+    function renderImportantDates(dates) {
+      const card = $("importantDatesCard");
+      const list = $("importantDatesList");
+
+      if (!card || !list) {
+        return;
+      }
+
+      list.innerHTML = "";
+
+      if (!Array.isArray(dates) || !dates.length) {
+        card.classList.add("hidden");
+        return;
+      }
+
+      const priority = [
+        "document_date",
+        "issue_date",
+        "deadline",
+        "payment_date",
+        "appointment_date",
+        "start_date",
+        "end_date",
+        "period"
+      ];
+
+      const sorted = [...dates].sort((a, b) => {
+        const ai = priority.indexOf(a.type);
+        const bi = priority.indexOf(b.type);
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      });
+
+      const labels = {
+        document_date: "Date du document",
+        issue_date: "Date du document",
+        deadline: "Date limite",
+        payment_date: "Date de paiement",
+        appointment_date: "Rendez-vous",
+        start_date: "Début",
+        end_date: "Fin",
+        period: "Période concernée"
+      };
+
+      sorted.slice(0, 8).forEach((item) => {
+        const li = document.createElement("li");
+        const role =
+          labels[item.type] ||
+          item.label ||
+          "Date";
+        const value =
+          item.raw ||
+          item.date ||
+          item.normalized ||
+          "";
+        const extra = [
+          item.normalized && item.normalized !== value
+            ? item.normalized
+            : "",
+          item.page != null ? `p.${item.page}` : "",
+          item.source === "tableau" ? "tableau" : "",
+          item.needsUserConfirmation ? "à confirmer" : ""
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+        li.innerHTML = `
+          <strong>${escapeHtml(role)}</strong>
+          <span>${escapeHtml(value)}${extra ? ` — ${escapeHtml(extra)}` : ""}</span>
+          <small>${escapeHtml(item.context || item.meaning || "")}</small>
+        `;
+        list.appendChild(li);
+      });
+
+      card.classList.remove("hidden");
     }
 
     function renderUrgency(urgency) {
