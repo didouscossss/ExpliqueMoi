@@ -25,6 +25,15 @@ import {
   formatBytesFr
 } from "../lib/pdfChunking.js";
 import { analyzeLongPdf } from "../lib/longPdfAnalysis.js";
+import {
+  determineAnalysisQuality,
+  qualityToReadingQuality
+} from "../lib/analysisQuality.js";
+import {
+  normalizeDateEntries,
+  mergeDates,
+  extractDatesFromTables
+} from "../lib/dateNormalization.js";
 
 const MAX_FILE_SIZE = MAX_DOCUMENT_SIZE;
 const MAX_TOTAL_SIZE = MAX_DOCUMENT_SIZE;
@@ -1725,6 +1734,26 @@ LECTURE INTELLIGENTE :
   à partir des tableaux quand c'est pertinent.
 - N'invente aucune cellule ni donnée personnelle.
 
+DATES — OBLIGATOIRE :
+- Extrais TOUTES les dates visibles (paragraphes, en-têtes, tableaux, échéanciers).
+- Pour chaque date : raw, type, label, page, source, context, confidence.
+- Types : document_date, issue_date, reception_date, deadline, payment_date,
+  appointment_date, start_date, end_date, period, birth_date, signature_date, unknown.
+- Ne jamais ignorer une date parce qu'elle semble secondaire.
+- Ne jamais inventer une année absente.
+- Ne jamais confondre date du document et date limite.
+- Ne jamais n'en garder qu'une seule s'il y en a plusieurs.
+- Dates relatives (« sous 30 jours », « dans un délai de 2 mois ») :
+  relativeValue + relativeUnit, normalized=null, needsUserConfirmation=true.
+- Les dates des tableaux doivent aussi apparaître dans "dates".
+
+READING_QUALITY :
+- "full" si le contenu PRINCIPAL est fiable (type, résumé, demande, actions,
+  dates/montants importants), même si une note secondaire, signature ou
+  cellule vide manque.
+- "partial" UNIQUEMENT si une partie IMPORTANTE du document est illisible
+  ou manquante (ex. page essentielle illisible, demande principale absente).
+
 RÈGLES :
 - Ne fais jamais de résumé vague.
 - Utilise des phrases courtes et concrètes.
@@ -1738,7 +1767,6 @@ RÈGLES :
 - Pour chaque conclusion importante, cite le passage exact.
 - En matière fiscale, juridique ou médicale, explique sans prétendre
   remplacer un professionnel.
-- Ne prétends jamais qu'un document est lu complètement s'il ne l'est pas.
 ${modeRules}${multiPageRules}${heterogeneousRules}
 Réponds exclusivement avec ce JSON :
 
@@ -1760,9 +1788,16 @@ Réponds exclusivement avec ce JSON :
   ],
   "dates": [
     {
-      "date": "date",
-      "label": "date limite | date du document | date de prélèvement | autre",
-      "meaning": "ce qui se passe à cette date"
+      "raw": "15 septembre 2026",
+      "normalized": "2026-09-15",
+      "type": "deadline",
+      "label": "Date limite de réponse",
+      "page": "3",
+      "source": "paragraphe",
+      "context": "Vous devez répondre avant le 15 septembre 2026.",
+      "confidence": 96,
+      "date": "15 septembre 2026",
+      "meaning": "date limite de réponse"
     }
   ],
   "timeline": [
@@ -1837,6 +1872,7 @@ Réponds exclusivement avec ce JSON :
 
 Important : confidence est un entier de 0 à 100 (pas une fraction 0–1).
 Si aucun tableau : "tables": [].
+Si aucune date : "dates": [].
 
 Texte collé par l'utilisateur, s'il existe :
 ${pastedText || "Aucun texte collé."}
@@ -1871,20 +1907,15 @@ function validateResult(
 
   const confidence = normalizeConfidence(result?.confidence);
 
-  let readingQuality = cleanText(result?.reading_quality).toLowerCase();
+  const tables = normalizeTables(result.tables);
 
-  if (!["full", "partial", "failed"].includes(readingQuality)) {
-    readingQuality =
-      warnings.length || pageErrors.length || confidence < 55
-        ? "partial"
-        : "full";
-  }
+  // Dates enrichies + dates extraites des tableaux (sans tronquer à 5)
+  const dates = mergeDates([
+    ...normalizeDateEntries(result.dates || [], { max: 40 }),
+    ...extractDatesFromTables(tables)
+  ]);
 
-  if (pageErrors.length && readingQuality === "full") {
-    readingQuality = "partial";
-  }
-
-  return {
+  const draft = {
     document_type: result.document_type || "Document non identifié",
 
     issuer: cleanText(result.issuer) || "",
@@ -1915,7 +1946,7 @@ function validateResult(
       ? result.actions.slice(0, 3)
       : [],
 
-    dates: Array.isArray(result.dates) ? result.dates.slice(0, 5) : [],
+    dates,
 
     timeline: normalizeTimeline(result.timeline),
 
@@ -1926,7 +1957,7 @@ function validateResult(
 
     amounts_detail: normalizeAmountsDetail(result.amounts_detail),
 
-    tables: normalizeTables(result.tables),
+    tables,
 
     form_fields: normalizeFormFields(
       result.form_fields || result.formFields
@@ -1942,10 +1973,44 @@ function validateResult(
       ? result.evidence.slice(0, 6)
       : [],
 
-    confidence,
+    confidence
+  };
 
-    reading_quality: readingQuality,
+  const failedFromPages = pageErrors
+    .map((item) => {
+      const match = String(item?.page || "").match(/(\d+)/);
+      return match ? Number(match[1]) : null;
+    })
+    .filter((value) => Number.isFinite(value));
+
+  const quality = determineAnalysisQuality(draft, {
+    failedPages: failedFromPages,
+    totalPages: 0,
     warnings,
+    pageErrors
+  });
+
+  // Ne plus forcer « partial » dès qu’un warning secondaire existe
+  const readingQuality = qualityToReadingQuality(quality);
+
+  const importantWarnings = warnings.filter((text) =>
+    /hétérogène|heterogene|page|illisible|difficile|montant|contradic/i.test(
+      text
+    )
+  );
+
+  if (quality.status === "warning") {
+    (quality.reasons || []).forEach(pushWarning);
+  }
+
+  return {
+    ...draft,
+    reading_quality: readingQuality,
+    quality,
+    warnings:
+      quality.status === "success"
+        ? importantWarnings.slice(0, 2)
+        : [...new Set([...importantWarnings, ...warnings])].slice(0, 6),
     page_errors: pageErrors,
     heterogeneous: heterogeneous === true,
     batch_heterogeneous: heterogeneous === true
