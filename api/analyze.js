@@ -174,7 +174,21 @@ export default async function handler(request, response) {
         name: page.name,
         mimeType: page.mimeType,
         size: page.size,
-        order: page.order
+        order: page.order,
+        empty: !page.size,
+        hasBase64: Boolean(page.base64 && page.base64.length > 32)
+      }))
+    });
+
+    // Logs temporaires diagnostic pipeline (Vercel function logs)
+    console.info("[analyze] upload", {
+      bodySize,
+      pageCount: requestContext.pages.length,
+      pages: requestContext.pages.map((page) => ({
+        name: page.name,
+        mimeType: page.mimeType,
+        size: page.size,
+        empty: !page.size
       }))
     });
 
