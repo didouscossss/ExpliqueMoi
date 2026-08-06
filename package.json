@@ -12,7 +12,8 @@
     "test:photo-compression": "node scripts/test-photo-compression.mjs",
     "test:analysis-quality": "node scripts/test-analysis-quality.mjs",
     "test:upload-payload": "node scripts/test-upload-payload.mjs",
-    "test:v3-ocr": "tsx scripts/test-v3-ocr.mjs"
+    "test:v3-ocr": "tsx scripts/test-v3-ocr.mjs",
+    "test:v3-local": "tsx scripts/test-v3-local-analysis.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",

@@ -1,7 +1,16 @@
 /**
  * Analyse locale déterministe V3 (sans IA).
- * Signatures uniquement — aucun traitement métier.
  */
+
+export type LocalDocumentType =
+  | "facture"
+  | "devis"
+  | "contrat"
+  | "bulletin_de_salaire"
+  | "releve_bancaire"
+  | "courrier"
+  | "ordonnance"
+  | "document_inconnu";
 
 export interface LocalDateFinding {
   raw: string;
@@ -25,13 +34,26 @@ export interface LocalReferenceFinding {
 }
 
 export interface LocalContactFinding {
-  kind: "phone" | "email" | "address" | string;
+  kind: "phone" | "email" | "address" | "person" | "company" | string;
   value: string;
   page?: number | null;
 }
 
+/** Champs structurés demandés à l’étape D. */
+export interface LocalAnalysisFields {
+  companyName: string | null;
+  clientName: string | null;
+  date: string | null;
+  amountHT: number | null;
+  amountTVA: number | null;
+  amountTTC: number | null;
+  iban: string | null;
+  siret: string | null;
+  invoiceNumber: string | null;
+}
+
 export interface LocalAnalysis {
-  documentType: string | null;
+  documentType: LocalDocumentType;
   issuer: string | null;
   dates: LocalDateFinding[];
   deadlines: LocalDateFinding[];
@@ -41,4 +63,8 @@ export interface LocalAnalysis {
   requiredDocuments: string[];
   detectedActions: string[];
   warnings: string[];
+  /** Accès direct aux champs clés (JSON structuré). */
+  fields: LocalAnalysisFields;
+  /** Score de classification 0–1. */
+  documentTypeConfidence: number;
 }

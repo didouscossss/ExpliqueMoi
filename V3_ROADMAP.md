@@ -20,7 +20,7 @@ Règle : aucune PR vers `main` sans validation explicite. La V2 reste intacte.
 
 ## C — OCR
 
-**Statut : livrée (en attente validation)**
+**Statut : validée**
 
 - `lib/v3/ocr/OcrEngine.ts` : `extractText` / `extractPages` / `isScannedPdf` / `languageDetection`
 - PDF texte → pdfjs uniquement (Tesseract non lancé)
@@ -32,10 +32,13 @@ Règle : aucune PR vers `main` sans validation explicite. La V2 reste intacte.
 
 ## D — Extraction locale
 
-- Module déterministe `localAnalysis`
-- Dates, échéances, montants, IBAN, SIRET, contacts, actions, urgence…
-- Fonctionne sans appel IA
-- Alimente `AIContext` pour l’étape E
+**Statut : livrée (en attente validation)**
+
+- `lib/v3/localAnalysis/LocalAnalysisEngine.ts`
+- Types : facture, devis, contrat, bulletin_de_salaire, releve_bancaire, courrier, ordonnance, document_inconnu
+- Champs : entreprise, client, date, HT/TVA/TTC, IBAN, SIRET, n° facture
+- Regex / heuristiques uniquement — aucune IA
+- Tests : `npm run test:v3-local`
 
 ---
 

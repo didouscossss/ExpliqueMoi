@@ -18,4 +18,12 @@ export type {
   OcrEngineOptions,
   LanguageDetectionResult
 } from "./ocr/index.js";
-export * from "./localAnalysis/index.js";
+export {
+  LocalAnalysisEngine,
+  analyzeLocally,
+  detectDocumentType,
+  extractAmounts,
+  extractIban,
+  extractSiret
+} from "./localAnalysis/index.js";
+export type { LocalAnalysisInput } from "./localAnalysis/index.js";

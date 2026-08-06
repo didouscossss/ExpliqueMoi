@@ -2,6 +2,8 @@ export type { DocumentInput, DocumentPageInput, DocumentMimeType } from "./Docum
 export type { OCRResult, OCRPageResult } from "./OCRResult.js";
 export type {
   LocalAnalysis,
+  LocalAnalysisFields,
+  LocalDocumentType,
   LocalDateFinding,
   LocalAmountFinding,
   LocalReferenceFinding,
