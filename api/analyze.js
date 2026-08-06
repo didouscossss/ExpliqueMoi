@@ -608,6 +608,7 @@ async function inspectIncomingPdfs(requestContext) {
       page.pdfPageCount = meta.pageCount;
       page.pdfHasText = meta.hasText;
       page.pdfScanned = meta.scanned;
+      page.pdfTextLength = meta.textLength || 0;
     } catch (error) {
       return {
         blockingError: fail(
@@ -830,7 +831,14 @@ async function prepareDocumentsForGemini(requestContext) {
     const meta = {
       scanned: page.pdfScanned === true,
       hasText: page.pdfHasText === true,
-      textLength: String(page.pdfFullText || "").length,
+      // Préférer la longueur « contenu » (sans en-têtes --- Page ---)
+      textLength:
+        Number(page.pdfTextLength) >= 0
+          ? Number(page.pdfTextLength)
+          : String(page.pdfFullText || "")
+              .replace(/^--- Page \d+ ---\s*/gm, "")
+              .replace(/\s+/g, " ")
+              .trim().length,
       pageCount: page.pdfPageCount || 0,
       pageTexts: page.pdfPageTexts || []
     };
