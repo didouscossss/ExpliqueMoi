@@ -865,12 +865,14 @@ async function prepareDocumentsForGemini(requestContext) {
     if (result.compressed) {
       compressedAny = true;
       reason = result.reason || "compressed";
-      // Scan recompressé : plus de texte sélectionnable fiable
-      page.pdfHasText = false;
-      page.pdfFullText = "";
-      page.pdfScanned = true;
+      // Conserver le texte déjà extrait (ne pas le perdre après recompression image)
       if (result.pageCount) {
         page.pdfPageCount = result.pageCount;
+      }
+      // Marquer scanné seulement si aucun texte n’était disponible
+      if (!page.pdfFullText || String(page.pdfFullText).replace(/\s+/g, "").length < 20) {
+        page.pdfHasText = false;
+        page.pdfScanned = true;
       }
     } else if (reason === "none") {
       reason = result.reason || "skipped";
