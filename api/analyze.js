@@ -372,9 +372,39 @@ export default async function handler(request, response) {
       heterogeneous
     );
     requestContext.timings.prompt_ms = Date.now() - promptStarted;
-    console.info("[analyze] stage_prompt", {
-      ms: requestContext.timings.prompt_ms,
-      parts: geminiParts.length
+
+    const docBytes = requestContext.pages.reduce(
+      (sum, page) => sum + (Number(page.size) || 0),
+      0
+    );
+    const imageCount = requestContext.pages.filter((page) =>
+      String(page.mimeType || "").startsWith("image/")
+    ).length;
+    const pdfCount = requestContext.pages.filter(
+      (page) => page.mimeType === "application/pdf"
+    ).length;
+
+    // TRACE 3 + 4 — taille doc + pages/images (avant appel)
+    console.info("[analyze] TRACE_3_document_size", {
+      totalBytes: docBytes,
+      afterCompressionBytes: compression.afterBytes,
+      compressed: compression.compressed,
+      pages: requestContext.pages.map((page) => ({
+        name: page.name,
+        mimeType: page.mimeType,
+        size: page.size,
+        order: page.order,
+        pdfPageCount: page.pdfPageCount || null,
+        pdfHasText: page.pdfHasText ?? null
+      }))
+    });
+    console.info("[analyze] TRACE_4_pages_images", {
+      uploadFileCount: requestContext.pages.length,
+      imageCount,
+      pdfCount,
+      totalPdfPages: totalPdfPages,
+      geminiPartsCount: geminiParts.length,
+      promptMs: requestContext.timings.prompt_ms
     });
 
     ensureBudget(requestContext, "gemini_start");
@@ -402,6 +432,25 @@ export default async function handler(request, response) {
     };
 
     if (!analysisResult.ok) {
+      console.error("[analyze] TRACE_8_final_decision", {
+        decision: "FAIL_gemini_call_not_ok",
+        producesUserMessage: analysisResult.detail?.empty
+          ? "Aucun contenu exploitable / EMPTY_AI_RESPONSE (via respondGeminiFailure)"
+          : "erreur Gemini (timeout/quota/réseau)",
+        location: "api/analyze.js:!analysisResult.ok",
+        emptyOrUnusable: Boolean(analysisResult.emptyOrUnusable),
+        budgetTimeout: Boolean(analysisResult.budgetTimeout),
+        model: analysisResult.model || null,
+        detailKeys: analysisResult.detail
+          ? Object.keys(analysisResult.detail)
+          : [],
+        empty: Boolean(analysisResult.detail?.empty),
+        timeout: Boolean(analysisResult.detail?.timeout),
+        httpStatus: analysisResult.detail?.httpStatus || null,
+        finishReason: analysisResult.detail?.finishReason || null,
+        message: analysisResult.detail?.message || null
+      });
+
       if (analysisResult.detail?.timeout || analysisResult.budgetTimeout) {
         return response.status(504).json(
           failBudget(requestContext, {
@@ -426,12 +475,23 @@ export default async function handler(request, response) {
     try {
       ensureBudget(requestContext, "parse");
       const parseStarted = Date.now();
+      // TRACE 6 + 7 émis dans parseGeminiJson
       result = parseGeminiJson(analysisResult.rawText);
       requestContext.timings.parse_ms = Date.now() - parseStarted;
       console.info("[analyze] stage_parse", {
         ms: requestContext.timings.parse_ms
       });
-    } catch {
+    } catch (parseError) {
+      console.error("[analyze] TRACE_8_final_decision", {
+        decision: "FAIL_json_parse",
+        producesUserMessage:
+          "La réponse du service d’analyse est illisible.",
+        location: "api/analyze.js:parseGeminiJson catch",
+        model: analysisResult.model || null,
+        parseError: parseError?.message || String(parseError),
+        rawPreview: String(analysisResult.rawText || "").slice(0, 2000)
+      });
+
       return response.status(502).json(
         fail(
           ErrorCode.INVALID_AI_RESPONSE,
@@ -458,17 +518,52 @@ export default async function handler(request, response) {
       ms: requestContext.timings.enrich_ms
     });
 
-    if (!hasUsableContent(validated)) {
+    const usableDecision = explainUsableContent(validated, result);
+
+    if (!usableDecision.usable) {
       const pageCount = pdfProcessing.pageCount || 0;
+      const userMessage = pdfOnly
+        ? "Aucun contenu exploitable n’a pu être extrait de ce PDF."
+        : "Aucun texte exploitable n’a été détecté.";
+
+      // TRACE 8 — décision finale qui produit le message utilisateur
+      console.error("[analyze] TRACE_8_final_decision", {
+        decision: "FAIL_hasUsableContent",
+        producesUserMessage: userMessage,
+        location: "api/analyze.js:hasUsableContent(validated) === false",
+        functionLineHint:
+          "hasUsableContent + defaults injectés par validateResult",
+        pdfOnly,
+        model: analysisResult.model || null,
+        rawTextPreview: String(analysisResult.rawText || "").slice(0, 2000),
+        parsedBeforeValidate: {
+          document_type: result?.document_type ?? null,
+          plain_summary: result?.plain_summary ?? null,
+          request: result?.request ?? null,
+          actionsCount: Array.isArray(result?.actions)
+            ? result.actions.length
+            : 0,
+          evidenceCount: Array.isArray(result?.evidence)
+            ? result.evidence.length
+            : 0
+        },
+        afterValidate: {
+          document_type: validated?.document_type ?? null,
+          plain_summary: validated?.plain_summary ?? null,
+          request: validated?.request ?? null
+        },
+        checks: usableDecision.checks,
+        whyRejected: usableDecision.whyRejected,
+        note:
+          "Si parsedBeforeValidate a du contenu mais afterValidate échoue, validateResult a remplacé/écrasé des champs. Si parsed est déjà vide/générique, Gemini a renvoyé un JSON sans contenu utile — ou extractCandidateText a tronqué."
+      });
 
       return response.status(422).json(
         fail(
           pdfOnly
             ? ErrorCode.PDF_NO_USABLE_CONTENT
             : ErrorCode.NO_USABLE_CONTENT,
-          pdfOnly
-            ? "Aucun contenu exploitable n’a pu être extrait de ce PDF."
-            : "Aucun texte exploitable n’a été détecté.",
+          userMessage,
           {
             pageCount,
             failedPages:
@@ -482,6 +577,13 @@ export default async function handler(request, response) {
         )
       );
     }
+
+    console.info("[analyze] TRACE_8_final_decision", {
+      decision: "PASS_hasUsableContent",
+      location: "api/analyze.js:hasUsableContent(validated) === true",
+      model: analysisResult.model || null,
+      checks: usableDecision.checks
+    });
 
     if (
       pdfProcessing.mode === "direct" &&
@@ -1115,6 +1217,17 @@ function respondGeminiFailure(
     detail?.promptFeedback?.blockReason || detail?.finishReason;
 
   if (detail?.empty || blocked) {
+    console.error("[analyze] TRACE_8_final_decision", {
+      decision: "FAIL_respondGeminiFailure_empty_or_blocked",
+      producesUserMessage:
+        "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants.",
+      location: "api/analyze.js:respondGeminiFailure empty||blocked",
+      empty: Boolean(detail?.empty),
+      finishReason: detail.finishReason || null,
+      blockReason: detail?.promptFeedback?.blockReason || null,
+      model: analysisResult.model || null
+    });
+
     return response.status(502).json(
       fail(
         ErrorCode.EMPTY_AI_RESPONSE,
@@ -1131,6 +1244,16 @@ function respondGeminiFailure(
   }
 
   if (pdfOnly) {
+    console.error("[analyze] TRACE_8_final_decision", {
+      decision: "FAIL_respondGeminiFailure_pdfOnly_fallback",
+      producesUserMessage:
+        "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
+      location: "api/analyze.js:respondGeminiFailure pdfOnly branch",
+      model: analysisResult.model || null,
+      httpStatus: detail.httpStatus || null,
+      upstreamMessage: upstreamMessage.slice(0, 240)
+    });
+
     return response.status(502).json(
       fail(
         ErrorCode.PDF_NO_USABLE_CONTENT,
@@ -1479,47 +1602,142 @@ function normalizeConfidence(value) {
 }
 
 function hasUsableContent(result) {
-  const summary = cleanText(result.plain_summary);
-  const request = cleanText(result.request);
-  const documentType = cleanText(result.document_type);
+  return explainUsableContent(result).usable;
+}
 
-  const hasSummary =
-    summary.length >= 28 &&
-    !/indisponible|non identifié|non trouvée avec certitude/i.test(
-      summary
-    );
+/**
+ * Diagnostic only — même règles que hasUsableContent, avec raisons explicites.
+ * Ne change pas le comportement métier.
+ */
+function explainUsableContent(result, parsedRaw = null) {
+  const summary = cleanText(result?.plain_summary);
+  const request = cleanText(result?.request);
+  const documentType = cleanText(result?.document_type);
 
-  const hasRequest =
-    request.length >= 8 &&
-    !/aucune demande|non trouvée avec certitude/i.test(request);
+  const summaryBlockedByRegex =
+    /indisponible|non identifié|non trouvée avec certitude/i.test(summary);
+  const requestBlockedByRegex =
+    /aucune demande|non trouvée avec certitude/i.test(request);
+  const typeBlockedByRegex = /non identifié/i.test(documentType);
 
-  const hasType =
-    documentType.length >= 3 && !/non identifié/i.test(documentType);
+  const hasSummary = summary.length >= 28 && !summaryBlockedByRegex;
+  const hasRequest = request.length >= 8 && !requestBlockedByRegex;
+  const hasType = documentType.length >= 3 && !typeBlockedByRegex;
 
-  const hasAction =
-    Array.isArray(result.actions) &&
-    result.actions.some((item) => {
-      const action =
-        typeof item === "string"
-          ? cleanText(item)
-          : cleanText(item?.action);
+  const actionMatches = Array.isArray(result?.actions)
+    ? result.actions.map((item) => {
+        const action =
+          typeof item === "string"
+            ? cleanText(item)
+            : cleanText(item?.action);
+        const blocked = /aucune action|à vérifier/i.test(action);
+        return {
+          action,
+          length: action.length,
+          blockedByRegex: blocked,
+          ok: action.length >= 4 && !blocked
+        };
+      })
+    : [];
 
-      return (
-        action.length >= 4 && !/aucune action|à vérifier/i.test(action)
-      );
-    });
+  const hasAction = actionMatches.some((item) => item.ok);
 
-  const hasEvidence =
-    Array.isArray(result.evidence) &&
-    result.evidence.some((item) => cleanText(item?.quote).length >= 6);
+  const evidenceMatches = Array.isArray(result?.evidence)
+    ? result.evidence.map((item) => {
+        const quote = cleanText(item?.quote);
+        return {
+          quote,
+          length: quote.length,
+          ok: quote.length >= 6
+        };
+      })
+    : [];
 
-  return (
+  const hasEvidence = evidenceMatches.some((item) => item.ok);
+
+  const usable =
     hasSummary ||
     hasRequest ||
     hasAction ||
     hasEvidence ||
-    (hasType && (hasSummary || hasEvidence))
-  );
+    (hasType && (hasSummary || hasEvidence));
+
+  const whyRejected = [];
+
+  if (!hasSummary) {
+    whyRejected.push(
+      summary.length < 28
+        ? `plain_summary trop court (${summary.length} < 28): "${summary.slice(0, 120)}"`
+        : `plain_summary rejeté par regex indisponible|non identifié|non trouvée avec certitude: "${summary.slice(0, 160)}"`
+    );
+  }
+
+  if (!hasRequest) {
+    whyRejected.push(
+      request.length < 8
+        ? `request trop court (${request.length} < 8): "${request.slice(0, 120)}"`
+        : `request rejeté par regex aucune demande|non trouvée avec certitude: "${request.slice(0, 160)}"`
+    );
+  }
+
+  if (!hasType) {
+    whyRejected.push(
+      documentType.length < 3
+        ? `document_type trop court (${documentType.length} < 3): "${documentType}"`
+        : `document_type rejeté par regex non identifié: "${documentType}"`
+    );
+  }
+
+  if (!hasAction) {
+    whyRejected.push(
+      actionMatches.length
+        ? `aucune action valide (détail: ${JSON.stringify(actionMatches).slice(0, 400)})`
+        : "actions absentes ou vides"
+    );
+  }
+
+  if (!hasEvidence) {
+    whyRejected.push(
+      evidenceMatches.length
+        ? `aucune evidence.quote valide (détail: ${JSON.stringify(evidenceMatches).slice(0, 400)})`
+        : "evidence absente ou vide"
+    );
+  }
+
+  // Détecte si validateResult a injecté les defaults qui font échouer le filtre
+  if (parsedRaw && typeof parsedRaw === "object") {
+    const rawSummaryMissing = !parsedRaw.plain_summary;
+    const rawRequestMissing = !parsedRaw.request;
+    const rawTypeMissing = !parsedRaw.document_type;
+
+    if (rawSummaryMissing || rawRequestMissing || rawTypeMissing) {
+      whyRejected.push(
+        `validateResult a injecté des defaults pour champs manquants` +
+          ` (summaryMissing=${rawSummaryMissing}, requestMissing=${rawRequestMissing}, typeMissing=${rawTypeMissing}).` +
+          ` Les defaults contiennent « non identifié » / « non trouvée avec certitude » et sont rejetés par hasUsableContent.`
+      );
+    }
+  }
+
+  return {
+    usable,
+    checks: {
+      hasSummary,
+      hasRequest,
+      hasType,
+      hasAction,
+      hasEvidence,
+      summaryLength: summary.length,
+      requestLength: request.length,
+      documentType,
+      summaryBlockedByRegex,
+      requestBlockedByRegex,
+      typeBlockedByRegex,
+      actionMatches,
+      evidenceMatches
+    },
+    whyRejected
+  };
 }
 
 function buildPrompt(pastedText, pageCount, heterogeneous, mode) {
