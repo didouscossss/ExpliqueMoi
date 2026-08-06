@@ -2931,6 +2931,7 @@
       UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT",
       NETWORK_ERROR: "NETWORK_ERROR",
       API_TIMEOUT: "API_TIMEOUT",
+      ANALYSIS_TIMEOUT: "ANALYSIS_TIMEOUT",
       EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
       INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
       API_QUOTA_EXCEEDED: "API_QUOTA_EXCEEDED",
@@ -2954,6 +2955,7 @@
 
     const MAX_PAGES = 10;
 
+    /** Limite produit annoncée (PDF / fichier unitaire). */
     const MAX_DIRECT_FILE_SIZE =
       4 * 1024 * 1024;
 
@@ -2961,8 +2963,14 @@
     const MAX_IMAGE_DECODE_ATTEMPT =
       80 * 1024 * 1024;
 
+    /**
+     * Limite sûre du body HTTP vers /api/analyze (sous le plafond Vercel ~4,5 Mo).
+     * Utilisée pour le lot final réellement envoyé — pas la limite marketing 4 Mo.
+     */
     const MAX_TOTAL_UPLOAD_SIZE =
-      4 * 1024 * 1024;
+      Math.floor(3.2 * 1024 * 1024);
+
+    const SAFE_UPLOAD_BYTES = MAX_TOTAL_UPLOAD_SIZE;
 
     const ALLOWED_PAGE_TYPES = [
       "application/pdf",
@@ -3322,6 +3330,14 @@
       return import("./lib/imageCompression.js");
     }
 
+    async function loadUploadGateModule() {
+      return import("./lib/uploadGate.js");
+    }
+
+    async function loadClientPdfCompressionModule() {
+      return import("./lib/clientPdfCompression.js");
+    }
+
     // Compresse une page image sans retirer les autres en cas d’échec
     async function compressPage(
       pageId,
@@ -3620,7 +3636,7 @@
 
       showPagesLimitMessage(
         `BATCH_TOO_LARGE : le lot fait ${formatSize(total)} après compression (max. ${formatSize(MAX_TOTAL_UPLOAD_SIZE)}). ` +
-        "Retirez une photo ou choisissez des fichiers plus légers."
+        "Ce document est trop lourd pour être envoyé. Essayez de le compresser ou de le diviser en plusieurs fichiers."
       );
     }
 
@@ -4341,6 +4357,13 @@
             "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants.",
           retryable: true
         },
+        ANALYSIS_TIMEOUT: {
+          code: AnalysisErrorCode.ANALYSIS_TIMEOUT,
+          title: "Échec de l’analyse",
+          message:
+            "L’analyse a pris trop de temps (limite 50 s). Réessayez avec un document plus léger.",
+          retryable: true
+        },
         EMPTY_AI_RESPONSE: {
           code: AnalysisErrorCode.EMPTY_AI_RESPONSE,
           title: "Échec de l’analyse",
@@ -4386,6 +4409,7 @@
         UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT",
         NETWORK_ERROR: "NETWORK_ERROR",
         API_TIMEOUT: "API_TIMEOUT",
+        ANALYSIS_TIMEOUT: "ANALYSIS_TIMEOUT",
         EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
         INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
         API_QUOTA_EXCEEDED: "API_QUOTA_EXCEEDED",
@@ -4432,6 +4456,12 @@
           )
         ) {
           resolved = "NETWORK_ERROR";
+        } else if (
+          /ANALYSIS_TIMEOUT|budget de 50|limite 50/i.test(
+            message
+          )
+        ) {
+          resolved = "ANALYSIS_TIMEOUT";
         } else if (
           /timeout|timed out/i.test(message)
         ) {
@@ -4989,7 +5019,7 @@
         if (page.size > MAX_DIRECT_FILE_SIZE) {
           showError(
             "Échec de l’analyse",
-            "Le fichier est trop volumineux.",
+            "Ce document est trop lourd pour être envoyé. Essayez de le compresser ou de le diviser en plusieurs fichiers.",
             {
               keepRuntimeClean: true,
               code: AnalysisErrorCode.FILE_TOO_LARGE,
@@ -5001,19 +5031,21 @@
         }
       }
 
-      const totalSize =
-        pagesToAnalyze.reduce(
-          (sum, page) => sum + page.size,
-          0
-        );
+      const prepared = await prepareUploadPayload(pagesToAnalyze);
 
-      if (totalSize > MAX_TOTAL_UPLOAD_SIZE) {
+      if (!prepared.ok) {
+        console.info("[upload] payload_check", prepared.log);
+
         showError(
           "Échec de l’analyse",
-          "Le lot dépasse 4 Mo après compression. Retirez une photo ou utilisez des fichiers plus légers.",
+          prepared.message ||
+            "Ce document est trop lourd pour être envoyé. Essayez de le compresser ou de le diviser en plusieurs fichiers.",
           {
             keepRuntimeClean: true,
-            code: AnalysisErrorCode.BATCH_TOO_LARGE,
+            code:
+              prepared.code === "FILE_TOO_LARGE"
+                ? AnalysisErrorCode.FILE_TOO_LARGE
+                : AnalysisErrorCode.BATCH_TOO_LARGE,
             retryable: false
           }
         );
@@ -5021,32 +5053,138 @@
         return;
       }
 
-      const heterogeneous =
-        detectHeterogeneousBatch(pagesToAnalyze);
+      console.info("[upload] payload_check", prepared.log);
 
-      // Manifeste recréé à zéro pour cette requête uniquement
-      const manifest = {
-        pageCount: pagesToAnalyze.length,
+      await sendAnalysis(prepared.formData, {
+        pagesSnapshot: prepared.pagesSnapshot,
+        manifest: prepared.manifest,
+        preparedPages: prepared.pagesSnapshot,
+        heterogeneous: prepared.heterogeneous
+      });
+    }
+
+    /**
+     * Prépare le FormData multipart (1 exemplaire / fichier),
+     * compresse un PDF trop lourd si besoin, bloque avant fetch si > 3,2 Mo.
+     */
+    async function prepareUploadPayload(pagesToAnalyze) {
+      const {
+        evaluateUploadGate,
+        reevaluateAfterCompression,
+        planFormDataFields,
+        BLOCKED_UPLOAD_MESSAGE,
+        SAFE_UPLOAD_BYTES: safeLimit
+      } = await loadUploadGateModule();
+
+      const originalBytes = pagesToAnalyze.reduce(
+        (sum, page) => sum + (page.size || page.file?.size || 0),
+        0
+      );
+
+      let workingPages = pagesToAnalyze.map((page) => ({
+        ...page,
+        file: page.file,
+        size: page.file?.size || page.size || 0,
+        mimeType: page.mimeType || page.file?.type || ""
+      }));
+
+      const heterogeneous = detectHeterogeneousBatch(workingPages);
+
+      const buildManifest = (pages) => ({
+        pageCount: pages.length,
         createdAt: Date.now(),
         heterogeneous,
-        pages: pagesToAnalyze.map(
-          (page, order) => ({
-            order,
-            id: page.id,
-            name: page.name,
-            mimeType: page.mimeType,
-            rotation: page.rotation,
-            field: `page_${order}`
+        pages: pages.map((page, order) => ({
+          order,
+          id: page.id,
+          name: page.name,
+          mimeType: page.mimeType,
+          rotation: page.rotation,
+          field: `page_${order}`
+        }))
+      });
+
+      let manifest = buildManifest(workingPages);
+      let gate = evaluateUploadGate({
+        files: workingPages.map((page) => ({
+          size: page.file?.size || page.size || 0,
+          mimeType: page.mimeType,
+          type: page.file?.type
+        })),
+        originalBytes,
+        manifestJson: JSON.stringify(manifest)
+      });
+
+      if (gate.needsPdfCompression) {
+        const { compressPdfForUpload } =
+          await loadClientPdfCompressionModule();
+
+        workingPages = await Promise.all(
+          workingPages.map(async (page) => {
+            const isPdf =
+              page.mimeType === "application/pdf" ||
+              page.file?.type === "application/pdf";
+
+            if (
+              !isPdf ||
+              (page.file?.size || 0) < safeLimit * 0.85
+            ) {
+              return page;
+            }
+
+            const result = await compressPdfForUpload(page.file, {
+              name: page.name,
+              targetBytes: safeLimit
+            });
+
+            if (result.compressed && result.file) {
+              return {
+                ...page,
+                file: result.file,
+                size: result.afterBytes,
+                mimeType: "application/pdf"
+              };
+            }
+
+            return page;
           })
-        )
+        );
+
+        manifest = buildManifest(workingPages);
+        gate = reevaluateAfterCompression(
+          workingPages.map((page) => ({
+            size: page.file?.size || page.size || 0,
+            mimeType: page.mimeType,
+            type: page.file?.type
+          })),
+          {
+            originalBytes,
+            manifestJson: JSON.stringify(manifest)
+          }
+        );
+      }
+
+      const log = {
+        upload_original_bytes: originalBytes,
+        upload_final_bytes: gate.upload_final_bytes,
+        file_count: workingPages.length,
+        transport: "multipart",
+        blocked_before_upload: Boolean(gate.blocked_before_upload)
       };
 
+      if (gate.blocked_before_upload) {
+        return {
+          ok: false,
+          code: gate.code,
+          message: gate.message || BLOCKED_UPLOAD_MESSAGE,
+          log
+        };
+      }
+
+      const plan = planFormDataFields(workingPages);
       const formData = new FormData();
 
-      formData.append(
-        "manifest",
-        JSON.stringify(manifest)
-      );
+      formData.append("manifest", JSON.stringify(manifest));
 
       if (heterogeneous) {
         formData.append(
@@ -5055,29 +5193,20 @@
         );
       }
 
-      pagesToAnalyze.forEach((page, order) => {
-        formData.append(
-          `page_${order}`,
-          page.file,
-          page.name
-        );
+      // Un seul append par fichier — jamais page_N + file en double
+      plan.fields.forEach((field, order) => {
+        const page = workingPages[order];
+        formData.append(field.field, page.file, page.name);
       });
 
-      // Compatibilité mono-page (anciens clients / fallback serveur)
-      if (pagesToAnalyze.length === 1) {
-        formData.append(
-          "file",
-          pagesToAnalyze[0].file,
-          pagesToAnalyze[0].name
-        );
-      }
-
-      await sendAnalysis(formData, {
-        pagesSnapshot: pagesToAnalyze,
+      return {
+        ok: true,
+        formData,
         manifest,
-        preparedPages: pagesToAnalyze,
-        heterogeneous
-      });
+        pagesSnapshot: workingPages,
+        heterogeneous,
+        log
+      };
     }
 
     async function analyzeText() {
