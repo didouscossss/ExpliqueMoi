@@ -2865,7 +2865,7 @@
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.3.4";
+      const APP_VERSION = "2.3.6";
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -2931,6 +2931,7 @@
       UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT",
       NETWORK_ERROR: "NETWORK_ERROR",
       API_TIMEOUT: "API_TIMEOUT",
+      ANALYSIS_TIMEOUT: "ANALYSIS_TIMEOUT",
       EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
       INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
       API_QUOTA_EXCEEDED: "API_QUOTA_EXCEEDED",
@@ -4341,6 +4342,13 @@
             "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants.",
           retryable: true
         },
+        ANALYSIS_TIMEOUT: {
+          code: AnalysisErrorCode.ANALYSIS_TIMEOUT,
+          title: "Échec de l’analyse",
+          message:
+            "L’analyse a pris trop de temps (limite 50 s). Réessayez avec un document plus léger.",
+          retryable: true
+        },
         EMPTY_AI_RESPONSE: {
           code: AnalysisErrorCode.EMPTY_AI_RESPONSE,
           title: "Échec de l’analyse",
@@ -4386,6 +4394,7 @@
         UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT",
         NETWORK_ERROR: "NETWORK_ERROR",
         API_TIMEOUT: "API_TIMEOUT",
+        ANALYSIS_TIMEOUT: "ANALYSIS_TIMEOUT",
         EMPTY_AI_RESPONSE: "EMPTY_AI_RESPONSE",
         INVALID_AI_RESPONSE: "INVALID_AI_RESPONSE",
         API_QUOTA_EXCEEDED: "API_QUOTA_EXCEEDED",
@@ -4432,6 +4441,12 @@
           )
         ) {
           resolved = "NETWORK_ERROR";
+        } else if (
+          /ANALYSIS_TIMEOUT|budget de 50|limite 50/i.test(
+            message
+          )
+        ) {
+          resolved = "ANALYSIS_TIMEOUT";
         } else if (
           /timeout|timed out/i.test(message)
         ) {
