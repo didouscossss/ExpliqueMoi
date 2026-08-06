@@ -97,6 +97,11 @@ export default async function handler(request, response) {
     diagnostics: []
   };
 
+  requestContext.requestId =
+    request.headers["x-vercel-id"] ||
+    request.headers["x-request-id"] ||
+    `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
   try {
     const { formData, bodySize } = await readMultipartRequest(request);
     requestContext.rawBodySize = bodySize;
@@ -270,7 +275,8 @@ export default async function handler(request, response) {
         heterogeneous,
         buildPrompt,
         validateResult,
-        hasUsableContent
+        hasUsableContent,
+        requestId: requestContext.requestId
       });
 
       requestContext.diagnostics.push(...(longResult.diagnostics || []));
@@ -872,7 +878,8 @@ async function analyzeWithParts(parts, options, requestContext) {
 
   const geminiResult = await callGeminiForAnalysis(parts, {
     retries: options.retries,
-    timeoutMs: 50000
+    timeoutMs: 50000,
+    requestId: requestContext?.requestId || null
   });
 
   requestContext.diagnostics.push({
@@ -955,13 +962,50 @@ function respondGeminiFailure(
     );
   }
 
+  if (detail.network) {
+    return response.status(502).json(
+      fail(
+        ErrorCode.NETWORK_ERROR,
+        "Impossible de joindre le service d’analyse. Vérifiez votre connexion et réessayez.",
+        {
+          mode: pdfProcessing.mode,
+          pageCount: pdfProcessing.pageCount,
+          upstreamMessage: String(detail.message || "").slice(0, 240)
+        }
+      )
+    );
+  }
+
   const upstreamMessage = String(
     detail?.error?.message || detail?.message || ""
   );
 
   if (
+    detail.httpStatus === 404 ||
+    /no longer available|not found|unsupported|unknown model/i.test(
+      upstreamMessage
+    )
+  ) {
+    return response.status(502).json(
+      fail(
+        ErrorCode.EMPTY_AI_RESPONSE,
+        "Le modèle d’analyse n’est pas disponible. Réessayez dans quelques instants.",
+        {
+          mode: pdfProcessing.mode,
+          pageCount: pdfProcessing.pageCount,
+          upstreamStatus: detail.httpStatus || 404,
+          upstreamMessage: upstreamMessage.slice(0, 240),
+          model: analysisResult.model || detail.model || null
+        }
+      )
+    );
+  }
+
+  if (
     detail.httpStatus === 429 ||
-    /quota|rate limit|exceeded your current quota/i.test(upstreamMessage)
+    /quota|rate limit|exceeded your current quota|prepayment credits/i.test(
+      upstreamMessage
+    )
   ) {
     return response.status(429).json(
       fail(

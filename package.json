@@ -1,6 +1,6 @@
 {
   "name": "expliquemoi",
-  "version": "2.3.4",
+  "version": "2.3.4-restored",
   "private": true,
   "type": "module",
   "description": "ExpliqueMoi — analyse de documents français",
