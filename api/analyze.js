@@ -64,7 +64,7 @@ function fail(code, message, details) {
   };
 }
 
-function succeed(analysis, warnings = [], pdfProcessing = null) {
+function succeed(analysis, warnings = [], pdfProcessing = null, timings = null) {
   const payload = {
     ok: true,
     analysis,
@@ -75,6 +75,30 @@ function succeed(analysis, warnings = [], pdfProcessing = null) {
     payload.pdfProcessing = pdfProcessing;
   }
 
+  if (timings && typeof timings === "object") {
+    payload.timings = timings;
+  }
+
+  return payload;
+}
+
+function finalizeTimings(requestContext) {
+  const timings = requestContext?.timings || {};
+  const startedAt = Number(timings.startedAt) || Date.now();
+  const result = {
+    ocr_ms: Number(timings.ocr_ms) || 0,
+    gemini_ms: Number(timings.gemini_ms) || 0,
+    parse_ms: Number(timings.parse_ms) || 0,
+    enrich_ms: Number(timings.enrich_ms) || 0,
+    total_ms: Date.now() - startedAt
+  };
+  console.info("[analyze] timings", result);
+  return result;
+}
+
+function failWithTimings(requestContext, code, message, details) {
+  const payload = fail(code, message, details);
+  payload.timings = finalizeTimings(requestContext);
   return payload;
 }
 
@@ -94,7 +118,14 @@ export default async function handler(request, response) {
     rawBodySize: 0,
     pdfMeta: [],
     rasterImages: [],
-    diagnostics: []
+    diagnostics: [],
+    timings: {
+      startedAt: Date.now(),
+      ocr_ms: 0,
+      gemini_ms: 0,
+      parse_ms: 0,
+      enrich_ms: 0
+    }
   };
 
   try {
@@ -198,10 +229,24 @@ export default async function handler(request, response) {
     }
 
     // Pré-inspection PDF : encryption / corruption / pages / texte
+    // (OCR local = extraction texte PDF + rasterisation pages si besoin)
+    const ocrStarted = Date.now();
     const pdfGate = await inspectIncomingPdfs(requestContext);
+    requestContext.timings.ocr_ms += Date.now() - ocrStarted;
 
     if (pdfGate.blockingError) {
-      return response.status(pdfGate.status).json(pdfGate.blockingError);
+      const blocking =
+        typeof pdfGate.blockingError === "object"
+          ? {
+              ...pdfGate.blockingError,
+              timings: finalizeTimings(requestContext)
+            }
+          : failWithTimings(
+              requestContext,
+              ErrorCode.PDF_CORRUPTED,
+              "Le PDF n’a pas pu être lu."
+            );
+      return response.status(pdfGate.status).json(blocking);
     }
 
     const heterogeneous =
@@ -288,9 +333,23 @@ export default async function handler(request, response) {
         diagnostics: requestContext.diagnostics
       };
 
+      // Aggregate stage timings from chunk diagnostics when present
+      for (const item of longResult.diagnostics || []) {
+        if (Number(item.gemini_ms)) {
+          requestContext.timings.gemini_ms += Number(item.gemini_ms);
+        }
+        if (Number(item.ocr_ms)) {
+          requestContext.timings.ocr_ms += Number(item.ocr_ms);
+        }
+        if (Number(item.parse_ms)) {
+          requestContext.timings.parse_ms += Number(item.parse_ms);
+        }
+      }
+
       if (!longResult.merged.ok || !longResult.merged.analysis) {
         return response.status(422).json(
-          fail(
+          failWithTimings(
+            requestContext,
             ErrorCode.PDF_NO_USABLE_CONTENT,
             "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
             {
@@ -307,6 +366,7 @@ export default async function handler(request, response) {
         );
       }
 
+      const enrichStarted = Date.now();
       const validated = validateResult(
         longResult.merged.analysis,
         [
@@ -316,10 +376,12 @@ export default async function handler(request, response) {
         requestContext.pageErrors,
         heterogeneous
       );
+      requestContext.timings.enrich_ms += Date.now() - enrichStarted;
 
       if (!hasUsableContent(validated)) {
         return response.status(422).json(
-          fail(
+          failWithTimings(
+            requestContext,
             ErrorCode.PDF_NO_USABLE_CONTENT,
             "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
             {
@@ -332,17 +394,22 @@ export default async function handler(request, response) {
       }
 
       return response.status(200).json(
-        succeed(validated, validated.warnings || [], {
-          mode: "chunked",
-          totalPages: totalPdfPages,
-          processedPages: pdfProcessing.processedPages,
-          failedPages: pdfProcessing.failedPages,
-          chunkCount: longPlan.chunkCount,
-          pageCount: totalPdfPages,
-          readablePages: pdfProcessing.readablePages,
-          hasText: pdfProcessing.hasText,
-          scanned: scannedPdf
-        })
+        succeed(
+          validated,
+          validated.warnings || [],
+          {
+            mode: "chunked",
+            totalPages: totalPdfPages,
+            processedPages: pdfProcessing.processedPages,
+            failedPages: pdfProcessing.failedPages,
+            chunkCount: longPlan.chunkCount,
+            pageCount: totalPdfPages,
+            readablePages: pdfProcessing.readablePages,
+            hasText: pdfProcessing.hasText,
+            scanned: scannedPdf
+          },
+          finalizeTimings(requestContext)
+        )
       );
     }
 
@@ -454,7 +521,8 @@ export default async function handler(request, response) {
         response,
         analysisResult,
         pdfOnly,
-        pdfProcessing
+        pdfProcessing,
+        requestContext
       );
     }
 
@@ -467,16 +535,19 @@ export default async function handler(request, response) {
         rawBytes: String(analysisResult.rawText || "").length
       });
 
+      const parseStarted = Date.now();
       result = parseGeminiJson(analysisResult.rawText, {
         label: "direct"
       });
+      requestContext.timings.parse_ms += Date.now() - parseStarted;
 
       console.info("[analyze] parse_success", {
         keys:
           result && typeof result === "object"
             ? Object.keys(result)
             : [],
-        document_type: result?.document_type || null
+        document_type: result?.document_type || null,
+        parse_ms: requestContext.timings.parse_ms
       });
     } catch (parseError) {
       console.error("[analyze] parse_failure", {
@@ -487,7 +558,8 @@ export default async function handler(request, response) {
       });
 
       return response.status(502).json(
-        fail(
+        failWithTimings(
+          requestContext,
           ErrorCode.INVALID_AI_RESPONSE,
           "La réponse du service d’analyse est illisible.",
           {
@@ -503,12 +575,14 @@ export default async function handler(request, response) {
     let validated;
 
     try {
+      const enrichStarted = Date.now();
       validated = validateResult(
         result,
         requestContext.warnings,
         requestContext.pageErrors,
         heterogeneous
       );
+      requestContext.timings.enrich_ms += Date.now() - enrichStarted;
     } catch (validateError) {
       console.error("[analyze] validate_failure", {
         message: validateError?.message || "validate error",
@@ -516,7 +590,8 @@ export default async function handler(request, response) {
       });
 
       return response.status(502).json(
-        fail(
+        failWithTimings(
+          requestContext,
           ErrorCode.INVALID_AI_RESPONSE,
           "La réponse du service d’analyse n’a pas pu être structurée.",
           {
@@ -563,14 +638,19 @@ export default async function handler(request, response) {
     }
 
     return response.status(200).json(
-      succeed(validated, validated.warnings || [], {
-        mode: pdfProcessing.mode,
-        pageCount: pdfProcessing.pageCount,
-        readablePages: pdfProcessing.readablePages,
-        failedPages: pdfProcessing.failedPages,
-        hasText: pdfProcessing.hasText,
-        scanned: pdfProcessing.scanned
-      })
+      succeed(
+        validated,
+        validated.warnings || [],
+        {
+          mode: pdfProcessing.mode,
+          pageCount: pdfProcessing.pageCount,
+          readablePages: pdfProcessing.readablePages,
+          failedPages: pdfProcessing.failedPages,
+          hasText: pdfProcessing.hasText,
+          scanned: pdfProcessing.scanned
+        },
+        finalizeTimings(requestContext)
+      )
     );
   } catch (error) {
     console.error(error);
@@ -593,7 +673,7 @@ export default async function handler(request, response) {
     }
 
     return response.status(500).json(
-      fail(code, text, {
+      failWithTimings(requestContext, code, text, {
         message: message.slice(0, 240)
       })
     );
@@ -775,10 +855,14 @@ async function buildPageImageParts(text, requestContext, heterogeneous) {
     const bytes =
       page.bytes || Buffer.from(page.base64 || "", "base64");
 
+    const rasterStarted = Date.now();
     const raster = await rasterizePdfPages(bytes, {
       rotation: page.rotation,
       pageTexts: page.pdfPageTexts || []
     });
+    if (requestContext.timings) {
+      requestContext.timings.ocr_ms += Date.now() - rasterStarted;
+    }
 
     pageCount += raster.pageCount || page.pdfPageCount || 0;
 
@@ -914,10 +998,16 @@ async function analyzeWithParts(parts, options, requestContext) {
     retries: options.retries
   });
 
+  const geminiStarted = Date.now();
   const geminiResult = await callGeminiForAnalysis(parts, {
     retries: options.retries,
     timeoutMs: 45000
   });
+  const geminiElapsed =
+    Number(geminiResult.durationMs) || Date.now() - geminiStarted;
+  if (requestContext.timings) {
+    requestContext.timings.gemini_ms += geminiElapsed;
+  }
 
   requestContext.diagnostics.push({
     step: `gemini_${options.label || "call"}_result`,
@@ -926,6 +1016,7 @@ async function analyzeWithParts(parts, options, requestContext) {
     empty: Boolean(geminiResult.detail?.empty),
     timeout: Boolean(geminiResult.detail?.timeout),
     httpStatus: geminiResult.detail?.httpStatus || null,
+    durationMs: geminiElapsed,
     errorMessage: geminiResult.detail?.error?.message
       ? String(geminiResult.detail.error.message).slice(0, 240)
       : geminiResult.detail?.message
@@ -978,13 +1069,18 @@ function respondGeminiFailure(
   response,
   analysisResult,
   pdfOnly,
-  pdfProcessing
+  pdfProcessing,
+  requestContext = null
 ) {
   const detail = analysisResult.detail || {};
+  const pack = (code, message, details) =>
+    requestContext
+      ? failWithTimings(requestContext, code, message, details)
+      : fail(code, message, details);
 
   if (detail.missingKey) {
     return response.status(500).json(
-      fail(
+      pack(
         ErrorCode.UNKNOWN_ERROR,
         "La clé Gemini n’est pas configurée.",
         { mode: pdfProcessing.mode }
@@ -994,7 +1090,7 @@ function respondGeminiFailure(
 
   if (detail.timeout) {
     return response.status(504).json(
-      fail(
+      pack(
         ErrorCode.API_TIMEOUT,
         "Le service d’analyse n’a pas répondu à temps. Réessayez.",
         {
@@ -1014,7 +1110,7 @@ function respondGeminiFailure(
     /quota|rate limit|exceeded your current quota/i.test(upstreamMessage)
   ) {
     return response.status(429).json(
-      fail(
+      pack(
         ErrorCode.API_QUOTA_EXCEEDED,
         "Le quota du service d’analyse est dépassé. Réessayez dans une minute.",
         {
@@ -1032,7 +1128,7 @@ function respondGeminiFailure(
 
   if (detail?.empty || blocked) {
     return response.status(502).json(
-      fail(
+      pack(
         ErrorCode.EMPTY_AI_RESPONSE,
         "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants.",
         {
@@ -1048,7 +1144,7 @@ function respondGeminiFailure(
 
   if (pdfOnly) {
     return response.status(502).json(
-      fail(
+      pack(
         ErrorCode.PDF_NO_USABLE_CONTENT,
         "Aucun contenu exploitable n’a pu être extrait de ce PDF.",
         {
@@ -1069,7 +1165,7 @@ function respondGeminiFailure(
   }
 
   return response.status(502).json(
-    fail(
+    pack(
       ErrorCode.EMPTY_AI_RESPONSE,
       "Le service d’analyse n’a pas répondu. Réessayez dans quelques instants.",
       {
