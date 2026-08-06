@@ -461,8 +461,31 @@ export default async function handler(request, response) {
     let result;
 
     try {
-      result = parseGeminiJson(analysisResult.rawText);
-    } catch {
+      console.info("[analyze] parse_start", {
+        mode: pdfProcessing.mode,
+        model: analysisResult.model || null,
+        rawBytes: String(analysisResult.rawText || "").length
+      });
+
+      result = parseGeminiJson(analysisResult.rawText, {
+        label: "direct"
+      });
+
+      console.info("[analyze] parse_success", {
+        keys:
+          result && typeof result === "object"
+            ? Object.keys(result)
+            : [],
+        document_type: result?.document_type || null
+      });
+    } catch (parseError) {
+      console.error("[analyze] parse_failure", {
+        mode: pdfProcessing.mode,
+        model: analysisResult.model || null,
+        message: parseError?.message || "parse error",
+        rawPreview: String(analysisResult.rawText || "").slice(0, 500)
+      });
+
       return response.status(502).json(
         fail(
           ErrorCode.INVALID_AI_RESPONSE,
@@ -470,18 +493,39 @@ export default async function handler(request, response) {
           {
             mode: pdfProcessing.mode,
             model: analysisResult.model || null,
-            rawPreview: String(analysisResult.rawText || "").slice(0, 180)
+            reason: parseError?.message || "JSON invalide",
+            rawPreview: String(analysisResult.rawText || "").slice(0, 240)
           }
         )
       );
     }
 
-    const validated = validateResult(
-      result,
-      requestContext.warnings,
-      requestContext.pageErrors,
-      heterogeneous
-    );
+    let validated;
+
+    try {
+      validated = validateResult(
+        result,
+        requestContext.warnings,
+        requestContext.pageErrors,
+        heterogeneous
+      );
+    } catch (validateError) {
+      console.error("[analyze] validate_failure", {
+        message: validateError?.message || "validate error",
+        stack: String(validateError?.stack || "").slice(0, 500)
+      });
+
+      return response.status(502).json(
+        fail(
+          ErrorCode.INVALID_AI_RESPONSE,
+          "La réponse du service d’analyse n’a pas pu être structurée.",
+          {
+            mode: pdfProcessing.mode,
+            reason: validateError?.message || "validation"
+          }
+        )
+      );
+    }
 
     if (!hasUsableContent(validated)) {
       const pageCount = pdfProcessing.pageCount || 0;
@@ -901,8 +945,14 @@ async function analyzeWithParts(parts, options, requestContext) {
   let parsed = null;
 
   try {
-    parsed = parseGeminiJson(geminiResult.rawText);
-  } catch {
+    parsed = parseGeminiJson(geminiResult.rawText, {
+      label: options.label || "parts"
+    });
+  } catch (parseError) {
+    console.error("[analyze] analyzeWithParts_parse_deferred", {
+      label: options.label || "parts",
+      message: parseError?.message || "parse error"
+    });
     return {
       ok: true,
       emptyOrUnusable: false,

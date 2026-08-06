@@ -2865,7 +2865,7 @@
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.3.4";
+      const APP_VERSION = "2.3.5";
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -5195,11 +5195,26 @@
           }
         );
 
+        const rawText = await response.text();
         let data;
 
         try {
-          data = await response.json();
+          data = JSON.parse(rawText || "{}");
         } catch {
+          const looksLikeTimeout =
+            response.status === 504 ||
+            response.status === 502 ||
+            /FUNCTION_INVOCATION_TIMEOUT|timed?\s*out|Gateway Timeout/i.test(
+              String(rawText || "")
+            );
+
+          if (looksLikeTimeout) {
+            throw createAnalysisError(
+              AnalysisErrorCode.API_TIMEOUT,
+              "L’analyse a pris trop de temps. Réessayez avec un document plus court ou moins lourd."
+            );
+          }
+
           throw createAnalysisError(
             AnalysisErrorCode.INVALID_AI_RESPONSE,
             "La réponse du service d’analyse est illisible."
