@@ -10,7 +10,8 @@ import {
 } from "../lib/pdfProcessing.js";
 import {
   callGeminiForAnalysis,
-  parseGeminiJson
+  parseGeminiJson,
+  PRIMARY_MODEL
 } from "../lib/geminiAnalysis.js";
 import {
   normalizeTables,
@@ -173,6 +174,11 @@ export default async function handler(request, response) {
       compression_reason: null
     }
   };
+
+  requestContext.requestId =
+    request.headers["x-vercel-id"] ||
+    request.headers["x-request-id"] ||
+    `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   try {
     const uploadStarted = Date.now();
@@ -1079,14 +1085,32 @@ async function analyzeWithParts(parts, options, requestContext) {
     timeoutMs
   });
 
+  console.info("[analyze] GEMINI_CALL_START", {
+    requestId: requestContext?.requestId || null,
+    model: PRIMARY_MODEL,
+    timestamp: new Date().toISOString()
+  });
+
   const geminiResult = await callGeminiForAnalysis(parts, {
     retries: 0,
     timeoutMs
   });
+
   const geminiEnded = Date.now();
+  const callDurationMs =
+    Number(geminiResult?.durationMs) || geminiEnded - geminiStarted;
+
+  console.info("[analyze] GEMINI_CALL_END", {
+    requestId: requestContext?.requestId || null,
+    model: geminiResult?.model || PRIMARY_MODEL,
+    ok: Boolean(geminiResult?.ok),
+    httpStatus: geminiResult?.detail?.httpStatus || null,
+    durationMs: callDurationMs,
+    timestamp: new Date().toISOString()
+  });
+
   requestContext.timings.gemini_ended_at = new Date(geminiEnded).toISOString();
-  const geminiMs =
-    Number(geminiResult.durationMs) || geminiEnded - geminiStarted;
+  const geminiMs = callDurationMs;
   requestContext.timings.gemini_ms += geminiMs;
   console.info("[analyze] stage_gemini_end", {
     at: requestContext.timings.gemini_ended_at,
