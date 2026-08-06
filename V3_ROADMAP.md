@@ -32,7 +32,7 @@ Règle : aucune PR vers `main` sans validation explicite. La V2 reste intacte.
 
 ## D — Extraction locale
 
-**Statut : livrée (en attente validation)**
+**Statut : validée**
 
 - `lib/v3/localAnalysis/LocalAnalysisEngine.ts`
 - Types : facture, devis, contrat, bulletin_de_salaire, releve_bancaire, courrier, ordonnance, document_inconnu
@@ -42,21 +42,25 @@ Règle : aucune PR vers `main` sans validation explicite. La V2 reste intacte.
 
 ---
 
-## E — GeminiProvider
+## E — Architecture providers (générique)
 
-- Premier adaptateur `AIProvider` réellement connecté
-- `analyze()` / `answer()` / `reply()` / `checklist()` sur texte + contexte
-- Clés serveur uniquement (`AI_PROVIDER=gemini`)
-- Un seul appel IA idéal pour l’analyse initiale
+**Statut : livrée (en attente validation)**
+
+- `AIProvider` : `analyze()` / `answer()` / `summarize()`
+- `ProviderConfig` + `createProviderConfig()`
+- `ProviderFactory` / `getAIProvider()` — registre vide, aucun adapter concret
+- Aucun Gemini / OpenAI / Mistral branché
+- Aucun appel réseau, aucune clé API, aucun endpoint
+- Tests : `npm run test:v3-providers`
 
 ---
 
-## F — Migration
+## F — Provider concret + câblage
 
-- Brancher progressivement le front Preview sur `/api/v3/*` (flag)
-- Compatibilité schéma UI sans changer le design
-- Mesures : succès, latence, appels IA, 429
-- V2 reste disponible en secours
+- Enregistrer le premier adapter (ex. Gemini) dans `ProviderFactory`
+- Brancher `analyze` / `answer` / `summarize` sur texte + `localAnalysis`
+- Clés serveur uniquement via config
+- Toujours aucun impact sur les endpoints V2 jusqu’à migration contrôlée
 
 ---
 

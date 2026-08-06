@@ -13,7 +13,8 @@
     "test:analysis-quality": "node scripts/test-analysis-quality.mjs",
     "test:upload-payload": "node scripts/test-upload-payload.mjs",
     "test:v3-ocr": "tsx scripts/test-v3-ocr.mjs",
-    "test:v3-local": "tsx scripts/test-v3-local-analysis.mjs"
+    "test:v3-local": "tsx scripts/test-v3-local-analysis.mjs",
+    "test:v3-providers": "tsx scripts/test-v3-providers.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",
