@@ -2865,7 +2865,7 @@
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.3.3";
+    const APP_VERSION = "2.3.4";
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -5492,18 +5492,18 @@
           readingQuality
         )
       ) {
+        // Ne plus passer en partial pour de simples warnings
         readingQuality =
-          warnings.length ||
-          pageErrors.length ||
-          confidence < 55
+          pageErrors.length >= 2 && confidence < 50
             ? "partial"
             : "full";
       }
 
-      // Warnings de lot hétérogène / pages → partial explicite
+      // Un avertissement mineur ne transforme plus une analyse complète en "partial"
       if (
-        (warnings.length || pageErrors.length) &&
-        readingQuality === "full"
+        readingQuality === "full" &&
+        pageErrors.length >= 2 &&
+        confidence < 45
       ) {
         readingQuality = "partial";
       }
@@ -5535,7 +5535,9 @@
           normalizeActions(data?.actions),
 
         dates:
-          normalizeDates(data?.dates),
+          normalizeDates(
+            data?.enriched_dates || data?.dates
+          ),
 
         amount: {
           value:
@@ -5577,12 +5579,39 @@
         ),
 
         amountsDetail: normalizeAmountsDetailClient(
-          data?.amounts_detail || data?.amountsDetail
+          data?.amounts ||
+          data?.amounts_detail ||
+          data?.amountsDetail
         ),
 
         entities: normalizeEntitiesClient(
           data?.entities
         ),
+
+        references: Array.isArray(data?.references)
+          ? data.references
+          : [],
+        persons: Array.isArray(data?.persons)
+          ? data.persons
+          : [],
+        deadlines: Array.isArray(data?.deadlines)
+          ? data.deadlines
+          : [],
+        requiredDocuments: Array.isArray(
+          data?.requiredDocuments ||
+          data?.required_documents
+        )
+          ? data.requiredDocuments ||
+            data.required_documents
+          : [],
+        risks: Array.isArray(data?.risks)
+          ? data.risks
+          : [],
+        contradictions: Array.isArray(
+          data?.contradictions
+        )
+          ? data.contradictions
+          : [],
 
         confidence,
 
@@ -5635,13 +5664,26 @@
             cleanText(item?.date),
 
           label:
-            cleanText(item?.label),
+            cleanText(
+              item?.label ||
+              item?.type
+            ),
 
           meaning:
             cleanText(
               item?.meaning ||
+              item?.context ||
               item?.explication
-            )
+            ),
+
+          type: cleanText(item?.type),
+          page: cleanText(item?.page),
+          context: cleanText(
+            item?.context || item?.meaning
+          ),
+          confidence: Number(
+            item?.confidence
+          ) || 0
         }))
         .filter((item) => item.date);
     }
@@ -5974,7 +6016,7 @@
       }
 
       if (analysis.dates.length > 0) {
-        score += 6;
+        score += 8;
       }
 
       if (
@@ -5983,7 +6025,28 @@
           analysis.amount.value
         )
       ) {
+        score += 6;
+      }
+
+      if (
+        Array.isArray(analysis.amountsDetail) &&
+        analysis.amountsDetail.length > 0
+      ) {
         score += 4;
+      }
+
+      if (
+        Array.isArray(analysis.tables) &&
+        analysis.tables.length > 0
+      ) {
+        score += 4;
+      }
+
+      if (
+        Array.isArray(analysis.references) &&
+        analysis.references.length > 0
+      ) {
+        score += 3;
       }
 
       if (
@@ -6003,6 +6066,11 @@
         )
       ) {
         score += 2;
+      }
+
+      // Analyse complète backend → ne pas sous-noter artificiellement
+      if (analysis.readingQuality === "full") {
+        score = Math.max(score, 84);
       }
 
       return Math.min(

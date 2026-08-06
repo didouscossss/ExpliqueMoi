@@ -13,10 +13,7 @@ import {
   parseGeminiJson
 } from "../lib/geminiAnalysis.js";
 import {
-  normalizeTables,
-  normalizeTimeline,
-  normalizeEntities,
-  normalizeAmountsDetail
+  normalizeTables
 } from "../lib/documentContext.js";
 import {
   MAX_DOCUMENT_SIZE,
@@ -24,6 +21,8 @@ import {
   planPdfChunks
 } from "../lib/pdfChunking.js";
 import { analyzeLongPdf } from "../lib/longPdfAnalysis.js";
+import { buildAnalysisPrompt } from "../lib/analysisPrompt.js";
+import { enrichAnalysisResult } from "../lib/analysisEnrichment.js";
 
 // Limite unique côté document : 4 Mo (pas de limite de pages PDF).
 const MAX_FILE_SIZE = MAX_DOCUMENT_SIZE;
@@ -1390,165 +1389,7 @@ function hasUsableContent(result) {
 }
 
 function buildPrompt(pastedText, pageCount, heterogeneous, mode) {
-  const multiPageRules =
-    pageCount > 1
-      ? `
-DOCUMENT MULTI-PAGES :
-- Tu reçois ${pageCount} pages, déjà ordonnées.
-- Analyse-les comme un ensemble.
-- Si une page est illisible, continue avec les autres.
-- Ne fais pas échouer tout le lot pour une seule page illisible.
-- Signale clairement les passages illisibles sans inventer leur contenu.
-- Dans evidence.page, indique "Page 1", "Page 2", etc. selon l'ordre fourni.
-`
-      : "";
-
-  const heterogeneousRules = heterogeneous
-    ? `
-LOT HÉTÉROGÈNE :
-- Les pages semblent pouvoir appartenir à plusieurs documents différents.
-- N’invente pas de lien entre elles.
-- Explique uniquement ce qui est lisible avec certitude.
-- Indique dans plain_summary si le contenu paraît mélangé.
-- Mets confidence plus bas si les pages sont incohérentes entre elles.
-`
-    : "";
-
-  const modeRules =
-    mode === "page_images"
-      ? `
-MODE PAGE IMAGES :
-- Chaque image correspond à une page du PDF, dans l’ordre.
-- Lis le texte visible (y compris documents scannés).
-- Conserve l’ordre des pages dans ton analyse.
-`
-      : `
-MODE PDF DIRECT :
-- Analyse le PDF fourni.
-- Si le document est une image scannée sans texte sélectionnable, extrais quand même le contenu visible.
-`;
-
-  return `
-Tu es ExpliqueMoi, un assistant qui explique les documents français
-de manière directe, courte et vérifiable.
-
-Analyse le document fourni.
-
-OBJECTIF :
-L'utilisateur doit savoir immédiatement :
-1. quel est ce document ;
-2. ce qu'on lui demande ;
-3. comment il doit le faire ;
-4. avant quelle date ;
-5. pourquoi il l'a reçu ;
-6. où ces informations apparaissent ;
-7. quels tableaux / échéanciers / montants HT-TVA-TTC sont présents.
-
-LECTURE INTELLIGENTE :
-- Détecte tableaux, colonnes, lignes, cellules fusionnées, tableaux multi-pages.
-- Détecte échéanciers, tableaux administratifs, formulaires.
-- Extrais montants HT, TVA, TTC et totaux.
-- Extrais personnes, adresses, références, signatures, organismes.
-- Sur PDF scanné (images), lis les tableaux VISUELLEMENT.
-- Alimente résumé, dates, actions, montants, échéances et timeline
-  à partir des tableaux quand c'est pertinent.
-- N'invente aucune cellule.
-
-RÈGLES :
-- Ne fais jamais de résumé vague.
-- Utilise des phrases courtes et concrètes.
-- Maximum trois actions.
-- Chaque date doit avoir un rôle précis.
-- Ne liste jamais une date sans dire à quoi elle correspond.
-- Ne confonds pas date d'édition, date de référence et date limite.
-- N'invente jamais de montant, d'action ou de délai.
-- Quand une information est illisible ou absente, écris :
-  "Information non trouvée avec certitude".
-- Pour chaque conclusion importante, cite le passage exact.
-- En matière fiscale, juridique ou médicale, explique sans prétendre
-  remplacer un professionnel.
-- Ne prétends jamais qu'un document est lu complètement s'il ne l'est pas.
-${modeRules}${multiPageRules}${heterogeneousRules}
-Réponds exclusivement avec ce JSON :
-
-{
-  "document_type": "type précis et nom de l'organisme si visible",
-  "issuer": "organisme ou expéditeur si visible",
-  "plain_summary": "une phrase très claire commençant par C'est...",
-  "request": "ce que le document demande concrètement",
-  "why_received": "raison probable ou explicite de réception",
-  "urgency": {
-    "level": "none | soon | urgent | uncertain",
-    "message": "une phrase courte"
-  },
-  "actions": [
-    {
-      "action": "action courte",
-      "how": "comment la réaliser"
-    }
-  ],
-  "dates": [
-    {
-      "date": "date",
-      "label": "date limite | date du document | date de prélèvement | autre",
-      "meaning": "ce qui se passe à cette date"
-    }
-  ],
-  "timeline": [
-    {
-      "date": "date",
-      "label": "jalon",
-      "meaning": "ce qui se passe"
-    }
-  ],
-  "amount": {
-    "value": "montant principal ou Information non trouvée avec certitude",
-    "meaning": "à quoi correspond ce montant"
-  },
-  "amounts_detail": [
-    {
-      "label": "HT | TVA | TTC | autre",
-      "value": "montant",
-      "kind": "HT | TVA | TTC | autre",
-      "page": "Page X"
-    }
-  ],
-  "tables": [
-    {
-      "title": "titre du tableau",
-      "columns": ["col1", "col2"],
-      "rows": [["v1", "v2"]],
-      "page": "Page X",
-      "confidence": 80,
-      "totals": { "Total TTC": "120,00 €" },
-      "notes": "précision éventuelle",
-      "kind": "invoice | schedule | form | table"
-    }
-  ],
-  "entities": {
-    "people": [],
-    "addresses": [],
-    "references": [],
-    "signatures": [],
-    "organizations": []
-  },
-  "evidence": [
-    {
-      "page": "Page X ou emplacement",
-      "quote": "court passage exact",
-      "explanation": "ce que prouve ce passage"
-    }
-  ],
-  "confidence": 85,
-  "reading_quality": "full | partial"
-}
-
-Important : confidence est un entier de 0 à 100 (pas une fraction 0–1).
-Si aucun tableau : "tables": [].
-
-Texte collé par l'utilisateur, s'il existe :
-${pastedText || "Aucun texte collé."}
-  `.trim();
+  return buildAnalysisPrompt(pastedText, pageCount, heterogeneous, mode);
 }
 
 function validateResult(
@@ -1557,97 +1398,13 @@ function validateResult(
   pageErrors = [],
   heterogeneous = false
 ) {
-  const warnings = [];
+  const enriched = enrichAnalysisResult(result, {
+    extraWarnings,
+    pageErrors,
+    heterogeneous
+  });
 
-  const pushWarning = (value) => {
-    const text = cleanText(value);
+  enriched.tables = normalizeTables(enriched.tables);
 
-    if (text && !warnings.includes(text)) {
-      warnings.push(text);
-    }
-  };
-
-  extraWarnings.forEach(pushWarning);
-
-  if (Array.isArray(result?.warnings)) {
-    result.warnings.forEach(pushWarning);
-  }
-
-  if (heterogeneous) {
-    pushWarning(HETEROGENEOUS_BATCH_WARNING);
-  }
-
-  const confidence = normalizeConfidence(result?.confidence);
-
-  let readingQuality = cleanText(result?.reading_quality).toLowerCase();
-
-  if (!["full", "partial", "failed"].includes(readingQuality)) {
-    readingQuality =
-      warnings.length || pageErrors.length || confidence < 55
-        ? "partial"
-        : "full";
-  }
-
-  if (pageErrors.length && readingQuality === "full") {
-    readingQuality = "partial";
-  }
-
-  return {
-    document_type: result.document_type || "Document non identifié",
-
-    issuer: cleanText(result.issuer) || "",
-
-    plain_summary:
-      result.plain_summary ||
-      "C’est un document dont l’objet n’a pas été identifié avec certitude.",
-
-    request:
-      result.request || "Information non trouvée avec certitude",
-
-    why_received:
-      result.why_received || "Information non trouvée avec certitude",
-
-    urgency: {
-      level: ["none", "soon", "urgent", "uncertain"].includes(
-        result.urgency?.level
-      )
-        ? result.urgency.level
-        : "uncertain",
-
-      message:
-        result.urgency?.message ||
-        "Le niveau d’urgence n’a pas été déterminé."
-    },
-
-    actions: Array.isArray(result.actions)
-      ? result.actions.slice(0, 3)
-      : [],
-
-    dates: Array.isArray(result.dates) ? result.dates.slice(0, 5) : [],
-
-    timeline: normalizeTimeline(result.timeline),
-
-    amount: result.amount || {
-      value: "Information non trouvée avec certitude",
-      meaning: ""
-    },
-
-    amounts_detail: normalizeAmountsDetail(result.amounts_detail),
-
-    tables: normalizeTables(result.tables),
-
-    entities: normalizeEntities(result.entities),
-
-    evidence: Array.isArray(result.evidence)
-      ? result.evidence.slice(0, 6)
-      : [],
-
-    confidence,
-
-    reading_quality: readingQuality,
-    warnings,
-    page_errors: pageErrors,
-    heterogeneous: heterogeneous === true,
-    batch_heterogeneous: heterogeneous === true
-  };
+  return enriched;
 }
