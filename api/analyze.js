@@ -221,6 +221,16 @@ export default async function handler(request, response) {
     requestContext.pages = extraction.pages;
     requestContext.pageErrors = extraction.pageErrors;
 
+    console.info("[analyze] upload_received", {
+      upload_original_bytes: bodySize,
+      upload_final_bytes: bodySize,
+      file_count: requestContext.pages.length,
+      transport: "multipart",
+      contentType: String(request.headers["content-type"] || "").slice(0, 80),
+      overVercelSoftLimit: bodySize > VERCEL_BODY_SOFT_LIMIT,
+      blocked_before_upload: false
+    });
+
     requestContext.diagnostics.push({
       step: "extract",
       pageCount: requestContext.pages.length,

@@ -1,6 +1,6 @@
 {
   "name": "expliquemoi",
-  "version": "2.3.8",
+  "version": "2.3.9",
   "private": true,
   "type": "module",
   "description": "ExpliqueMoi — analyse de documents français",
@@ -10,7 +10,8 @@
     "test:assist": "node scripts/test-assist-actions.mjs",
     "test:pdf-pages": "node scripts/test-pdf-page-limit.mjs",
     "test:photo-compression": "node scripts/test-photo-compression.mjs",
-    "test:analysis-quality": "node scripts/test-analysis-quality.mjs"
+    "test:analysis-quality": "node scripts/test-analysis-quality.mjs",
+    "test:upload-payload": "node scripts/test-upload-payload.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",
