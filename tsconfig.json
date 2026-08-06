@@ -12,7 +12,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "rootDir": ".",
-    "types": []
+    "types": ["node"]
   },
   "include": ["lib/v3/**/*.ts"],
   "exclude": ["node_modules", "api", "scripts"]

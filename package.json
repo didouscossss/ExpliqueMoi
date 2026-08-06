@@ -11,14 +11,21 @@
     "test:pdf-pages": "node scripts/test-pdf-page-limit.mjs",
     "test:photo-compression": "node scripts/test-photo-compression.mjs",
     "test:analysis-quality": "node scripts/test-analysis-quality.mjs",
-    "test:upload-payload": "node scripts/test-upload-payload.mjs"
+    "test:upload-payload": "node scripts/test-upload-payload.mjs",
+    "test:v3-ocr": "tsx scripts/test-v3-ocr.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^4.10.38"
+    "pdfjs-dist": "^4.10.38",
+    "tesseract.js": "^5.1.1"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "tsx": "^4.23.9",
+    "typescript": "^7.0.2"
   }
 }

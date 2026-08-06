@@ -7,7 +7,7 @@ Règle : aucune PR vers `main` sans validation explicite. La V2 reste intacte.
 
 ## B — Architecture
 
-**Statut : en cours / fondations livrées**
+**Statut : validée**
 
 - Arborescence `lib/v3/`
 - Interfaces TypeScript (`DocumentInput`, `OCRResult`, `LocalAnalysis`, `AIContext`, `AIProvider`, `AnalysisResult`)
@@ -20,11 +20,13 @@ Règle : aucune PR vers `main` sans validation explicite. La V2 reste intacte.
 
 ## C — OCR
 
-- Extraction PDF texte locale (PDF.js navigateur)
-- OCR photos / PDF scannés (Tesseract.js ou équivalent open source)
-- Contrat `OCRResult` rempli page par page
-- Cleanup canvas / workers / Object URLs après usage
-- Ne pas envoyer le document brut à l’IA si `fullText` exploitable
+**Statut : livrée (en attente validation)**
+
+- `lib/v3/ocr/OcrEngine.ts` : `extractText` / `extractPages` / `isScannedPdf` / `languageDetection`
+- PDF texte → pdfjs uniquement (Tesseract non lancé)
+- PDF scanné / image → Tesseract.js uniquement
+- Aucun provider IA branché
+- Tests : `npm run test:v3-ocr`
 
 ---
 
