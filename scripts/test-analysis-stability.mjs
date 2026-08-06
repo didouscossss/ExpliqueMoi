@@ -85,7 +85,7 @@ for (const testCase of CASES) {
     continue;
   }
 
-  const { body, headers } = multipart(testCase.path);
+  const { body, headers: multipartHeaders } = multipart(testCase.path);
   const t0 = Date.now();
   let entry = {
     file: basename(testCase.path),
@@ -95,6 +95,12 @@ for (const testCase of CASES) {
   };
 
   try {
+    const headers = { ...multipartHeaders };
+    const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    if (bypass) {
+      headers["x-vercel-protection-bypass"] = bypass;
+      headers["x-vercel-set-bypass-cookie"] = "true";
+    }
     const res = await fetch(ANALYZE_URL, { method: "POST", headers, body });
     const raw = await res.text();
     const wallMs = Date.now() - t0;
