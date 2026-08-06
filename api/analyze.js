@@ -98,16 +98,21 @@ function finalizeTimings(requestContext) {
   const t = requestContext?.timings || {};
   const startedAt = Number(t.startedAt) || Date.now();
   const result = {
+    upload_ms: Number(t.upload_ms) || 0,
+    ocr_ms: Number(t.ocr_ms) || 0,
+    prompt_ms: Number(t.prompt_ms) || 0,
+    gemini_ms: Number(t.gemini_ms) || 0,
+    gemini_started_at: t.gemini_started_at || null,
+    gemini_ended_at: t.gemini_ended_at || null,
+    parse_ms: Number(t.parse_ms) || 0,
+    enrich_ms: Number(t.enrich_ms) || 0,
+    total_ms: Date.now() - startedAt,
     before_bytes: Number(t.before_bytes) || 0,
     after_bytes: Number(t.after_bytes) || Number(t.before_bytes) || 0,
-    upload_ms: Number(t.upload_ms) || 0,
-    prep_ms: Number(t.prep_ms) || 0,
-    gemini_ms: Number(t.gemini_ms) || 0,
-    total_ms: Date.now() - startedAt,
     compressed: Boolean(t.compressed),
     compression_reason: t.compression_reason || null
   };
-  console.info("[analyze] timings", result);
+  console.info("[analyze] stage_timings", result);
   return result;
 }
 
@@ -157,8 +162,13 @@ export default async function handler(request, response) {
       before_bytes: 0,
       after_bytes: 0,
       upload_ms: 0,
-      prep_ms: 0,
+      ocr_ms: 0,
+      prompt_ms: 0,
       gemini_ms: 0,
+      gemini_started_at: null,
+      gemini_ended_at: null,
+      parse_ms: 0,
+      enrich_ms: 0,
       compressed: false,
       compression_reason: null
     }
@@ -267,10 +277,13 @@ export default async function handler(request, response) {
       }
     }
 
-    // Pré-inspection PDF : encryption / corruption / pages / texte
-    const inspectStarted = Date.now();
+    // OCR / extraction texte PDF (+ compression scannée si besoin)
+    const ocrStarted = Date.now();
     const pdfGate = await inspectIncomingPdfs(requestContext);
-    requestContext.timings.prep_ms += Date.now() - inspectStarted;
+    requestContext.timings.ocr_ms += Date.now() - ocrStarted;
+    console.info("[analyze] stage_ocr_inspect", {
+      ms: requestContext.timings.ocr_ms
+    });
 
     if (pdfGate.blockingError) {
       return response.status(pdfGate.status).json(pdfGate.blockingError);
@@ -319,15 +332,21 @@ export default async function handler(request, response) {
       diagnostics: requestContext.diagnostics
     };
 
-    // -------- Préparation : compression PDF scannés / images lourdes uniquement --------
-    const prepStarted = Date.now();
-    ensureBudget(requestContext, "prep_start");
+    // -------- Compression PDF scannés / images lourdes (compté dans OCR) --------
+    const compressStarted = Date.now();
+    ensureBudget(requestContext, "ocr_compress");
 
     const compression = await prepareDocumentsForGemini(requestContext);
-    requestContext.timings.prep_ms += Date.now() - prepStarted;
+    requestContext.timings.ocr_ms += Date.now() - compressStarted;
     requestContext.timings.after_bytes = compression.afterBytes;
     requestContext.timings.compressed = compression.compressed;
     requestContext.timings.compression_reason = compression.reason;
+    console.info("[analyze] stage_ocr_total", {
+      ocr_ms: requestContext.timings.ocr_ms,
+      compressed: compression.compressed,
+      before: compression.beforeBytes,
+      after: compression.afterBytes
+    });
 
     if (compression.tooLarge) {
       return response.status(413).json(
@@ -344,11 +363,24 @@ export default async function handler(request, response) {
       );
     }
 
-    // -------- Un seul appel Gemini principal (pas de fallback 2e analyse) --------
+    // -------- Prompt + un seul appel Gemini --------
+    ensureBudget(requestContext, "prompt");
+    const promptStarted = Date.now();
+    const geminiParts = buildDirectParts(
+      text,
+      requestContext.pages,
+      heterogeneous
+    );
+    requestContext.timings.prompt_ms = Date.now() - promptStarted;
+    console.info("[analyze] stage_prompt", {
+      ms: requestContext.timings.prompt_ms,
+      parts: geminiParts.length
+    });
+
     ensureBudget(requestContext, "gemini_start");
 
     const analysisResult = await analyzeWithParts(
-      buildDirectParts(text, requestContext.pages, heterogeneous),
+      geminiParts,
       {
         retries: 0,
         label: "direct",
@@ -393,7 +425,12 @@ export default async function handler(request, response) {
 
     try {
       ensureBudget(requestContext, "parse");
+      const parseStarted = Date.now();
       result = parseGeminiJson(analysisResult.rawText);
+      requestContext.timings.parse_ms = Date.now() - parseStarted;
+      console.info("[analyze] stage_parse", {
+        ms: requestContext.timings.parse_ms
+      });
     } catch {
       return response.status(502).json(
         fail(
@@ -409,12 +446,17 @@ export default async function handler(request, response) {
       );
     }
 
+    const enrichStarted = Date.now();
     const validated = validateResult(
       result,
       requestContext.warnings,
       requestContext.pageErrors,
       heterogeneous
     );
+    requestContext.timings.enrich_ms = Date.now() - enrichStarted;
+    console.info("[analyze] stage_enrich", {
+      ms: requestContext.timings.enrich_ms
+    });
 
     if (!hasUsableContent(validated)) {
       const pageCount = pdfProcessing.pageCount || 0;
@@ -929,13 +971,26 @@ async function analyzeWithParts(parts, options, requestContext) {
   }
 
   const geminiStarted = Date.now();
+  requestContext.timings.gemini_started_at = new Date(geminiStarted).toISOString();
+  console.info("[analyze] stage_gemini_start", {
+    at: requestContext.timings.gemini_started_at,
+    timeoutMs
+  });
+
   const geminiResult = await callGeminiForAnalysis(parts, {
     retries: 0,
     timeoutMs
   });
+  const geminiEnded = Date.now();
+  requestContext.timings.gemini_ended_at = new Date(geminiEnded).toISOString();
   const geminiMs =
-    Number(geminiResult.durationMs) || Date.now() - geminiStarted;
+    Number(geminiResult.durationMs) || geminiEnded - geminiStarted;
   requestContext.timings.gemini_ms += geminiMs;
+  console.info("[analyze] stage_gemini_end", {
+    at: requestContext.timings.gemini_ended_at,
+    ms: geminiMs,
+    ok: geminiResult.ok
+  });
 
   requestContext.diagnostics.push({
     step: `gemini_${options.label || "call"}_result`,
