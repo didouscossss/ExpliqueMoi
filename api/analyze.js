@@ -916,7 +916,7 @@ async function analyzeWithParts(parts, options, requestContext) {
 
   const geminiResult = await callGeminiForAnalysis(parts, {
     retries: options.retries,
-    timeoutMs: 50000
+    timeoutMs: 45000
   });
 
   requestContext.diagnostics.push({
