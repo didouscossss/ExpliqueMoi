@@ -152,6 +152,7 @@ function testFactureHtTvaTtcEtPrincipal() {
   assert.equal(result.fields.amountHT, 8.33);
   assert.equal(result.fields.amountTVA, 1.66);
   assert.equal(result.fields.amountTTC, 9.99);
+  assert.equal(result.fields.amountToPay, 9.99);
   assert.notEqual(result.fields.amountHT, 8);
   assert.notEqual(result.fields.amountTVA, 20);
 
@@ -161,21 +162,27 @@ function testFactureHtTvaTtcEtPrincipal() {
     result: {
       ok: true,
       summary: "Facture Free Mobile 9,99 € TTC.",
-      explanation: { documentType: "facture", keyPoints: [], warnings: [] },
+      explanation: {
+        documentType: "facture",
+        keyPoints: ["HT 8,33 €", "TVA 1,66 €", "TTC 9,99 €"],
+        warnings: []
+      },
       provider: "openai",
       model: "gpt-4o-mini"
     }
   });
-  assert.match(mapped.amount.value, /9[,.]99/);
-  assert.match(mapped.amount.meaning, /TTC|à payer/i);
+  assert.equal(mapped.amount.value, "9,99 €");
+  assert.equal(mapped.amount.source, "amountToPay");
   assert.doesNotMatch(mapped.amount.value, /^8[,.]00/);
   console.log(
     "  OK principal=",
     mapped.amount.value,
-    "| HT/TVA/TTC=",
+    `(source=${mapped.amount.source})`,
+    "| HT/TVA/TTC/toPay=",
     result.fields.amountHT,
     result.fields.amountTVA,
-    result.fields.amountTTC
+    result.fields.amountTTC,
+    result.fields.amountToPay
   );
 }
 
@@ -185,8 +192,19 @@ function testFactureMontantAPayerSansTtcLabel() {
   assert.equal(result.documentType, "facture");
   assert.equal(result.fields.amountHT, 8.33);
   assert.equal(result.fields.amountTVA, 1.66);
-  assert.equal(result.fields.amountTTC, 9.99);
-  console.log("  OK à payer → amountTTC=", result.fields.amountTTC);
+  assert.equal(result.fields.amountToPay, 9.99);
+  const mapped = mapV3ResponseToUiAnalysis({
+    ok: true,
+    localAnalysis: result,
+    result: {
+      ok: true,
+      summary: "x",
+      explanation: { documentType: "facture", keyPoints: [], warnings: [] }
+    }
+  });
+  assert.equal(mapped.amount.value, "9,99 €");
+  assert.equal(mapped.amount.source, "amountToPay");
+  console.log("  OK à payer → amountToPay=", result.fields.amountToPay);
 }
 
 function testTvaRateNotCapturedAsAmount() {
@@ -195,6 +213,7 @@ function testTvaRateNotCapturedAsAmount() {
   const tva = amounts.filter((a) => a.label === "TVA");
   assert.ok(tva.some((a) => a.value === 1.66));
   assert.ok(!tva.some((a) => a.value === 20));
+  assert.ok(!tva.some((a) => a.value === 8.33));
   console.log("  OK TVA amounts=", tva.map((a) => a.value));
 }
 
@@ -220,8 +239,22 @@ function testBulletin() {
   section("bulletin de salaire");
   const result = analyzeLocally(FIXTURES.bulletin);
   assert.equal(result.documentType, "bulletin_de_salaire");
-  assert.equal(result.fields.amountTTC, 1870.5);
-  console.log("  OK net=", result.fields.amountTTC);
+  assert.equal(result.fields.netToPay, 1870.5);
+  const mapped = mapV3ResponseToUiAnalysis({
+    ok: true,
+    localAnalysis: result,
+    result: {
+      ok: true,
+      summary: "Bulletin.",
+      explanation: {
+        documentType: "bulletin de salaire",
+        keyPoints: [],
+        warnings: []
+      }
+    }
+  });
+  assert.match(mapped.amount.value, /1.?870,50/);
+  console.log("  OK net=", result.fields.netToPay, "principal=", mapped.amount.value);
 }
 
 function testReleve() {

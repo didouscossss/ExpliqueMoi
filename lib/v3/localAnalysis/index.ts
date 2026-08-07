@@ -15,7 +15,8 @@ export {
   extractSiret,
   isPlausibleIban,
   isValidSiret,
-  pickBestAmount
+  pickBestAmount,
+  selectPrincipalAmountValue
 } from "./extractors.js";
 
 import type { OCRResult } from "../types/OCRResult.js";

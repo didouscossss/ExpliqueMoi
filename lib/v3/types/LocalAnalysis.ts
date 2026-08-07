@@ -53,6 +53,10 @@ export interface LocalAnalysisFields {
   amountHT: number | null;
   amountTVA: number | null;
   amountTTC: number | null;
+  /** Total à payer / montant du prélèvement (facture). */
+  amountToPay: number | null;
+  /** Net à payer (bulletin, parfois facture). */
+  netToPay: number | null;
   iban: string | null;
   siret: string | null;
   invoiceNumber: string | null;

@@ -17,7 +17,16 @@ import {
   toIsoDate
 } from "./normalize.js";
 
-const AMOUNT_NUM = String.raw`(\d{1,3}(?:[ .]\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?)`;
+/**
+ * Montants FR / PDF :
+ * - 8,33 ou 8.33 (point fréquent dans le texte PDF)
+ * - 1 234,56 / 1.234,56
+ * Important : `\d+[.,]\d{1,2}` avant `\d+` sinon « 8.33 » est tronqué en « 8 ».
+ */
+const AMOUNT_NUM = String.raw`(\d{1,3}(?:[ \u00a0]\d{3})+[.,]\d{1,2}|\d{1,3}(?:\.\d{3})+,\d{1,2}|\d+[.,]\d{1,2}|\d{1,3}(?:[ \u00a0]\d{3})+|\d+)`;
+
+const CURRENCY_OPT = String.raw`(?:€|eur|euros?)?`;
+const CURRENCY_REQ = String.raw`(?:€|eur|euros?)`;
 
 export function extractDates(text: string): {
   dates: LocalDateFinding[];
@@ -85,6 +94,7 @@ export function extractDates(text: string): {
  * Extraction des montants avec rang de confiance selon le libellé.
  * Un « Prix HT 8,00 » (ligne) ne doit pas écraser un « Total HT 8,33 ».
  * Un « Montant à payer / TTC » prime pour le montant principal d’une facture.
+ * Accepte aussi « 9,99 € TTC » (montant avant libellé) et décimales à point (PDF).
  */
 export function extractAmounts(text: string): LocalAmountFinding[] {
   const byKey = new Map<string, LocalAmountFinding>();
@@ -95,7 +105,15 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
       label: "montant_a_payer",
       rank: 50,
       re: new RegExp(
-        String.raw`(?:montant|total|net)\s*[àa]\s*payer\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        String.raw`(?:montant|total|net)\s*[àa]\s*payer\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
+        "gi"
+      )
+    },
+    {
+      label: "montant_a_payer",
+      rank: 48,
+      re: new RegExp(
+        String.raw`(?:^|[\n;])\s*[àa]\s*payer\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
         "gi"
       )
     },
@@ -104,7 +122,7 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
       label: "montant_a_payer",
       rank: 45,
       re: new RegExp(
-        String.raw`(?:montant\s*(?:du|de)\s*)?(?:pr[ée]l[èe]vement|pr[ée]lever)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)`,
+        String.raw`(?:montant\s*(?:du|de)\s*)?(?:pr[ée]l[èe]vement|pr[ée]lever)\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_REQ}`,
         "gi"
       )
     },
@@ -112,17 +130,25 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
       label: "net_a_payer",
       rank: 48,
       re: new RegExp(
-        String.raw`(?:net\s*[àa]\s*payer|salaire\s*net(?:\s*[àa]\s*payer)?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        String.raw`(?:net\s*[àa]\s*payer|salaire\s*net(?:\s*[àa]\s*payer)?)\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
         "gi"
       )
     },
 
-    // ——— TTC (totaux d’abord) ———
+    // ——— TTC (totaux d’abord ; puis ordre inversé « 9,99 € TTC ») ———
     {
       label: "TTC",
       rank: 40,
       re: new RegExp(
-        String.raw`(?:montant\s*total|total(?:\s*g[ée]n[ée]ral)?|montant)\s*(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        String.raw`(?:montant\s*total|total(?:\s*(?:g[ée]n[ée]ral|de\s*la\s*facture))?|montant)\s*(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
+        "gi"
+      )
+    },
+    {
+      label: "TTC",
+      rank: 36,
+      re: new RegExp(
+        String.raw`${AMOUNT_NUM}[ \t]*${CURRENCY_OPT}[ \t]*(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)\b`,
         "gi"
       )
     },
@@ -130,17 +156,25 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
       label: "TTC",
       rank: 28,
       re: new RegExp(
-        String.raw`(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        String.raw`(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
         "gi"
       )
     },
 
-    // ——— HT (totaux d’abord ; « prix HT » plus faible) ———
+    // ——— HT (totaux d’abord ; « prix HT » plus faible ; ordre inversé) ———
     {
       label: "HT",
       rank: 35,
       re: new RegExp(
-        String.raw`(?:montant\s*total|total(?:\s*g[ée]n[ée]ral)?|montant)\s*(?:h\.?\s*t\.?|hors\s*taxes?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        String.raw`(?:montant\s*total|total(?:\s*g[ée]n[ée]ral)?|montant)\s*(?:h\.?\s*t\.?|hors\s*taxes?)\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
+        "gi"
+      )
+    },
+    {
+      label: "HT",
+      rank: 22,
+      re: new RegExp(
+        String.raw`${AMOUNT_NUM}[ \t]*${CURRENCY_OPT}[ \t]*(?:h\.?\s*t\.?|hors\s*taxes?)\b`,
         "gi"
       )
     },
@@ -148,17 +182,25 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
       label: "HT",
       rank: 12,
       re: new RegExp(
-        String.raw`(?:prix\s*)?(?:h\.?\s*t\.?|hors\s*taxes?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        String.raw`(?:prix\s*)?(?:h\.?\s*t\.?|hors\s*taxes?)\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
         "gi"
       )
     },
 
-    // ——— TVA : consommer le taux (20 %) avant le montant pour ne pas capturer 20 ———
+    // ——— TVA : consommer le taux (20 %) avant le montant ; ordre inversé ———
     {
       label: "TVA",
       rank: 30,
       re: new RegExp(
-        String.raw`(?:montant\s*(?:de\s*(?:la\s*)?)?)?(?:t\.?\s*v\.?\s*a\.?|tva)\s*(?:\d+[.,]?\d*\s*%\s*)?[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        String.raw`(?:montant\s*(?:de\s*(?:la\s*)?)?)?(?:t\.?\s*v\.?\s*a\.?|tva)\s*(?:\d+[.,]?\d*\s*%\s*)?[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
+        "gi"
+      )
+    },
+    {
+      label: "TVA",
+      rank: 26,
+      re: new RegExp(
+        String.raw`${AMOUNT_NUM}[ \t]*${CURRENCY_OPT}[ \t]*(?:de[ \t]+)?(?:t\.?\s*v\.?\s*a\.?|tva)\b`,
         "gi"
       )
     }
@@ -194,6 +236,31 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
   }
 
   return [...byKey.values()].sort((a, b) => (b.rank || 0) - (a.rank || 0));
+}
+
+/**
+ * Priorité montant principal facture/devis :
+ * amountToPay → amountTTC → netToPay → amountHT (dernier recours).
+ */
+export function selectPrincipalAmountValue(fields: {
+  amountToPay?: number | null;
+  amountTTC?: number | null;
+  netToPay?: number | null;
+  amountHT?: number | null;
+}): { value: number | null; source: string | null } {
+  if (fields.amountToPay != null && Number.isFinite(fields.amountToPay)) {
+    return { value: fields.amountToPay, source: "amountToPay" };
+  }
+  if (fields.amountTTC != null && Number.isFinite(fields.amountTTC)) {
+    return { value: fields.amountTTC, source: "amountTTC" };
+  }
+  if (fields.netToPay != null && Number.isFinite(fields.netToPay)) {
+    return { value: fields.netToPay, source: "netToPay" };
+  }
+  if (fields.amountHT != null && Number.isFinite(fields.amountHT)) {
+    return { value: fields.amountHT, source: "amountHT" };
+  }
+  return { value: null, source: null };
 }
 
 /** « TVA 20 » / « TVA 20% » sans montant monétaire réel → pas un amount. */

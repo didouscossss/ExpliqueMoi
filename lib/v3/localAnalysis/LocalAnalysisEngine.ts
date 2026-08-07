@@ -126,34 +126,14 @@ export class LocalAnalysisEngine {
     invoiceNumbers: LocalAnalysis["references"];
   }): LocalAnalysisFields {
     const amountHT = pickBestAmount(parts.amounts, ["HT"]);
-    const amountTVA = pickBestAmount(parts.amounts, ["TVA"], {
-      preferReconcileWith: undefined
-    });
-
-    // Facture / devis : TTC ou total à payer en priorité (pas un HT partiel).
-    // Bulletin : net à payer.
-    // Autres : comportement inchangé (TTC puis net).
-    const invoiceLike =
-      parts.documentType === "facture" || parts.documentType === "devis";
-    const isPayslip = parts.documentType === "bulletin_de_salaire";
-
-    let amountTTC: number | null;
-    if (isPayslip) {
-      amountTTC =
-        pickBestAmount(parts.amounts, ["net_a_payer", "TTC"]) ?? null;
-    } else if (invoiceLike) {
-      amountTTC =
-        pickBestAmount(parts.amounts, ["montant_a_payer", "TTC", "net_a_payer"], {
-          preferReconcileWith: { ht: amountHT, tva: amountTVA }
-        }) ?? null;
-    } else {
-      amountTTC =
-        pickBestAmount(parts.amounts, ["TTC", "montant_a_payer", "net_a_payer"]) ??
-        null;
-    }
-
-    // Si HT+TVA connus et TTC manquant mais un candidat réconcilie, déjà géré par rank.
-    // Dernier recours facture : si seul HT trouvé, ne pas le promouvoir en TTC.
+    const amountTVA = pickBestAmount(parts.amounts, ["TVA"]);
+    const amountToPay = pickBestAmount(parts.amounts, ["montant_a_payer"]);
+    const netToPay = pickBestAmount(parts.amounts, ["net_a_payer"]);
+    // amountTTC = libellé TTC uniquement (pas de fusion avec à payer).
+    const amountTTC =
+      pickBestAmount(parts.amounts, ["TTC"], {
+        preferReconcileWith: { ht: amountHT, tva: amountTVA }
+      }) ?? null;
 
     const primaryDate =
       parts.dates.find((item) => item.label === "document_date")?.iso ||
@@ -168,6 +148,8 @@ export class LocalAnalysisEngine {
       amountHT,
       amountTVA,
       amountTTC,
+      amountToPay,
+      netToPay,
       iban: parts.ibans[0]?.value ?? null,
       siret: parts.sirets[0]?.value ?? null,
       invoiceNumber: parts.invoiceNumbers[0]?.value ?? null
@@ -194,6 +176,8 @@ export class LocalAnalysisEngine {
         amountHT: null,
         amountTVA: null,
         amountTTC: null,
+        amountToPay: null,
+        netToPay: null,
         iban: null,
         siret: null,
         invoiceNumber: null
