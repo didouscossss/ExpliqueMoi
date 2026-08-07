@@ -7,7 +7,8 @@ export type {
   LocalDateFinding,
   LocalAmountFinding,
   LocalReferenceFinding,
-  LocalContactFinding
+  LocalContactFinding,
+  LocalEvidenceSpan
 } from "./LocalAnalysis.js";
 export type { AIContext } from "./AIContext.js";
 export type { AnalysisResult } from "./AnalysisResult.js";

@@ -1,14 +1,12 @@
 /**
  * Endpoint V3 analyse.
- * Pipeline : texte/OCR → LocalAnalysis → AIProvider → AnalysisResult
+ * Pipeline : texte/OCR → LocalAnalysis (faits) → AI optionnelle (explication)
+ * L’analyse factuelle réussit même si OpenAI est absent / en erreur.
  * N’altère pas /api/analyze (V2). Aucun PDF brut requis.
  */
 
 import type { VercelRequest, VercelResponse } from "../types/vercel.js";
-import {
-  analyzeLocally,
-  enrichLocalAmountFields
-} from "../../lib/v3/localAnalysis/index.js";
+import { analyzeLocally } from "../../lib/v3/localAnalysis/index.js";
 import {
   buildAIContext,
   createProviderConfigFromEnv,
@@ -17,6 +15,7 @@ import {
   ProviderError
 } from "../../lib/v3/providers/index.js";
 import type { OCRResult } from "../../lib/v3/types/OCRResult.js";
+import type { LocalAnalysis } from "../../lib/v3/types/LocalAnalysis.js";
 
 function requestIdOf(request: VercelRequest): string {
   const headers = request.headers || {};
@@ -36,10 +35,10 @@ function readJsonBody(request: VercelRequest): Record<string, unknown> {
 
 function httpStatusForError(error: unknown): number {
   if (error instanceof ProviderError) {
-    if (error.code === "MISSING_API_KEY") return 500;
     if (error.code === "EMPTY_CONTEXT" || error.code === "UNKNOWN_PROVIDER") {
       return 400;
     }
+    if (error.code === "MISSING_API_KEY") return 500;
     if (error.httpStatus && Number.isFinite(error.httpStatus)) {
       return error.httpStatus;
     }
@@ -66,6 +65,23 @@ function structuredError(error: unknown, provider = "openai") {
       httpStatus: null as number | null
     }
   };
+}
+
+function localIsUsable(local: LocalAnalysis): boolean {
+  if (!local) return false;
+  if (local.documentType && local.documentType !== "document_inconnu") {
+    return true;
+  }
+  const fields = local.fields || ({} as LocalAnalysis["fields"]);
+  return Boolean(
+    fields.amountHT != null ||
+      fields.amountTTC != null ||
+      fields.amountToPay != null ||
+      fields.date ||
+      fields.invoiceNumber ||
+      (local.dates && local.dates.length) ||
+      (local.factualSummary && local.factualSummary.length > 8)
+  );
 }
 
 export default async function handler(
@@ -135,7 +151,23 @@ export default async function handler(
         : []
     };
 
+    // ——— Faits 100 % locaux (avant tout appel IA) ———
     const localAnalysis = analyzeLocally(normalizedOcr);
+
+    if (!localIsUsable(localAnalysis) && !normalizedOcr.fullText.trim()) {
+      return response.status(400).json({
+        ok: false,
+        version: "v3",
+        localAnalysis,
+        error: {
+          code: "EMPTY_CONTEXT",
+          message: "Aucun texte exploitable pour l’analyse locale.",
+          provider: "v3",
+          httpStatus: 400
+        }
+      });
+    }
+
     const context = buildAIContext({
       text: body.text ? String(body.text) : undefined,
       ocrResult: normalizedOcr,
@@ -148,87 +180,158 @@ export default async function handler(
     const config = createProviderConfigFromEnv();
     const provider = getAIProvider(config, { requestId });
 
-    let result;
-    if (action === "answer") {
-      result = await provider.answer(context, String(body.question || ""));
-    } else if (action === "summarize") {
-      result = await provider.summarize(context);
-    } else {
-      result = await provider.analyze(context);
+    // ——— Couche IA optionnelle (non bloquante pour action analyze) ———
+    let aiResult: Awaited<ReturnType<typeof provider.analyze>> | null = null;
+    let aiAvailable = false;
+    let aiError: { code?: string; message?: string; httpStatus?: number | null } | null =
+      null;
+
+    try {
+      if (action === "answer") {
+        const answerResult = await provider.answer(
+          context,
+          String(body.question || "")
+        );
+        const durationMs = Date.now() - started;
+        if (!answerResult.ok) {
+          return response.status(answerResult.error?.httpStatus || 502).json({
+            ok: false,
+            version: "v3",
+            localAnalysis,
+            error: answerResult.error,
+            meta: { requestId, durationMs, ai: { available: false } }
+          });
+        }
+        return response.status(200).json({
+          ok: true,
+          version: "v3",
+          action,
+          localAnalysis,
+          result: answerResult,
+          meta: {
+            requestId,
+            provider: answerResult.provider,
+            model: answerResult.model,
+            durationMs,
+            charCount: context.text.length,
+            ai: { available: true }
+          }
+        });
+      }
+
+      if (action === "summarize") {
+        // Summarize AI optionnel : si échec, fallback résumé factuel local.
+        aiResult = (await provider.summarize(context)) as unknown as Awaited<
+          ReturnType<typeof provider.analyze>
+        >;
+      } else {
+        aiResult = await provider.analyze(context);
+      }
+
+      aiAvailable = Boolean(aiResult?.ok);
+      if (!aiAvailable) {
+        aiError = {
+          code: aiResult?.error?.code,
+          message: aiResult?.error?.message,
+          httpStatus: aiResult?.error?.httpStatus ?? null
+        };
+      }
+    } catch (error) {
+      aiAvailable = false;
+      aiError = {
+        code:
+          error instanceof ProviderError
+            ? error.code
+            : "PROVIDER_NETWORK",
+        message: String(
+          error instanceof Error ? error.message : "Erreur provider"
+        ).slice(0, 240),
+        httpStatus:
+          error instanceof ProviderError ? error.httpStatus : null
+      };
     }
 
     const durationMs = Date.now() - started;
-    logProviderEvent(result.ok ? "info" : "error", "v3_analyze_done", {
+    logProviderEvent(aiAvailable ? "info" : "error", "v3_analyze_done", {
       requestId,
-      provider: result.provider || config.provider,
-      model: result.model || config.model,
+      provider: config.provider,
+      model: config.model,
       durationMs,
-      httpStatus: result.ok ? 200 : result.error?.httpStatus || 502,
-      ok: result.ok,
+      httpStatus: 200,
+      ok: true,
       charCount: context.text.length,
-      code: result.error?.code,
+      code: aiError?.code,
       action
     });
 
-    // Si l’IA a repris un libellé final (« Somme à payer TTC : 9.99 € »)
-    // dans les keyPoints alors que l’OCR seul l’a manqué, enrichir les fields.
+    const factualSummary = localAnalysis.factualSummary || null;
     const explanation =
-      result &&
-      typeof result === "object" &&
-      "explanation" in result &&
-      result.explanation &&
-      typeof result.explanation === "object"
-        ? (result.explanation as Record<string, unknown>)
-        : {};
-    const keyPoints = Array.isArray(explanation.keyPoints)
-      ? explanation.keyPoints.map(String)
-      : [];
-    const enrichedLocal = enrichLocalAmountFields(localAnalysis, [
-      normalizedOcr.fullText,
-      ...keyPoints
-    ]);
+      aiAvailable &&
+      aiResult &&
+      "explanation" in aiResult &&
+      aiResult.explanation &&
+      typeof aiResult.explanation === "object"
+        ? (aiResult.explanation as Record<string, unknown>)
+        : null;
 
-    if (!result.ok) {
-      const status = result.error?.httpStatus || 502;
-      const normalized =
-        status === 401 ||
-        status === 429 ||
-        (status >= 400 && status < 600)
-          ? status
-          : 502;
-
-      return response.status(normalized).json({
-        ok: false,
-        version: "v3",
-        localAnalysis: enrichedLocal,
-        error: result.error || {
-          code: "PROVIDER_HTTP_ERROR",
-          message: "Échec provider.",
-          provider: config.provider,
-          httpStatus: normalized
-        }
-      });
-    }
+    // result.summary = résumé FACTUEL local (jamais écrasé par l’IA).
+    // L’explication pédagogique AI éventuelle vit dans explanation.pedagogy / explanation.explanation.
+    const pedagogy =
+      explanation && typeof explanation.pedagogy === "string"
+        ? explanation.pedagogy
+        : explanation && typeof explanation.explanation === "string"
+          ? explanation.explanation
+          : explanation && typeof explanation.summary === "string"
+            ? explanation.summary
+            : null;
 
     return response.status(200).json({
       ok: true,
       version: "v3",
-      action,
-      localAnalysis: enrichedLocal,
+      action: action === "summarize" ? "summarize" : "analyze",
+      localAnalysis,
       result: {
-        ...result,
-        localAnalysis: enrichedLocal
+        ok: true,
+        version: "v3",
+        summary: factualSummary,
+        localAnalysis,
+        explanation: {
+          documentType: localAnalysis.documentType,
+          keyPoints: [],
+          pedagogy,
+          warnings: Array.isArray(explanation?.warnings)
+            ? explanation?.warnings
+            : [],
+          // Garde les faits locaux comme référence pour le client.
+          source: "local_facts"
+        },
+        warnings: [
+          ...(localAnalysis.warnings || []),
+          ...(aiAvailable ? [] : ["Explication IA indisponible pour cette analyse."])
+        ],
+        provider: aiAvailable ? aiResult?.provider || config.provider : null,
+        model: aiAvailable ? aiResult?.model || config.model : null,
+        error: null
       },
       meta: {
         requestId,
-        provider: result.provider,
-        model: result.model,
+        provider: aiAvailable ? aiResult?.provider || config.provider : null,
+        model: aiAvailable ? aiResult?.model || config.model : null,
         durationMs,
-        charCount: context.text.length
+        charCount: context.text.length,
+        ai: {
+          available: aiAvailable,
+          error: aiError
+        }
       }
     });
   } catch (error) {
     const providerName = String(process.env.AI_PROVIDER || "openai");
+    // Erreur locale bloquante (texte vide côté buildAIContext, etc.)
+    if (error instanceof ProviderError && error.code === "EMPTY_CONTEXT") {
+      return response.status(400).json(structuredError(error, providerName));
+    }
+
     const body = structuredError(error, providerName);
     const status = httpStatusForError(error);
 

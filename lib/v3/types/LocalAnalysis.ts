@@ -45,6 +45,24 @@ export interface LocalContactFinding {
   page?: number | null;
 }
 
+/**
+ * Preuve locale : extrait verbatim du texte/OCR (jamais reformulé par l’IA).
+ */
+export interface LocalEvidenceSpan {
+  id: string;
+  /** Texte exact présent dans le document. */
+  quote: string;
+  /** Champ structuré lié (amountHT, amountTTC, date, invoiceNumber…). */
+  field: string;
+  /** Libellé humain court. */
+  label: string;
+  page?: number | null;
+  /** Offset caractère dans fullText si trouvé. */
+  start?: number | null;
+  end?: number | null;
+  source: "ocr" | "text";
+}
+
 /** Champs structurés demandés à l’étape D. */
 export interface LocalAnalysisFields {
   companyName: string | null;
@@ -77,4 +95,8 @@ export interface LocalAnalysis {
   fields: LocalAnalysisFields;
   /** Score de classification 0–1. */
   documentTypeConfidence: number;
+  /** Preuves locales (extraits verbatim). */
+  evidence: LocalEvidenceSpan[];
+  /** Résumé factuel court généré localement (sans IA). */
+  factualSummary: string | null;
 }

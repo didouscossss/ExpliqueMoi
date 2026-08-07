@@ -10,6 +10,7 @@ import type {
   LocalAmountFinding
 } from "../types/LocalAnalysis.js";
 import { detectDocumentType } from "./documentType.js";
+import { buildLocalEvidence } from "./evidence.js";
 import {
   detectActions,
   detectRequiredDocuments,
@@ -23,6 +24,7 @@ import {
   extractSiret,
   pickBestAmount
 } from "./extractors.js";
+import { buildFactualSummary } from "./factualSummary.js";
 import { normalizeText } from "./normalize.js";
 
 export type LocalAnalysisInput = string | OCRResult;
@@ -32,6 +34,7 @@ export class LocalAnalysisEngine {
    * Analyse un texte OCR ou un OCRResult complet.
    */
   analyze(input: LocalAnalysisInput): LocalAnalysis {
+    const ocr = typeof input === "string" ? null : input;
     const text = this.resolveText(input);
     const warnings: string[] = [];
 
@@ -69,14 +72,14 @@ export class LocalAnalysisEngine {
       invoiceNumbers
     });
 
-    if (!fields.amountTTC && !fields.amountHT) {
+    if (!fields.amountTTC && !fields.amountToPay && !fields.amountHT) {
       warnings.push("Aucun montant HT/TTC clairement détecté.");
     }
     if (!fields.siret && typeGuess.documentType === "facture") {
       warnings.push("SIRET non détecté sur ce document.");
     }
 
-    return {
+    const base: LocalAnalysis = {
       documentType: typeGuess.documentType,
       documentTypeConfidence: typeGuess.confidence,
       issuer: companyName,
@@ -88,8 +91,15 @@ export class LocalAnalysisEngine {
       requiredDocuments: detectRequiredDocuments(text),
       detectedActions: detectActions(text),
       warnings,
-      fields
+      fields,
+      evidence: [],
+      factualSummary: null
     };
+
+    base.evidence = buildLocalEvidence(base, text, ocr);
+    base.factualSummary = buildFactualSummary(base, text);
+
+    return base;
   }
 
   /** Alias pratique. */
@@ -102,9 +112,9 @@ export class LocalAnalysisEngine {
   }
 
   /**
-   * Complète les montants manquants à partir de textes additionnels
-   * (ex. keyPoints IA reprenant « Somme à payer TTC : 9.99 € »).
+   * Complète les montants manquants à partir de textes additionnels OCR/texte.
    * Ne remplace jamais une valeur déjà structurée.
+   * Ne doit PAS être alimenté par des keyPoints IA.
    */
   enrichAmountFields(analysis: LocalAnalysis, extraTexts: string[]): LocalAnalysis {
     const blob = (extraTexts || [])
@@ -137,7 +147,7 @@ export class LocalAnalysisEngine {
         preferReconcileWith: { ht: amountHT, tva: amountTVA }
       });
 
-    return {
+    const next: LocalAnalysis = {
       ...analysis,
       amounts: mergedAmounts,
       fields: {
@@ -149,6 +159,12 @@ export class LocalAnalysisEngine {
         netToPay
       }
     };
+
+    // Recalcule preuves + résumé factuel après enrichissement OCR.
+    const sourceText = blob;
+    next.evidence = buildLocalEvidence(next, sourceText, null);
+    next.factualSummary = buildFactualSummary(next, sourceText);
+    return next;
   }
 
   private resolveText(input: LocalAnalysisInput): string {
@@ -179,7 +195,6 @@ export class LocalAnalysisEngine {
     const amountTVA = pickBestAmount(parts.amounts, ["TVA"]);
     const amountToPay = pickBestAmount(parts.amounts, ["montant_a_payer"]);
     const netToPay = pickBestAmount(parts.amounts, ["net_a_payer"]);
-    // amountTTC = libellé TTC uniquement (pas de fusion avec à payer).
     const amountTTC =
       pickBestAmount(parts.amounts, ["TTC"], {
         preferReconcileWith: { ht: amountHT, tva: amountTVA }
@@ -231,7 +246,9 @@ export class LocalAnalysisEngine {
         iban: null,
         siret: null,
         invoiceNumber: null
-      }
+      },
+      evidence: [],
+      factualSummary: null
     };
   }
 }

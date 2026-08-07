@@ -422,10 +422,16 @@ export class OpenAIProvider implements AIProvider {
   }
 }
 
-const ANALYZE_SYSTEM = `Tu es ExpliqueMoi V3. Tu expliques un document administratif français.
-Tu reçois UNIQUEMENT du texte déjà extrait et une analyse locale JSON.
-N'invente pas. Réponds en JSON avec: summary (string), documentType (string), keyPoints (string[]), warnings (string[]).
-Langue: français.`;
+const ANALYZE_SYSTEM = `Tu es ExpliqueMoi V3 — couche d'explication pédagogique.
+Tu reçois du texte déjà extrait ET une analyse locale JSON (faits déjà vérifiés).
+Règles STRICTES :
+- Ne modifie JAMAIS les montants, dates, numéros, type de document ou références fournis dans localAnalysis.
+- Ne invente pas de faits absents du texte.
+- Ta mission : expliquer simplement le document pour un non-juriste.
+Réponds en JSON avec :
+- pedagogy (string) : explication claire en français (ce que c'est, pourquoi c'est reçu, quoi vérifier)
+- warnings (string[]) : alertes utiles uniquement
+Ne renvoie PAS de keyPoints factuels ni de montants reformulés.`;
 
 const ANSWER_SYSTEM = `Tu réponds UNIQUEMENT à partir du texte et de l'analyse locale fournis.
 JSON: { "answer": string, "source": string, "found": boolean }.

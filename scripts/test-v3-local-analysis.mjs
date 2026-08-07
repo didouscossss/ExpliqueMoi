@@ -220,7 +220,9 @@ function testTvaRateNotCapturedAsAmount() {
 function testSommeAPayerTtcRegression() {
   section("régression Somme à payer TTC : 9.99 €");
   const text = `
+FREE MOBILE
 FACTURE
+Date de prélèvement : 24/11/2025
 Total de la facture HT : 8.33 €
 TVA : 1.66 € (20%)
 Somme à payer TTC : 9.99 €
@@ -231,38 +233,39 @@ Somme à payer TTC : 9.99 €
   assert.equal(result.fields.amountTVA, 1.66);
   assert.equal(result.fields.amountTTC, 9.99);
   assert.equal(result.fields.amountToPay, 9.99);
+  assert.equal(result.fields.date, "2025-11-24");
+  assert.match(result.factualSummary, /9[,.]99/);
+  assert.match(result.factualSummary, /prélevée le 24 novembre 2025/);
+  assert.ok(result.evidence.some((e) => /Somme à payer TTC/.test(e.quote)));
+  for (const ev of result.evidence) {
+    assert.ok(
+      text.includes(ev.quote) ||
+        text.replace(/\s+/g, " ").includes(ev.quote.replace(/\s+/g, " "))
+    );
+  }
 
   const mapped = mapV3ResponseToUiAnalysis({
     ok: true,
     localAnalysis: result,
     result: {
       ok: true,
-      summary: "Facture 9,99 €.",
+      summary: result.factualSummary,
       explanation: {
-        documentType: "facture",
-        keyPoints: [
-          "Total de la facture HT : 8.33 €",
-          "TVA : 1.66 € (20%)",
-          "Somme à payer TTC : 9.99 €"
-        ],
+        documentType: "autre",
+        keyPoints: ["Montant inventé 1 €"],
         warnings: []
       }
-    }
+    },
+    meta: { ai: { available: false } }
   });
   assert.equal(mapped.amount.value, "9,99 €");
-  assert.ok(
-    mapped.amount.source === "amountToPay" ||
-      mapped.amount.source === "amountTTC"
-  );
+  assert.equal(mapped.document_type, "facture");
+  assert.equal(mapped.plain_summary, result.factualSummary);
+  assert.ok(!mapped.evidence.some((e) => /inventé/.test(e.quote)));
   console.log(
-    "  OK fields=",
-    {
-      HT: result.fields.amountHT,
-      TVA: result.fields.amountTVA,
-      TTC: result.fields.amountTTC,
-      toPay: result.fields.amountToPay
-    },
-    "principal=",
+    "  OK summary=",
+    result.factualSummary,
+    "| principal=",
     mapped.amount.value
   );
 }

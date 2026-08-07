@@ -52,18 +52,27 @@ export function extractDates(text: string): {
 
   const numeric = [
     ...text.matchAll(
-      /(?:date(?:\s*d['’]émission|\s*du\s*document)?|émise?\s+le|fait\s+le|en\s+date\s+du)?\s*[:=]?\s*(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/gi
+      /(?:date(?:\s*d['’]émission|\s*du\s*document|\s*de\s*pr[ée]l[èe]vement|\s*de\s*facture)?|émise?\s+le|fait\s+le|en\s+date\s+du|pr[ée]l[èe]vement)\s*[:=]?\s*(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})|(?:^|[^\d])(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})(?!\d)/gi
     )
   ];
   for (const match of numeric) {
-    const iso = toIsoDate(match[1], match[2], match[3]);
+    const day = match[1] || match[4];
+    const month = match[2] || match[5];
+    const year = match[3] || match[6];
+    if (!day || !month || !year) continue;
+    const iso = toIsoDate(day, month, year);
+    const raw = match[0].replace(/^[^\dDPdp]+/, "").trim();
     const label = /échéance|a\s*payer|avant\s+le|limite/i.test(match[0])
       ? "deadline"
-      : /émission|emise|fait\s+le|date/i.test(match[0])
+      : /émission|emise|fait\s+le|pr[ée]l[èe]vement|date\s+de\s+facture|date\s+d/i.test(
+            match[0]
+          )
         ? "document_date"
-        : null;
+        : /date/i.test(match[0])
+          ? "document_date"
+          : null;
     const target = label === "deadline" ? deadlines : dates;
-    push(target, match[0].trim(), iso, label);
+    push(target, raw || match[0].trim(), iso, label);
   }
 
   const named = [
@@ -512,8 +521,14 @@ export function extractCompanyName(text: string): string | null {
   for (const line of linesOf(text).slice(0, 8)) {
     const compact = normalizeCompact(line);
     if (
-      /^(facture|devis|contrat|bulletin|releve|ordonnance|objet)\b/.test(compact)
+      /^(facture|devis|contrat|bulletin|releve|ordonnance|objet|total|prix|tva|date|montant|somme)\b/.test(
+        compact
+      )
     ) {
+      continue;
+    }
+    // Évite les montants / lignes numériques (ex. « 8.33 EUR »)
+    if (/^\d/.test(line.trim()) || /\b\d+[.,]\d{2}\b/.test(line)) {
       continue;
     }
     if (/[a-z]{3,}/i.test(line) && line.length >= 3 && line.length <= 60) {

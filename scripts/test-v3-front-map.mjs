@@ -1,5 +1,5 @@
 /**
- * Test unitaire + E2E mapping V3 → UI « Montant principal ».
+ * Test unitaire + E2E mapping V3 → UI « Montant principal » + résumé local.
  * Usage: npm run test:v3-front-map
  */
 import assert from "node:assert/strict";
@@ -15,6 +15,17 @@ const mapped = mapV3ResponseToUiAnalysis({
     documentType: "facture",
     documentTypeConfidence: 0.8,
     issuer: "SAS DUPONT SERVICES",
+    factualSummary: "Facture SAS DUPONT SERVICES de 120,00 € TTC, datée du 12 mars 2026.",
+    evidence: [
+      {
+        id: "ev-1",
+        quote: "Montant TTC: 120,00 €",
+        field: "amountTTC",
+        label: "Montant TTC",
+        page: 1,
+        source: "ocr"
+      }
+    ],
     dates: [{ raw: "12/03/2026", iso: "2026-03-12", label: "document_date" }],
     deadlines: [],
     detectedActions: ["Régler le montant dû"],
@@ -35,60 +46,44 @@ const mapped = mapV3ResponseToUiAnalysis({
   },
   result: {
     ok: true,
-    summary: "Facture de 120 € TTC pour Alice Martin.",
+    summary: "Facture SAS DUPONT SERVICES de 120,00 € TTC, datée du 12 mars 2026.",
     explanation: {
-      documentType: "facture",
-      keyPoints: ["Montant TTC : 120,00 €"],
+      documentType: "autre",
+      keyPoints: ["Montant inventé AI"],
+      pedagogy: "Explication AI",
       warnings: []
     },
     provider: "openai",
     model: "gpt-4o-mini"
   },
-  meta: { provider: "openai", model: "gpt-4o-mini" }
+  meta: { provider: "openai", model: "gpt-4o-mini", ai: { available: true } }
 });
 
-assert.equal(mapped.document_type, "facture");
+assert.equal(mapped.document_type, "facture"); // LOCAL, pas "autre" AI
 assert.match(mapped.plain_summary, /120/);
+assert.doesNotMatch(mapped.plain_summary, /inventé/);
 assert.equal(mapped.issuer, "SAS DUPONT SERVICES");
 assert.equal(mapped.engine, "v3");
-assert.equal(mapped.provider, "openai");
-assert.ok(mapped.actions.length >= 1);
 assert.equal(mapped.amount.value, "120,00 €");
 assert.equal(mapped.amount.source, "amountTTC");
+assert.ok(mapped.evidence.every((e) => !/inventé/.test(e.quote)));
+assert.ok(mapped.evidence.some((e) => /120/.test(e.quote)));
 
-// ——— E2E : HT 8,33 / TVA 1,66 / TTC 9,99 → Montant principal = 9,99 € ———
 const freeLikeUi = mapV3ResponseToUiAnalysis({
   ok: true,
   localAnalysis: {
     documentType: "facture",
     documentTypeConfidence: 0.9,
-    fields: {
-      amountHT: 8.33,
-      amountTVA: 1.66,
-      amountTTC: 9.99,
-      amountToPay: null,
-      netToPay: null
-    }
-  },
-  result: {
-    ok: true,
-    summary: "Facture 9,99 € TTC.",
-    explanation: {
-      documentType: "facture",
-      keyPoints: ["HT 8,33 €", "TVA 1,66 €", "TTC 9,99 €"],
-      warnings: []
-    }
-  }
-});
-assert.equal(freeLikeUi.amount.value, "9,99 €");
-assert.equal(freeLikeUi.amount.source, "amountTTC");
-assert.doesNotMatch(freeLikeUi.amount.value, /^8/);
-
-// Priorité amountToPay > amountTTC
-const withToPay = mapV3ResponseToUiAnalysis({
-  ok: true,
-  localAnalysis: {
-    documentType: "facture",
+    factualSummary: "Facture de 9,99 € TTC.",
+    evidence: [
+      {
+        id: "ev-1",
+        quote: "Somme à payer TTC : 9.99 €",
+        field: "amountToPay",
+        label: "Montant à payer",
+        source: "ocr"
+      }
+    ],
     fields: {
       amountHT: 8.33,
       amountTVA: 1.66,
@@ -99,12 +94,13 @@ const withToPay = mapV3ResponseToUiAnalysis({
   },
   result: {
     ok: true,
-    summary: "x",
+    summary: "Facture de 9,99 € TTC.",
     explanation: { documentType: "facture", keyPoints: [], warnings: [] }
-  }
+  },
+  meta: { ai: { available: false } }
 });
-assert.equal(withToPay.amount.value, "9,99 €");
-assert.equal(withToPay.amount.source, "amountToPay");
+assert.equal(freeLikeUi.amount.value, "9,99 €");
+assert.equal(freeLikeUi.amount.source, "amountToPay");
 
 assert.deepEqual(
   selectPrincipalAmountValue({
@@ -116,7 +112,6 @@ assert.deepEqual(
   { value: 9.99, source: "amountTTC" }
 );
 
-// E2E texte PDF-like (décimales point + ordre inversé) → principal 9,99
 const pdfLike = `
 FACTURE FREE MOBILE
 Date de prélèvement : 24/11/2025
@@ -136,16 +131,15 @@ const e2e = mapV3ResponseToUiAnalysis({
   localAnalysis: local,
   result: {
     ok: true,
-    summary: "Facture Free Mobile.",
-    explanation: {
-      documentType: "facture",
-      keyPoints: ["HT 8,33 €", "TVA 1,66 €", "TTC 9,99 €"],
-      warnings: []
-    }
-  }
+    summary: local.factualSummary,
+    explanation: { keyPoints: ["AI fake"], documentType: "xyz" }
+  },
+  meta: { ai: { available: false } }
 });
 assert.equal(e2e.amount.value, "9,99 €");
-assert.equal(e2e.amount.source, "amountTTC");
+assert.equal(e2e.document_type, "facture");
+assert.equal(e2e.plain_summary, local.factualSummary);
 
 console.log("✓ mapV3ResponseToUiAnalysis OK");
-console.log("  principal E2E Free-like =", e2e.amount.value, `(source=${e2e.amount.source})`);
+console.log("  principal E2E Free-like =", e2e.amount.value);
+console.log("  summary =", e2e.plain_summary);

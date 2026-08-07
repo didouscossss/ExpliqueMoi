@@ -5,6 +5,8 @@
 export { LocalAnalysisEngine } from "./LocalAnalysisEngine.js";
 export type { LocalAnalysisInput } from "./LocalAnalysisEngine.js";
 export { detectDocumentType } from "./documentType.js";
+export { buildLocalEvidence } from "./evidence.js";
+export { buildFactualSummary } from "./factualSummary.js";
 export {
   extractAmounts,
   extractClientName,
@@ -28,7 +30,10 @@ export function analyzeLocally(ocr: OCRResult | string): LocalAnalysis {
   return new LocalAnalysisEngine().analyze(ocr);
 }
 
-/** Complète amountTTC / amountToPay depuis des textes additionnels (keyPoints…). */
+/**
+ * Complète amountTTC / amountToPay depuis des textes OCR/texte additionnels.
+ * Ne doit pas être alimenté par des keyPoints IA.
+ */
 export function enrichLocalAmountFields(
   analysis: LocalAnalysis,
   extraTexts: string[]
