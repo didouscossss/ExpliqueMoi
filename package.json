@@ -15,7 +15,8 @@
     "test:v3-ocr": "tsx scripts/test-v3-ocr.mjs",
     "test:v3-local": "tsx scripts/test-v3-local-analysis.mjs",
     "test:v3-providers": "tsx scripts/test-v3-providers.mjs",
-    "test:v3-openai": "tsx scripts/test-v3-openai.mjs"
+    "test:v3-openai": "tsx scripts/test-v3-openai.mjs",
+    "test:v3-front-map": "node scripts/test-v3-front-map.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",

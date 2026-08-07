@@ -55,13 +55,23 @@ Règle : aucune PR vers `main` sans validation explicite. La V2 reste intacte.
 
 ## F — OpenAIProvider + endpoint V3
 
-**Statut : livrée (en attente validation)**
+**Statut : validée (HTTP 200 OpenAI)**
 
 - `OpenAIProvider` enregistré dans `ProviderFactory` (seul provider concret)
 - Env serveur : `AI_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_MODEL` (défaut `gpt-4o-mini`)
 - `/api/v3/analyze` : texte/OCR → LocalAnalysis → AIProvider → AnalysisResult
-- Pas de PDF brut, pas de front V2, pas de fallback/retry
 - Tests mocks : `npm run test:v3-openai`
+
+---
+
+## F+ — Connexion front V3
+
+**Statut : en cours / livrée sur branche**
+
+- `USE_V3_ENGINE=true` dans `index.html` (V2 `/api/analyze` conservée si flag false)
+- Client : `lib/v3/client/*` — OCR local navigateur → POST `/api/v3/analyze` (texte seul)
+- `destroyDocumentSession()` sur fin d’analyse / Nouveau document
+- Aucun merge `main` sans validation
 
 ---
 

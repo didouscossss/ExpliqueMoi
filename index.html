@@ -2860,12 +2860,16 @@
     </section>
   </main>
 
+  <script type="module" src="/lib/v3/client/analyzeClient.js"></script>
   <script>
     const $ = (id) =>
       document.getElementById(id);
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
-    const APP_VERSION = "2.3.4-restored";
+    // Branche V3 : moteur /api/v3/analyze (V2 serveur conservée).
+    const APP_VERSION = "3.0.0-v3-preview";
+    /** Active le pipeline V3 (OCR local → /api/v3/analyze). V2 reste disponible si false. */
+    const USE_V3_ENGINE = true;
 
     /*
      * État global unique — Sprint 1 stabilité + Sprint 2 multi-pages.
@@ -5055,6 +5059,16 @@
 
       console.info("[upload] payload_check", prepared.log);
 
+      if (USE_V3_ENGINE) {
+        await sendAnalysisV3({
+          mode: "files",
+          files: prepared.pagesSnapshot.map((page) => page.file),
+          pagesSnapshot: prepared.pagesSnapshot,
+          heterogeneous: prepared.heterogeneous
+        });
+        return;
+      }
+
       await sendAnalysis(prepared.formData, {
         pagesSnapshot: prepared.pagesSnapshot,
         manifest: prepared.manifest,
@@ -5237,6 +5251,16 @@
         return;
       }
 
+      if (USE_V3_ENGINE) {
+        await sendAnalysisV3({
+          mode: "text",
+          text,
+          pagesSnapshot: [],
+          heterogeneous: false
+        });
+        return;
+      }
+
       const formData = new FormData();
 
       formData.append("text", text);
@@ -5247,6 +5271,232 @@
         preparedPages: null,
         heterogeneous: false
       });
+    }
+
+    /**
+     * Pipeline V3 : OCR/extraction locale → POST /api/v3/analyze (texte seul).
+     * Ne remplace pas sendAnalysis (V2) — branche parallèle.
+     */
+    async function sendAnalysisV3(meta = {}) {
+      if (state.isCompressing || state.isSelectingFile) {
+        return;
+      }
+
+      const v3 = window.ExpliqueMoiV3;
+      if (!v3?.analyzeFilesWithV3 || !v3?.analyzeTextWithV3) {
+        showError(
+          "Échec de l’analyse",
+          "Le moteur V3 n’est pas chargé. Rechargez la page.",
+          {
+            keepRuntimeClean: true,
+            code: AnalysisErrorCode.UNKNOWN_ERROR
+          }
+        );
+        return;
+      }
+
+      cancelInFlightAssist();
+
+      resetAnalysisRuntimeState({
+        clearPages: false,
+        resetCharacter: true,
+        resetProgress: true,
+        reason: "before-analysis-v3"
+      });
+
+      const controller = new AbortController();
+      const requestId = state.requestId;
+      const analysisId = state.analysisId;
+      const generation = state.runtimeGeneration;
+
+      const context = {
+        requestId,
+        analysisId,
+        generation,
+        pages: meta.pagesSnapshot || null,
+        manifest: null,
+        controller,
+        startedAt: Date.now(),
+        status: "running",
+        formData: null,
+        preparedPages: null,
+        backendResponse: null,
+        warnings: [],
+        error: null,
+        heterogeneous: Boolean(meta.heterogeneous),
+        engine: "v3"
+      };
+
+      state.analysisContext = context;
+      state.activeController = controller;
+      state.lastFormData = null;
+      state.lastManifest = null;
+      state.preparedPages = null;
+      state.lastBackendResponse = null;
+      state.analysisWarnings = [];
+      state.analysisError = null;
+      state.pdfTempData = null;
+      state.finalStatus = "loading";
+      state.isAnalyzing = true;
+      state.isBusy = true;
+
+      syncActionControls();
+      showScreen("loadingScreen");
+      startProgress();
+
+      try {
+        let v3Result;
+
+        if (meta.mode === "text") {
+          v3Result = await v3.analyzeTextWithV3(meta.text, {
+            signal: controller.signal,
+            requestId,
+            analysisId
+          });
+        } else {
+          updateProgress(35, "Extraction locale du texte…", 1);
+          v3Result = await v3.analyzeFilesWithV3(meta.files || [], {
+            signal: controller.signal,
+            requestId,
+            analysisId
+          });
+        }
+
+        if (!isActiveAnalysisContext(context)) {
+          context.status = AnalysisErrorKind.OBSOLETE;
+          return;
+        }
+
+        const newAnalysis = normalizeAnalysis({
+          ...v3Result.uiAnalysis,
+          warnings: v3Result.uiAnalysis?.warnings || []
+        });
+
+        // Ne conserve pas l’OCR brut dans le contexte UI
+        if (v3Result.ocr) {
+          v3Result.ocr = null;
+        }
+
+        context.backendResponse = v3Result.raw;
+        context.warnings = newAnalysis.warnings.slice();
+
+        if (!isAnalysisUsable(newAnalysis)) {
+          throw createAnalysisError(
+            AnalysisErrorCode.NO_USABLE_CONTENT,
+            "Aucun texte exploitable n’a été détecté."
+          );
+        }
+
+        finishProgress();
+        await wait(450);
+
+        if (
+          !isCurrentGeneration(generation) ||
+          !isActiveAnalysisContext(context)
+        ) {
+          context.status = AnalysisErrorKind.OBSOLETE;
+          return;
+        }
+
+        purgeAnalysisMemory();
+        clearRenderedAnalysis();
+
+        state.analysis = newAnalysis;
+        state.analysisWarnings = newAnalysis.warnings.slice();
+        state.lastBackendResponse = null;
+        state.finalStatus = "success";
+        context.status = "success";
+
+        renderAnalysis(newAnalysis);
+        showScreen("resultScreen");
+      } catch (error) {
+        if (
+          error?.name === "AbortError" ||
+          error?.code === AnalysisErrorCode.CANCELLED ||
+          error?.kind === AnalysisErrorKind.CANCELLED
+        ) {
+          context.status = AnalysisErrorKind.CANCELLED;
+          state.finalStatus = "cancelled";
+          return;
+        }
+
+        if (
+          !isCurrentGeneration(generation) ||
+          !isActiveAnalysisContext(context)
+        ) {
+          context.status = AnalysisErrorKind.OBSOLETE;
+          return;
+        }
+
+        // Mappe les erreurs provider V3 vers les codes UI existants
+        if (
+          error?.httpStatus === 429 ||
+          (error?.code === "PROVIDER_HTTP_ERROR" &&
+            /quota|rate limit|credits/i.test(String(error?.message || "")))
+        ) {
+          error.code = AnalysisErrorCode.API_QUOTA_EXCEEDED;
+        } else if (
+          error?.code === "PROVIDER_TIMEOUT" ||
+          error?.httpStatus === 504
+        ) {
+          error.code = AnalysisErrorCode.API_TIMEOUT;
+        } else if (error?.code === "MISSING_API_KEY") {
+          error.code = AnalysisErrorCode.EMPTY_AI_RESPONSE;
+        }
+
+        const classified = classifyAnalysisError(error, {
+          ok: false,
+          error: {
+            code: error?.code,
+            message: error?.message
+          }
+        });
+
+        context.status = "error";
+        context.error = error;
+        context.warnings = [];
+
+        resetAnalysisRuntimeState({
+          clearPages: false,
+          resetCharacter: true,
+          resetProgress: true,
+          reason: "blocking-error-v3"
+        });
+
+        state.finalStatus = "error";
+        state.analysisError = error;
+        state.analysisWarnings = [];
+        state.isBusy = false;
+
+        showError(classified.title, classified.message, {
+          fromAnalysis: true,
+          code: classified.code,
+          retryable: classified.retryable
+        });
+      } finally {
+        try {
+          v3.destroyDocumentSession?.(context.v3Session);
+        } catch {
+          // ignore
+        }
+
+        context.formData = null;
+        context.preparedPages = null;
+        context.manifest = null;
+        context.backendResponse = null;
+        context.pages = null;
+
+        if (state.analysisContext === context) {
+          state.activeController = null;
+          state.isAnalyzing = false;
+          state.isBusy = false;
+          state.lastFormData = null;
+          state.lastManifest = null;
+          state.preparedPages = null;
+          state.pdfTempData = null;
+          syncActionControls();
+        }
+      }
     }
 
     async function sendAnalysis(formData, meta = {}) {
@@ -8197,6 +8447,16 @@
       cancelInFlightAssist();
       clearDocumentConversation();
       closeTableModal();
+
+      // V3 : destruction explicite de toute session documentaire résiduelle
+      try {
+        window.ExpliqueMoiV3?.destroyDocumentSession?.(
+          state.v3Session || null
+        );
+      } catch {
+        // ignore
+      }
+      state.v3Session = null;
 
       resetAnalysisRuntimeState({
         clearPages: true,
