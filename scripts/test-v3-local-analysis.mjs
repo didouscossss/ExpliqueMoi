@@ -217,6 +217,56 @@ function testTvaRateNotCapturedAsAmount() {
   console.log("  OK TVA amounts=", tva.map((a) => a.value));
 }
 
+function testSommeAPayerTtcRegression() {
+  section("régression Somme à payer TTC : 9.99 €");
+  const text = `
+FACTURE
+Total de la facture HT : 8.33 €
+TVA : 1.66 € (20%)
+Somme à payer TTC : 9.99 €
+`.trim();
+  const result = analyzeLocally(text);
+  assert.equal(result.documentType, "facture");
+  assert.equal(result.fields.amountHT, 8.33);
+  assert.equal(result.fields.amountTVA, 1.66);
+  assert.equal(result.fields.amountTTC, 9.99);
+  assert.equal(result.fields.amountToPay, 9.99);
+
+  const mapped = mapV3ResponseToUiAnalysis({
+    ok: true,
+    localAnalysis: result,
+    result: {
+      ok: true,
+      summary: "Facture 9,99 €.",
+      explanation: {
+        documentType: "facture",
+        keyPoints: [
+          "Total de la facture HT : 8.33 €",
+          "TVA : 1.66 € (20%)",
+          "Somme à payer TTC : 9.99 €"
+        ],
+        warnings: []
+      }
+    }
+  });
+  assert.equal(mapped.amount.value, "9,99 €");
+  assert.ok(
+    mapped.amount.source === "amountToPay" ||
+      mapped.amount.source === "amountTTC"
+  );
+  console.log(
+    "  OK fields=",
+    {
+      HT: result.fields.amountHT,
+      TVA: result.fields.amountTVA,
+      TTC: result.fields.amountTTC,
+      toPay: result.fields.amountToPay
+    },
+    "principal=",
+    mapped.amount.value
+  );
+}
+
 function testDevis() {
   section("devis");
   const result = analyzeLocally(FIXTURES.devis);
@@ -330,6 +380,7 @@ async function main() {
   testFactureHtTvaTtcEtPrincipal();
   testFactureMontantAPayerSansTtcLabel();
   testTvaRateNotCapturedAsAmount();
+  testSommeAPayerTtcRegression();
   testDevis();
   testContrat();
   testBulletin();

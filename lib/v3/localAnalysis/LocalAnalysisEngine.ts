@@ -101,6 +101,56 @@ export class LocalAnalysisEngine {
     return this.analyze(ocr);
   }
 
+  /**
+   * Complète les montants manquants à partir de textes additionnels
+   * (ex. keyPoints IA reprenant « Somme à payer TTC : 9.99 € »).
+   * Ne remplace jamais une valeur déjà structurée.
+   */
+  enrichAmountFields(analysis: LocalAnalysis, extraTexts: string[]): LocalAnalysis {
+    const blob = (extraTexts || [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .join("\n");
+    if (!blob) {
+      return analysis;
+    }
+
+    const extraAmounts = extractAmounts(blob);
+    if (!extraAmounts.length) {
+      return analysis;
+    }
+
+    const mergedAmounts = [...(analysis.amounts || []), ...extraAmounts];
+    const amountHT =
+      analysis.fields.amountHT ?? pickBestAmount(extraAmounts, ["HT"]);
+    const amountTVA =
+      analysis.fields.amountTVA ?? pickBestAmount(extraAmounts, ["TVA"]);
+    const amountToPay =
+      analysis.fields.amountToPay ??
+      pickBestAmount(extraAmounts, ["montant_a_payer"]);
+    const netToPay =
+      analysis.fields.netToPay ??
+      pickBestAmount(extraAmounts, ["net_a_payer"]);
+    const amountTTC =
+      analysis.fields.amountTTC ??
+      pickBestAmount(extraAmounts, ["TTC"], {
+        preferReconcileWith: { ht: amountHT, tva: amountTVA }
+      });
+
+    return {
+      ...analysis,
+      amounts: mergedAmounts,
+      fields: {
+        ...analysis.fields,
+        amountHT,
+        amountTVA,
+        amountTTC,
+        amountToPay,
+        netToPay
+      }
+    };
+  }
+
   private resolveText(input: LocalAnalysisInput): string {
     if (typeof input === "string") {
       return normalizeText(input);

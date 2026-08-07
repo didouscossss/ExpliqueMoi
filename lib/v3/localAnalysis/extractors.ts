@@ -99,8 +99,26 @@ export function extractDates(text: string): {
 export function extractAmounts(text: string): LocalAmountFinding[] {
   const byKey = new Map<string, LocalAmountFinding>();
 
+  // Libellés de montant final (facture) — générique FR.
+  const FINAL_DUE =
+    String.raw`(?:somme|montant|total|net)\s*[àa]\s*(?:payer|r[ée]gler)`;
+  const TTC_WORD =
+    String.raw`(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)`;
+  const HT_WORD = String.raw`(?:h\.?\s*t\.?|hors\s*taxes?)`;
+  // « TTC » ou « (TTC) » optionnel entre le libellé et le montant.
+  const OPT_TTC_TAG = String.raw`(?:\s*\(?\s*${TTC_WORD}\s*\)?)?`;
+
   const patterns: Array<{ label: string; rank: number; re: RegExp }> = [
     // ——— À payer / dû (priorité max pour factures) ———
+    // Ex. « Somme à payer TTC : 9.99 € », « Montant à payer : 9,99 € »
+    {
+      label: "montant_a_payer",
+      rank: 52,
+      re: new RegExp(
+        String.raw`${FINAL_DUE}${OPT_TTC_TAG}\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
+        "gi"
+      )
+    },
     {
       label: "montant_a_payer",
       rank: 50,
@@ -138,9 +156,17 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
     // ——— TTC (totaux d’abord ; puis ordre inversé « 9,99 € TTC ») ———
     {
       label: "TTC",
+      rank: 42,
+      re: new RegExp(
+        String.raw`${FINAL_DUE}\s*\(?\s*${TTC_WORD}\s*\)?\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
+        "gi"
+      )
+    },
+    {
+      label: "TTC",
       rank: 40,
       re: new RegExp(
-        String.raw`(?:montant\s*total|total(?:\s*(?:g[ée]n[ée]ral|de\s*la\s*facture))?|montant)\s*(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
+        String.raw`(?:montant\s*total|total(?:\s*(?:g[ée]n[ée]ral|de\s*la\s*facture))?|montant)\s*\(?\s*${TTC_WORD}\s*\)?\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
         "gi"
       )
     },
@@ -148,7 +174,7 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
       label: "TTC",
       rank: 36,
       re: new RegExp(
-        String.raw`${AMOUNT_NUM}[ \t]*${CURRENCY_OPT}[ \t]*(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)\b`,
+        String.raw`${AMOUNT_NUM}[ \t]*${CURRENCY_OPT}[ \t]*${TTC_WORD}\b`,
         "gi"
       )
     },
@@ -156,7 +182,7 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
       label: "TTC",
       rank: 28,
       re: new RegExp(
-        String.raw`(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
+        String.raw`\(?\s*${TTC_WORD}\s*\)?\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
         "gi"
       )
     },
@@ -166,7 +192,7 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
       label: "HT",
       rank: 35,
       re: new RegExp(
-        String.raw`(?:montant\s*total|total(?:\s*g[ée]n[ée]ral)?|montant)\s*(?:h\.?\s*t\.?|hors\s*taxes?)\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
+        String.raw`(?:montant\s*total|total(?:\s*(?:g[ée]n[ée]ral|de\s*la\s*facture))?|montant)\s*\(?\s*${HT_WORD}\s*\)?\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
         "gi"
       )
     },
@@ -174,7 +200,7 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
       label: "HT",
       rank: 22,
       re: new RegExp(
-        String.raw`${AMOUNT_NUM}[ \t]*${CURRENCY_OPT}[ \t]*(?:h\.?\s*t\.?|hors\s*taxes?)\b`,
+        String.raw`${AMOUNT_NUM}[ \t]*${CURRENCY_OPT}[ \t]*${HT_WORD}\b`,
         "gi"
       )
     },
@@ -182,7 +208,7 @@ export function extractAmounts(text: string): LocalAmountFinding[] {
       label: "HT",
       rank: 12,
       re: new RegExp(
-        String.raw`(?:prix\s*)?(?:h\.?\s*t\.?|hors\s*taxes?)\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
+        String.raw`(?:prix\s*)?${HT_WORD}\s*[:=]?\s*${AMOUNT_NUM}\s*${CURRENCY_OPT}`,
         "gi"
       )
     },

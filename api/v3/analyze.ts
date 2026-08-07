@@ -5,7 +5,10 @@
  */
 
 import type { VercelRequest, VercelResponse } from "../types/vercel.js";
-import { analyzeLocally } from "../../lib/v3/localAnalysis/index.js";
+import {
+  analyzeLocally,
+  enrichLocalAmountFields
+} from "../../lib/v3/localAnalysis/index.js";
 import {
   buildAIContext,
   createProviderConfigFromEnv,
@@ -167,6 +170,17 @@ export default async function handler(
       action
     });
 
+    // Si l’IA a repris un libellé final (« Somme à payer TTC : 9.99 € »)
+    // dans les keyPoints alors que l’OCR seul l’a manqué, enrichir les fields.
+    const explanation = (result.explanation || {}) as Record<string, unknown>;
+    const keyPoints = Array.isArray(explanation.keyPoints)
+      ? explanation.keyPoints.map(String)
+      : [];
+    const enrichedLocal = enrichLocalAmountFields(localAnalysis, [
+      normalizedOcr.fullText,
+      ...keyPoints
+    ]);
+
     if (!result.ok) {
       const status = result.error?.httpStatus || 502;
       const normalized =
@@ -179,7 +193,7 @@ export default async function handler(
       return response.status(normalized).json({
         ok: false,
         version: "v3",
-        localAnalysis,
+        localAnalysis: enrichedLocal,
         error: result.error || {
           code: "PROVIDER_HTTP_ERROR",
           message: "Échec provider.",
@@ -193,8 +207,11 @@ export default async function handler(
       ok: true,
       version: "v3",
       action,
-      localAnalysis,
-      result,
+      localAnalysis: enrichedLocal,
+      result: {
+        ...result,
+        localAnalysis: enrichedLocal
+      },
       meta: {
         requestId,
         provider: result.provider,

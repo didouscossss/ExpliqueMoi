@@ -27,3 +27,11 @@ import { LocalAnalysisEngine } from "./LocalAnalysisEngine.js";
 export function analyzeLocally(ocr: OCRResult | string): LocalAnalysis {
   return new LocalAnalysisEngine().analyze(ocr);
 }
+
+/** Complète amountTTC / amountToPay depuis des textes additionnels (keyPoints…). */
+export function enrichLocalAmountFields(
+  analysis: LocalAnalysis,
+  extraTexts: string[]
+): LocalAnalysis {
+  return new LocalAnalysisEngine().enrichAmountFields(analysis, extraTexts);
+}
