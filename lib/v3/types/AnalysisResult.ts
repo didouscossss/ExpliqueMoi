@@ -1,9 +1,9 @@
 /**
  * Résultat d’analyse V3 (sortie IA + fusion locale).
- * Signatures uniquement — aucun traitement métier.
  */
 
 import type { LocalAnalysis } from "./LocalAnalysis.js";
+import type { ProviderErrorBody } from "../providers/ProviderError.js";
 
 export interface AnalysisResult {
   ok: boolean;
@@ -15,4 +15,5 @@ export interface AnalysisResult {
   warnings: string[];
   provider: string | null;
   model: string | null;
+  error?: ProviderErrorBody;
 }

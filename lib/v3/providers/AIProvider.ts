@@ -6,6 +6,7 @@
 
 import type { AIContext } from "../types/AIContext.js";
 import type { AnalysisResult } from "../types/AnalysisResult.js";
+import type { ProviderErrorBody } from "./ProviderError.js";
 
 /** Identifiant logique d’un fournisseur (extensible plus tard). */
 export type AIProviderName = string;
@@ -18,6 +19,7 @@ export interface AnswerResult {
   provider: string;
   model?: string | null;
   warnings?: string[];
+  error?: ProviderErrorBody;
 }
 
 export interface SummarizeResult {
@@ -26,6 +28,7 @@ export interface SummarizeResult {
   provider: string;
   model?: string | null;
   warnings?: string[];
+  error?: ProviderErrorBody;
 }
 
 /**

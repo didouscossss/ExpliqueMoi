@@ -44,23 +44,24 @@ Règle : aucune PR vers `main` sans validation explicite. La V2 reste intacte.
 
 ## E — Architecture providers (générique)
 
-**Statut : livrée (en attente validation)**
+**Statut : validée**
 
 - `AIProvider` : `analyze()` / `answer()` / `summarize()`
 - `ProviderConfig` + `createProviderConfig()`
-- `ProviderFactory` / `getAIProvider()` — registre vide, aucun adapter concret
-- Aucun Gemini / OpenAI / Mistral branché
-- Aucun appel réseau, aucune clé API, aucun endpoint
+- `ProviderFactory` / `getAIProvider()`
 - Tests : `npm run test:v3-providers`
 
 ---
 
-## F — Provider concret + câblage
+## F — OpenAIProvider + endpoint V3
 
-- Enregistrer le premier adapter (ex. Gemini) dans `ProviderFactory`
-- Brancher `analyze` / `answer` / `summarize` sur texte + `localAnalysis`
-- Clés serveur uniquement via config
-- Toujours aucun impact sur les endpoints V2 jusqu’à migration contrôlée
+**Statut : livrée (en attente validation)**
+
+- `OpenAIProvider` enregistré dans `ProviderFactory` (seul provider concret)
+- Env serveur : `AI_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_MODEL` (défaut `gpt-4o-mini`)
+- `/api/v3/analyze` : texte/OCR → LocalAnalysis → AIProvider → AnalysisResult
+- Pas de PDF brut, pas de front V2, pas de fallback/retry
+- Tests mocks : `npm run test:v3-openai`
 
 ---
 

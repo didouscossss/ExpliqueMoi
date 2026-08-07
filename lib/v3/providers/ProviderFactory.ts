@@ -1,27 +1,30 @@
 /**
- * Fabrique générique des fournisseurs IA V3.
- * Aucun provider concret enregistré à cette étape.
- * Aucun appel réseau.
+ * Fabrique des fournisseurs IA V3.
+ * Étape F : seul OpenAIProvider est enregistré.
  */
 
 import type { AIProvider, AIProviderName } from "./AIProvider.js";
+import { OpenAIProvider } from "./OpenAIProvider.js";
 import {
   createProviderConfig,
+  createProviderConfigFromEnv,
   type ProviderConfig
 } from "./ProviderConfig.js";
+import { ProviderError } from "./ProviderError.js";
 
 export type AIProviderConstructor = new (
-  config: ProviderConfig
+  config: ProviderConfig,
+  options?: { fetchImpl?: typeof fetch; requestId?: string }
 ) => AIProvider;
 
 /**
- * Registre + fabrique. Les adapters (Gemini, OpenAI, …)
- * s’enregistreront ici dans une étape ultérieure.
+ * Registre + fabrique.
  */
 export class ProviderFactory {
   private readonly registry = new Map<AIProviderName, AIProviderConstructor>();
+  private defaultsReady = false;
 
-  /** Enregistre un constructeur de provider (pour étapes futures). */
+  /** Enregistre un constructeur de provider. */
   register(name: AIProviderName, ctor: AIProviderConstructor): void {
     const key = String(name || "")
       .trim()
@@ -32,21 +35,32 @@ export class ProviderFactory {
     this.registry.set(key, ctor);
   }
 
-  /** Indique si un provider est enregistré. */
+  /** Enregistre les providers concrets autorisés (OpenAI seul pour F). */
+  ensureDefaults(): void {
+    if (this.defaultsReady) {
+      return;
+    }
+    if (!this.registry.has("openai")) {
+      this.register("openai", OpenAIProvider);
+    }
+    this.defaultsReady = true;
+  }
+
   has(name: AIProviderName): boolean {
+    this.ensureDefaults();
     return this.registry.has(String(name || "").trim().toLowerCase());
   }
 
-  /** Liste des providers enregistrés. */
   list(): AIProviderName[] {
+    this.ensureDefaults();
     return [...this.registry.keys()].sort();
   }
 
-  /**
-   * Crée une instance AIProvider selon la config.
-   * Échoue clairement tant qu’aucun adapter n’est enregistré.
-   */
-  create(config: Partial<ProviderConfig> | ProviderConfig = {}): AIProvider {
+  create(
+    config: Partial<ProviderConfig> | ProviderConfig = {},
+    options: { fetchImpl?: typeof fetch; requestId?: string } = {}
+  ): AIProvider {
+    this.ensureDefaults();
     const resolved = createProviderConfig(config);
     const key = String(resolved.provider || "")
       .trim()
@@ -55,27 +69,41 @@ export class ProviderFactory {
     const ctor = this.registry.get(key);
     if (!ctor) {
       const available = this.list();
-      throw new Error(
-        `ProviderFactory: aucun provider enregistré pour "${resolved.provider}".` +
+      throw new ProviderError({
+        code: "UNKNOWN_PROVIDER",
+        message:
+          `Provider inconnu: "${resolved.provider}".` +
           (available.length
             ? ` Disponibles: ${available.join(", ")}.`
-            : " Aucun adapter concret n’est encore branché (étape E — architecture seule).")
-      );
+            : ""),
+        provider: resolved.provider || "unknown",
+        httpStatus: 400
+      });
     }
 
-    return new ctor(resolved);
+    return new ctor(resolved, options);
   }
 }
 
-/** Instance partagée (registre vide par défaut). */
+/** Instance partagée. */
 export const providerFactory = new ProviderFactory();
 
 /**
- * Point d’entrée moteur V3 : obtient un AIProvider opaque.
- * Aujourd’hui : lève une erreur explicite (pas de provider concret).
+ * Point d’entrée moteur V3.
+ * Par défaut: AI_PROVIDER / OPENAI_* depuis l’environnement serveur.
  */
 export function getAIProvider(
-  config: Partial<ProviderConfig> | ProviderConfig = {}
+  config: Partial<ProviderConfig> | ProviderConfig = {},
+  options: { fetchImpl?: typeof fetch; requestId?: string } = {}
 ): AIProvider {
-  return providerFactory.create(config);
+  const fromEnv = createProviderConfigFromEnv();
+  const merged = createProviderConfig({
+    ...fromEnv,
+    ...config,
+    options: {
+      ...(fromEnv.options || {}),
+      ...(config.options || {})
+    }
+  });
+  return providerFactory.create(merged, options);
 }
