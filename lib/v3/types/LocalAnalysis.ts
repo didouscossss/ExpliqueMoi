@@ -26,11 +26,12 @@ export interface LocalAmountFinding {
   /** HT | TVA | TTC | net_a_payer | montant_a_payer | … */
   label?: string | null;
   /**
-   * Force du libellé / contexte (plus élevé = total / à payer plutôt qu’une ligne partielle).
-   * Utilisé pour choisir le montant principal sans confondre un prix unitaire avec le total.
+   * Score sémantique (plus élevé = total / à payer plutôt qu’une ligne partielle).
    */
   rank?: number;
   page?: number | null;
+  /** Raisons de scoring (debug / traçabilité). */
+  reasons?: string[];
 }
 
 export interface LocalReferenceFinding {
@@ -61,13 +62,22 @@ export interface LocalEvidenceSpan {
   start?: number | null;
   end?: number | null;
   source: "ocr" | "text";
+  /** Score / confiance 0–100 si disponible. */
+  confidence?: number | null;
+  /** Pourquoi ce champ a été sélectionné. */
+  reasons?: string[];
 }
 
 /** Champs structurés demandés à l’étape D. */
 export interface LocalAnalysisFields {
   companyName: string | null;
   clientName: string | null;
+  /** Date principale actionnable (prélèvement/échéance pour facture, sinon émission). */
   date: string | null;
+  /** Date d’émission si détectée séparément. */
+  issueDate: string | null;
+  /** Date de paiement / prélèvement / échéance. */
+  paymentDate: string | null;
   amountHT: number | null;
   amountTVA: number | null;
   amountTTC: number | null;
@@ -75,6 +85,10 @@ export interface LocalAnalysisFields {
   amountToPay: number | null;
   /** Net à payer (bulletin, parfois facture). */
   netToPay: number | null;
+  /** Source du montant principal sélectionné. */
+  principalSource: string | null;
+  /** Raisons du ranking du montant principal. */
+  principalReasons: string[];
   iban: string | null;
   siret: string | null;
   invoiceNumber: string | null;

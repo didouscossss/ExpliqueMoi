@@ -1,7 +1,6 @@
 /**
- * Résumé factuel local V3 — phrase courte depuis les champs structurés.
- * Générique par type de document. Aucun template marque-spécifique.
- * Aucun appel IA.
+ * Résumé factuel local V3 — phrase courte depuis les champs structurés fiables.
+ * Générique par type. Aucun template marque-spécifique. Aucun appel IA.
  */
 
 import type { LocalAnalysis, LocalDocumentType } from "../types/LocalAnalysis.js";
@@ -29,7 +28,9 @@ function formatFrenchLongDate(isoOrRaw: string | null): string | null {
   if (!isoOrRaw) return null;
   const iso = String(isoOrRaw).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) {
-    const date = new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])));
+    const date = new Date(
+      Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
+    );
     if (!Number.isNaN(date.getTime())) {
       return date.toLocaleDateString("fr-FR", {
         day: "numeric",
@@ -56,52 +57,50 @@ function formatFrenchLongDate(isoOrRaw: string | null): string | null {
   return null;
 }
 
-function hasPrelevementCue(analysis: LocalAnalysis, sourceText?: string): boolean {
-  const blob = [
-    sourceText || "",
-    ...(analysis.dates || []).map((item) => item.raw || ""),
-    ...(analysis.deadlines || []).map((item) => item.raw || ""),
-    ...(analysis.amounts || []).map((item) => item.raw || "")
-  ].join(" ");
-  return /pr[ée]l[èe]vement|pr[ée]lever/i.test(blob);
-}
-
-function issuerLabel(analysis: LocalAnalysis): string | null {
-  const name = analysis.fields.companyName || analysis.issuer;
+function isReliableIssuer(name: string | null | undefined): string | null {
   if (!name) return null;
   const cleaned = String(name).replace(/\s+/g, " ").trim();
-  if (cleaned.length < 2 || cleaned.length > 60) return null;
-  // Évite les titres document trop génériques et les montants
+  if (cleaned.length < 2 || cleaned.length > 48) return null;
   if (/^(facture|devis|contrat|document)\b/i.test(cleaned)) return null;
+  if (/capital(\s+social)?|au\s+capital/i.test(cleaned)) return null;
   if (/^\d/.test(cleaned) || /\b\d+[.,]\d{2}\b/.test(cleaned)) return null;
+  if (/\beuros?\b/i.test(cleaned) && /\d/.test(cleaned)) return null;
+  // Forme juridique seule sans nom commercial
+  if (/^(SASU|SAS|SARL|EURL|SA|SCI|SNC)\s*$/i.test(cleaned)) return null;
   return cleaned;
 }
 
 /**
- * Construit une phrase factuelle courte à partir des champs locaux.
+ * Construit une phrase factuelle courte à partir des champs locaux fiables.
  */
 export function buildFactualSummary(
   analysis: LocalAnalysis,
-  sourceText?: string
+  _sourceText?: string
 ): string {
   const type = analysis.documentType || "document_inconnu";
   const typeLabel = TYPE_LABELS[type] || "Document";
-  const issuer = issuerLabel(analysis);
+  const issuer = isReliableIssuer(analysis.fields.companyName || analysis.issuer);
   const fields = analysis.fields;
-  const principal = selectPrincipalAmountValue(fields);
-  const dateLabel = formatFrenchLongDate(fields.date);
-  const prelevement = hasPrelevementCue(analysis, sourceText);
+
+  const principal = selectPrincipalAmountValue({
+    amountToPay: fields.amountToPay,
+    amountTTC: fields.amountTTC,
+    netToPay: fields.netToPay,
+    amountHT: fields.amountHT
+  });
+
+  // Date : pour facture, préférer paymentDate (déjà dans fields.date si buildFields OK)
+  const actionDate = fields.paymentDate || fields.date;
+  const dateLabel = formatFrenchLongDate(actionDate);
+  const isPaymentDate = Boolean(fields.paymentDate);
 
   const parts: string[] = [];
-
-  // Sujet
   if (issuer) {
     parts.push(`${typeLabel} ${issuer}`);
   } else {
     parts.push(typeLabel);
   }
 
-  // Montant principal
   if (principal.value != null) {
     const amountText = formatEuro(principal.value);
     const isTtcLike =
@@ -119,10 +118,9 @@ export function buildFactualSummary(
     }
   }
 
-  // Date (séparée par une virgule pour une phrase naturelle)
   let dateClause = "";
   if (dateLabel) {
-    if ((type === "facture" || type === "devis") && prelevement) {
+    if ((type === "facture" || type === "devis") && isPaymentDate) {
       dateClause = `prélevée le ${dateLabel}`;
     } else if (type === "facture" || type === "devis") {
       dateClause = `datée du ${dateLabel}`;
@@ -131,25 +129,13 @@ export function buildFactualSummary(
     }
   }
 
-  // Client (optionnel, discret)
-  let clientClause = "";
-  if (fields.clientName && type !== "bulletin_de_salaire") {
-    if (parts.join(" ").length < 90) {
-      clientClause = `pour ${fields.clientName}`;
-    }
-  }
-
   let sentence = parts.join(" ");
   if (dateClause) {
     sentence += `, ${dateClause}`;
-  }
-  if (clientClause) {
-    sentence += ` ${clientClause}`;
   }
   sentence = sentence.replace(/\s+/g, " ").trim();
   if (!/[.!?]$/.test(sentence)) {
     sentence += ".";
   }
-  sentence = sentence.charAt(0).toUpperCase() + sentence.slice(1);
-  return sentence;
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1);
 }

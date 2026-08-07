@@ -144,12 +144,39 @@ export function buildLocalEvidence(
     add("companyName", "Émetteur", fields.companyName || analysis.issuer);
   }
 
-  const primaryDate =
-    analysis.dates.find((item) => item.label === "document_date") ||
-    analysis.dates.find((item) => item.iso === fields.date) ||
-    analysis.dates[0];
-  if (primaryDate?.raw) {
-    add("date", "Date", primaryDate.raw);
+  // Date principale actionnable (prélèvement/échéance pour facture) + émission séparée.
+  const paymentLike =
+    analysis.deadlines.find(
+      (item) =>
+        item.label === "payment_date" ||
+        item.label === "deadline" ||
+        item.iso === fields.paymentDate
+    ) ||
+    analysis.dates.find(
+      (item) =>
+        item.label === "payment_date" || item.iso === fields.paymentDate
+    );
+  const issueLike =
+    analysis.dates.find(
+      (item) =>
+        item.label === "issue_date" ||
+        item.label === "document_date" ||
+        item.iso === fields.issueDate
+    ) || analysis.dates[0];
+
+  if (paymentLike?.raw && fields.paymentDate) {
+    add("date", "Date de paiement / prélèvement", paymentLike.raw);
+  } else if (issueLike?.raw) {
+    add("date", "Date", issueLike.raw);
+  }
+
+  if (
+    issueLike?.raw &&
+    fields.issueDate &&
+    fields.paymentDate &&
+    fields.issueDate !== fields.paymentDate
+  ) {
+    add("issueDate", "Date d'émission", issueLike.raw);
   }
 
   for (const deadline of analysis.deadlines || []) {

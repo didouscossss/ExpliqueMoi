@@ -2867,7 +2867,7 @@
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
     // Branche V3 : moteur /api/v3/analyze (V2 serveur conservée).
-    const APP_VERSION = "3.1.0-v3-local-facts";
+    const APP_VERSION = "3.1.1-v3-amount-ranking";
     /** Active le pipeline V3 (OCR local → /api/v3/analyze). V2 reste disponible si false. */
     const USE_V3_ENGINE = true;
 
@@ -6267,10 +6267,19 @@
 
       let summaryText = analysis.summary;
 
-      // Avertissement discret uniquement si l’analyse est réellement exploitable
+      // N’affiche dans le résumé que les alertes d’incohérence réelle —
+      // pas les « champ non détecté » / infos techniques du parser.
       if (hasWarnings) {
-        summaryText =
-          `${analysis.summary}\n\n⚠️ ${analysis.warnings[0]}`;
+        const actionable = analysis.warnings.find(
+          (item) =>
+            item &&
+            !/non détecté|indisponible|Analyse V3|faits locaux/i.test(
+              String(item)
+            )
+        );
+        if (actionable) {
+          summaryText = `${analysis.summary}\n\n⚠️ ${actionable}`;
+        }
       }
 
       $("summaryText").textContent =

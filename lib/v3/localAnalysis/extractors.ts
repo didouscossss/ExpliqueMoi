@@ -61,17 +61,19 @@ export function extractDates(text: string): {
     const year = match[3] || match[6];
     if (!day || !month || !year) continue;
     const iso = toIsoDate(day, month, year);
-    const raw = match[0].replace(/^[^\dDPdp]+/, "").trim();
-    const label = /échéance|a\s*payer|avant\s+le|limite/i.test(match[0])
-      ? "deadline"
-      : /émission|emise|fait\s+le|pr[ée]l[èe]vement|date\s+de\s+facture|date\s+d/i.test(
-            match[0]
-          )
-        ? "document_date"
-        : /date/i.test(match[0])
-          ? "document_date"
-          : null;
-    const target = label === "deadline" ? deadlines : dates;
+    const raw = match[0].replace(/^[^\dDPdpÉé]+/, "").trim();
+    let label: string | null = null;
+    if (/échéance|a\s*payer|avant\s+le|limite/i.test(match[0])) {
+      label = "deadline";
+    } else if (/pr[ée]l[èe]vement/i.test(match[0])) {
+      label = "payment_date";
+    } else if (/émission|emise|fait\s+le|date\s+d['’]?émission|date\s+de\s+facture/i.test(match[0])) {
+      label = "issue_date";
+    } else if (/date/i.test(match[0])) {
+      label = "document_date";
+    }
+    const target =
+      label === "deadline" || label === "payment_date" ? deadlines : dates;
     push(target, raw || match[0].trim(), iso, label);
   }
 
@@ -497,23 +499,43 @@ function cleanName(value: string): string | null {
   return cleaned;
 }
 
+function isLegalCapitalLine(line: string): boolean {
+  return /capital(\s+social)?|au\s+capital\s+de/i.test(line);
+}
+
+function isUsableCompanyName(name: string | null): name is string {
+  if (!name) return false;
+  if (isLegalCapitalLine(name)) return false;
+  if (/capital(\s+social)?|au\s+capital/i.test(name)) return false;
+  if (/\beuros?\b/i.test(name) && /\d/.test(name)) return false;
+  if (/^\d/.test(name) || /\b\d{3,}[ \u00a0]\d{3}/.test(name)) return false;
+  return true;
+}
+
 export function extractCompanyName(text: string): string | null {
   const labeled = text.match(
     /(?:émetteur|emetteur|société|societe|entreprise|vendeur|prestataire)\s*[:=]\s*([^\n]+)/i
   );
-  if (labeled?.[1]) {
+  if (labeled?.[1] && !isLegalCapitalLine(labeled[1])) {
     const name = cleanName(labeled[1]);
-    if (name) {
+    if (isUsableCompanyName(name)) {
       return name;
     }
   }
 
   for (const line of linesOf(text).slice(0, 12)) {
+    if (isLegalCapitalLine(line)) {
+      continue;
+    }
+    // « SAS DUPONT » OK — « SAS au capital de … » rejeté
     const form = line.match(
-      /\b((?:SASU|SAS|SARL|EURL|SA|SCI|SNC)\s+[A-Z0-9ÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ&'’.\- ]{1,60})/i
+      /\b((?:SASU|SAS|SARL|EURL|SA|SCI|SNC)\s+(?!au\s+capital)[A-Z0-9ÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ&'’.\- ]{1,60})/i
     );
-    if (form?.[1]) {
-      return cleanName(form[1]);
+    if (form?.[1] && !isLegalCapitalLine(form[1])) {
+      const name = cleanName(form[1]);
+      if (isUsableCompanyName(name)) {
+        return name;
+      }
     }
   }
 
@@ -521,10 +543,13 @@ export function extractCompanyName(text: string): string | null {
   for (const line of linesOf(text).slice(0, 8)) {
     const compact = normalizeCompact(line);
     if (
-      /^(facture|devis|contrat|bulletin|releve|ordonnance|objet|total|prix|tva|date|montant|somme)\b/.test(
+      /^(facture|devis|contrat|bulletin|releve|ordonnance|objet|total|prix|tva|date|montant|somme|sas|sarl|sa)\b/.test(
         compact
       )
     ) {
+      continue;
+    }
+    if (isLegalCapitalLine(line)) {
       continue;
     }
     // Évite les montants / lignes numériques (ex. « 8.33 EUR »)
@@ -532,9 +557,18 @@ export function extractCompanyName(text: string): string | null {
       continue;
     }
     if (/[a-z]{3,}/i.test(line) && line.length >= 3 && line.length <= 60) {
-      // Prefer ALL CAPS / Title-like company lines
-      if (/^[A-Z0-9ÉÈÊËÀÂÄÔÖÙÛÜÇ][A-Z0-9ÉÈÊËÀÂÄÔÖÙÛÜÇ &'’.\-]{2,}$/.test(line)) {
-        return cleanName(line);
+      // ALL CAPS ou Title Case commercial (pas une phrase juridique)
+      const allCaps =
+        /^[A-Z0-9ÉÈÊËÀÂÄÔÖÙÛÜÇ][A-Z0-9ÉÈÊËÀÂÄÔÖÙÛÜÇ &'’.\-]{2,}$/.test(line);
+      const titleCase =
+        /^[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ'’.\-]*(?:\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ'’.\-]*){0,5}$/.test(
+          line.trim()
+        );
+      if (allCaps || titleCase) {
+        const name = cleanName(line);
+        if (isUsableCompanyName(name)) {
+          return name;
+        }
       }
     }
   }

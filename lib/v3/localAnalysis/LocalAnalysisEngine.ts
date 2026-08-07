@@ -9,6 +9,7 @@ import type {
   LocalAnalysisFields,
   LocalAmountFinding
 } from "../types/LocalAnalysis.js";
+import { selectAmountFields } from "./amountRanking.js";
 import { detectDocumentType } from "./documentType.js";
 import { buildLocalEvidence } from "./evidence.js";
 import {
@@ -21,8 +22,7 @@ import {
   extractDates,
   extractIban,
   extractInvoiceNumber,
-  extractSiret,
-  pickBestAmount
+  extractSiret
 } from "./extractors.js";
 import { buildFactualSummary } from "./factualSummary.js";
 import { normalizeText } from "./normalize.js";
@@ -30,9 +30,6 @@ import { normalizeText } from "./normalize.js";
 export type LocalAnalysisInput = string | OCRResult;
 
 export class LocalAnalysisEngine {
-  /**
-   * Analyse un texte OCR ou un OCRResult complet.
-   */
   analyze(input: LocalAnalysisInput): LocalAnalysis {
     const ocr = typeof input === "string" ? null : input;
     const text = this.resolveText(input);
@@ -45,7 +42,11 @@ export class LocalAnalysisEngine {
 
     const typeGuess = detectDocumentType(text);
     const { dates, deadlines } = extractDates(text);
-    const amounts = extractAmounts(text);
+    const ranked = selectAmountFields(text);
+    // Conserve aussi les matches regex historiques (fusion / preuves).
+    const regexAmounts = extractAmounts(text);
+    const amounts = this.mergeAmounts(ranked.amounts, regexAmounts);
+
     const ibans = extractIban(text);
     const sirets = extractSiret(text);
     const invoiceNumbers = extractInvoiceNumber(text);
@@ -66,17 +67,35 @@ export class LocalAnalysisEngine {
       companyName,
       clientName,
       dates,
-      amounts,
+      deadlines,
+      ranked,
       ibans,
       sirets,
       invoiceNumbers
     });
 
-    if (!fields.amountTTC && !fields.amountToPay && !fields.amountHT) {
-      warnings.push("Aucun montant HT/TTC clairement détecté.");
+    if (
+      !fields.amountTTC &&
+      !fields.amountToPay &&
+      !fields.amountHT &&
+      !fields.netToPay
+    ) {
+      warnings.push("Aucun montant clairement détecté.");
     }
-    if (!fields.siret && typeGuess.documentType === "facture") {
-      warnings.push("SIRET non détecté sur ce document.");
+
+    // Incohérence arithmétique vérifiable uniquement (pas « champ manquant »).
+    if (
+      fields.amountHT != null &&
+      fields.amountTVA != null &&
+      (fields.amountTTC != null || fields.amountToPay != null)
+    ) {
+      const ttc = fields.amountToPay ?? fields.amountTTC ?? 0;
+      const sum = Math.round((fields.amountHT + fields.amountTVA) * 100) / 100;
+      if (Math.abs(sum - ttc) > 0.05) {
+        warnings.push(
+          `Incohérence possible des montants : HT (${fields.amountHT}) + TVA (${fields.amountTVA}) ≠ TTC/à payer (${ttc}).`
+        );
+      }
     }
 
     const base: LocalAnalysis = {
@@ -97,12 +116,38 @@ export class LocalAnalysisEngine {
     };
 
     base.evidence = buildLocalEvidence(base, text, ocr);
+    // Enrichit la preuve du montant principal (gagnant du ranking) avec les raisons.
+    if (fields.principalReasons?.length) {
+      const preferredFields = [
+        fields.principalSource,
+        "amountToPay",
+        "amountTTC",
+        "netToPay",
+        "amountHT"
+      ].filter(Boolean) as string[];
+      const principalEv =
+        preferredFields
+          .map((field) => base.evidence.find((item) => item.field === field))
+          .find(Boolean) || null;
+      if (principalEv) {
+        principalEv.reasons = fields.principalReasons;
+        principalEv.confidence = Math.min(
+          100,
+          Math.max(
+            0,
+            Math.round(
+              (ranked.principal != null ? 70 : 40) +
+                (ranked.arithmeticOk ? 20 : 0)
+            )
+          )
+        );
+      }
+    }
     base.factualSummary = buildFactualSummary(base, text);
 
     return base;
   }
 
-  /** Alias pratique. */
   analyzeText(text: string): LocalAnalysis {
     return this.analyze(text);
   }
@@ -111,11 +156,6 @@ export class LocalAnalysisEngine {
     return this.analyze(ocr);
   }
 
-  /**
-   * Complète les montants manquants à partir de textes additionnels OCR/texte.
-   * Ne remplace jamais une valeur déjà structurée.
-   * Ne doit PAS être alimenté par des keyPoints IA.
-   */
   enrichAmountFields(analysis: LocalAnalysis, extraTexts: string[]): LocalAnalysis {
     const blob = (extraTexts || [])
       .map((item) => String(item || "").trim())
@@ -124,47 +164,24 @@ export class LocalAnalysisEngine {
     if (!blob) {
       return analysis;
     }
+    // Re-analyse locale complète sur le texte enrichi (OCR only, jamais IA).
+    return this.analyze(blob);
+  }
 
-    const extraAmounts = extractAmounts(blob);
-    if (!extraAmounts.length) {
-      return analysis;
-    }
-
-    const mergedAmounts = [...(analysis.amounts || []), ...extraAmounts];
-    const amountHT =
-      analysis.fields.amountHT ?? pickBestAmount(extraAmounts, ["HT"]);
-    const amountTVA =
-      analysis.fields.amountTVA ?? pickBestAmount(extraAmounts, ["TVA"]);
-    const amountToPay =
-      analysis.fields.amountToPay ??
-      pickBestAmount(extraAmounts, ["montant_a_payer"]);
-    const netToPay =
-      analysis.fields.netToPay ??
-      pickBestAmount(extraAmounts, ["net_a_payer"]);
-    const amountTTC =
-      analysis.fields.amountTTC ??
-      pickBestAmount(extraAmounts, ["TTC"], {
-        preferReconcileWith: { ht: amountHT, tva: amountTVA }
-      });
-
-    const next: LocalAnalysis = {
-      ...analysis,
-      amounts: mergedAmounts,
-      fields: {
-        ...analysis.fields,
-        amountHT,
-        amountTVA,
-        amountTTC,
-        amountToPay,
-        netToPay
+  private mergeAmounts(
+    ranked: LocalAmountFinding[],
+    regexAmounts: LocalAmountFinding[]
+  ): LocalAmountFinding[] {
+    const byKey = new Map<string, LocalAmountFinding>();
+    for (const item of [...ranked, ...regexAmounts]) {
+      if (item.value == null) continue;
+      const key = `${item.label}:${item.value}`;
+      const prev = byKey.get(key);
+      if (!prev || (item.rank || 0) > (prev.rank || 0)) {
+        byKey.set(key, item);
       }
-    };
-
-    // Recalcule preuves + résumé factuel après enrichissement OCR.
-    const sourceText = blob;
-    next.evidence = buildLocalEvidence(next, sourceText, null);
-    next.factualSummary = buildFactualSummary(next, sourceText);
-    return next;
+    }
+    return [...byKey.values()].sort((a, b) => (b.rank || 0) - (a.rank || 0));
   }
 
   private resolveText(input: LocalAnalysisInput): string {
@@ -186,35 +203,51 @@ export class LocalAnalysisEngine {
     companyName: string | null;
     clientName: string | null;
     dates: LocalAnalysis["dates"];
-    amounts: LocalAmountFinding[];
+    deadlines: LocalAnalysis["deadlines"];
+    ranked: ReturnType<typeof selectAmountFields>;
     ibans: LocalAnalysis["references"];
     sirets: LocalAnalysis["references"];
     invoiceNumbers: LocalAnalysis["references"];
   }): LocalAnalysisFields {
-    const amountHT = pickBestAmount(parts.amounts, ["HT"]);
-    const amountTVA = pickBestAmount(parts.amounts, ["TVA"]);
-    const amountToPay = pickBestAmount(parts.amounts, ["montant_a_payer"]);
-    const netToPay = pickBestAmount(parts.amounts, ["net_a_payer"]);
-    const amountTTC =
-      pickBestAmount(parts.amounts, ["TTC"], {
-        preferReconcileWith: { ht: amountHT, tva: amountTVA }
-      }) ?? null;
-
-    const primaryDate =
+    const issueDate =
+      parts.dates.find((item) => item.label === "issue_date")?.iso ||
       parts.dates.find((item) => item.label === "document_date")?.iso ||
-      parts.dates.find((item) => item.iso)?.iso ||
-      parts.dates[0]?.raw ||
       null;
+
+    const paymentDate =
+      parts.deadlines.find((item) => item.label === "payment_date")?.iso ||
+      parts.deadlines.find((item) => item.label === "deadline")?.iso ||
+      parts.dates.find((item) => item.label === "payment_date")?.iso ||
+      null;
+
+    // Facture/devis : date actionnable = prélèvement/échéance si présente.
+    const invoiceLike =
+      parts.documentType === "facture" || parts.documentType === "devis";
+    const primaryDate = invoiceLike
+      ? paymentDate ||
+        issueDate ||
+        parts.dates.find((item) => item.iso)?.iso ||
+        parts.dates[0]?.raw ||
+        null
+      : issueDate ||
+        paymentDate ||
+        parts.dates.find((item) => item.iso)?.iso ||
+        parts.dates[0]?.raw ||
+        null;
 
     return {
       companyName: parts.companyName,
       clientName: parts.clientName,
       date: primaryDate,
-      amountHT,
-      amountTVA,
-      amountTTC,
-      amountToPay,
-      netToPay,
+      issueDate,
+      paymentDate,
+      amountHT: parts.ranked.amountHT,
+      amountTVA: parts.ranked.amountTVA,
+      amountTTC: parts.ranked.amountTTC,
+      amountToPay: parts.ranked.amountToPay,
+      netToPay: parts.ranked.netToPay,
+      principalSource: parts.ranked.principalSource,
+      principalReasons: parts.ranked.principalReasons,
       iban: parts.ibans[0]?.value ?? null,
       siret: parts.sirets[0]?.value ?? null,
       invoiceNumber: parts.invoiceNumbers[0]?.value ?? null
@@ -238,11 +271,15 @@ export class LocalAnalysisEngine {
         companyName: null,
         clientName: null,
         date: null,
+        issueDate: null,
+        paymentDate: null,
         amountHT: null,
         amountTVA: null,
         amountTTC: null,
         amountToPay: null,
         netToPay: null,
+        principalSource: null,
+        principalReasons: [],
         iban: null,
         siret: null,
         invoiceNumber: null

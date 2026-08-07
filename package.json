@@ -18,8 +18,9 @@
     "test:v3-openai": "tsx scripts/test-v3-openai.mjs",
     "test:v3-front-map": "tsx scripts/test-v3-front-map.mjs",
     "test:v3-degraded": "tsx scripts/test-v3-degraded.mjs",
+    "test:v3-amount-ranking": "tsx scripts/test-v3-amount-ranking.mjs",
     "test:v3-audit-no-ai": "tsx scripts/audit-v3-no-ai.mjs",
-    "test:v3": "npm run test:v3-local && npm run test:v3-front-map && npm run test:v3-degraded && npm run test:v3-audit-no-ai"
+    "test:v3": "npm run test:v3-local && npm run test:v3-front-map && npm run test:v3-amount-ranking && npm run test:v3-degraded && npm run test:v3-audit-no-ai"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",

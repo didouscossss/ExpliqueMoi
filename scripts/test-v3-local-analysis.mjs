@@ -139,7 +139,10 @@ function testFacture() {
   assert.equal(result.fields.amountTTC, 120);
   assert.equal(result.fields.companyName, "SAS DUPONT SERVICES");
   assert.equal(result.fields.clientName, "Mme Alice Martin");
-  assert.ok(result.fields.date === "2026-03-12" || /12\/03\/2026/.test(String(result.fields.date)));
+  // Facture : date principale = échéance/prélèvement si présente ; émission conservée à part.
+  assert.equal(result.fields.issueDate, "2026-03-12");
+  assert.equal(result.fields.paymentDate, "2026-04-12");
+  assert.equal(result.fields.date, "2026-04-12");
   assert.ok(result.deadlines.length >= 1);
   assert.ok(result.detectedActions.some((a) => /régler/i.test(a)));
   console.log("  OK", JSON.stringify(result.fields));
