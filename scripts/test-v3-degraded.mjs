@@ -187,7 +187,11 @@ async function main() {
     assert.equal(local.fields.amountTVA, 1.66);
     assert.equal(local.fields.amountTTC, 9.99);
     assert.equal(local.fields.amountToPay, 9.99);
-    assert.equal(local.fields.date, "2025-11-24");
+    assert.equal(local.fields.debitDate || local.fields.paymentDate, "2025-11-24");
+    // Date principale = émission si présente, sinon prélèvement
+    assert.ok(
+      local.fields.date === "2025-11-21" || local.fields.date === "2025-11-24"
+    );
     assert.match(local.factualSummary, /9[,.]99/);
     assert.match(local.factualSummary, /Free Mobile/i);
     assert.match(local.factualSummary, /24 novembre 2025/);

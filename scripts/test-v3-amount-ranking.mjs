@@ -109,10 +109,13 @@ function main() {
     assert.equal(local.fields.amountTTC, 9.99);
     assert.equal(local.fields.paymentDate, "2025-11-24");
     assert.equal(local.fields.issueDate, "2025-11-21");
-    assert.equal(local.fields.date, "2025-11-24");
+    assert.equal(local.fields.invoiceDate, "2025-11-21");
+    assert.equal(local.fields.debitDate, "2025-11-24");
+    assert.equal(local.fields.date, "2025-11-21");
     assert.ok(!/capital/i.test(String(local.fields.companyName || "")));
     assert.ok(!/365/.test(String(local.factualSummary || "")));
     assert.match(local.factualSummary, /9[,.]99/);
+    assert.match(local.factualSummary, /21 novembre 2025/);
     assert.match(local.factualSummary, /24 novembre 2025/);
     assert.doesNotMatch(local.factualSummary, /SIRET|⚠️/);
     const ui = uiOf(local);
@@ -176,9 +179,11 @@ function main() {
   {
     const local = analyzeLocally(FIXTURES.echeanceDiff);
     assert.equal(local.fields.issueDate, "2026-03-01");
-    assert.equal(local.fields.paymentDate, "2026-03-31");
-    assert.equal(local.fields.date, "2026-03-31");
-    console.log("  OK date principale=", local.fields.date);
+    assert.equal(local.fields.invoiceDate, "2026-03-01");
+    assert.equal(local.fields.dueDate || local.fields.paymentDate, "2026-03-31");
+    assert.equal(local.fields.debitDate, "2026-03-31");
+    assert.equal(local.fields.date, "2026-03-01");
+    console.log("  OK date principale=", local.fields.date, "debit=", local.fields.debitDate);
   }
 
   section("Somme à payer TTC multiligne");
@@ -204,8 +209,11 @@ function main() {
   section("Preuve JSON fixture HT/TVA/TTC");
   {
     const local = analyzeLocally(FIXTURES.htTvaTtc);
-    const payEv = local.evidence.find((e) => e.field === "amountToPay");
-    assert.ok(payEv, "preuve amountToPay attendue");
+    // Dédup : amountToPay et amountTTC partagent souvent la même citation → une seule preuve.
+    const payEv =
+      local.evidence.find((e) => e.field === "amountToPay") ||
+      local.evidence.find((e) => e.field === "amountTTC");
+    assert.ok(payEv, "preuve montant à payer / TTC attendue");
     assert.ok(
       Array.isArray(payEv.reasons) && payEv.reasons.length > 0,
       "raisons de sélection sur la preuve gagnante"

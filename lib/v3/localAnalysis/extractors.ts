@@ -300,23 +300,40 @@ export function selectPrincipalAmountValue(fields: {
   return { value: null, source: null };
 }
 
-/** « TVA 20 » / « TVA 20% » sans montant monétaire réel → pas un amount. */
+/** « TVA 20% » / « TVA [20.00%] » → taux, jamais montant monétaire. */
 function isLikelyVatRateNotAmount(rawMatch: string, value: number): boolean {
   const compact = rawMatch.replace(/\s+/g, " ").trim();
-  // Taux usuels FR capturés seuls (sans décimales monétaires ni symbole €).
-  const commonRates = new Set([2.1, 5.5, 10, 20]);
-  if (!commonRates.has(value)) {
-    return false;
-  }
   const hasCurrency = /€|eur|euros?/i.test(compact);
-  const hasMoneyDecimals = /,\d{2}\b/.test(compact) || /\.\d{2}\b/.test(compact);
-  // « TVA 20% » ou « TVA 20 » sans € ni ,xx → taux, pas montant.
-  if (/%/.test(compact) && !hasCurrency && !hasMoneyDecimals) {
+  // Si le match entier contient € et un autre montant, le groupe capturé peut
+  // encore être le taux — on regarde la position du % par rapport à la valeur.
+  const valueRe = new RegExp(
+    String(value).replace(".", "[.,]") + "|\\" + String(value).replace(".", ",")
+  );
+  // « 20% », « 20.00% », « [20.00%] », « 5,5 % »
+  if (
+    new RegExp(
+      String.raw`${String(value).replace(".", "[.,]")}\s*%|\[\s*${String(value).replace(".", "[.,]")}\s*%\s*\]`,
+      "i"
+    ).test(compact)
+  ) {
     return true;
   }
-  if (!hasCurrency && !hasMoneyDecimals && /tva\s*\d+/i.test(compact)) {
+  if (/%|pour\s*cent|pourcentage|\btaux\b/i.test(compact) && !hasCurrency) {
     return true;
   }
+  // Match « TVA [20.00%] 1.66 € » où la capture AMOUNT a pris 20.00
+  if (
+    /%/.test(compact) &&
+    hasCurrency &&
+    new RegExp(String.raw`${String(value).replace(".", "[.,]")}\s*%`).test(compact)
+  ) {
+    return true;
+  }
+  if (!hasCurrency && /tva\s*[[\s]*\d/i.test(compact) && /%/.test(compact)) {
+    return true;
+  }
+  // unused — silence lint for valueRe if needed
+  void valueRe;
   return false;
 }
 

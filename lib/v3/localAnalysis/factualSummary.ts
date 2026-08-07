@@ -65,7 +65,6 @@ function isReliableIssuer(name: string | null | undefined): string | null {
   if (/capital(\s+social)?|au\s+capital/i.test(cleaned)) return null;
   if (/^\d/.test(cleaned) || /\b\d+[.,]\d{2}\b/.test(cleaned)) return null;
   if (/\beuros?\b/i.test(cleaned) && /\d/.test(cleaned)) return null;
-  // Forme juridique seule sans nom commercial
   if (/^(SASU|SAS|SARL|EURL|SA|SCI|SNC)\s*$/i.test(cleaned)) return null;
   return cleaned;
 }
@@ -89,10 +88,11 @@ export function buildFactualSummary(
     amountHT: fields.amountHT
   });
 
-  // Date : pour facture, préférer paymentDate (déjà dans fields.date si buildFields OK)
-  const actionDate = fields.paymentDate || fields.date;
-  const dateLabel = formatFrenchLongDate(actionDate);
-  const isPaymentDate = Boolean(fields.paymentDate);
+  const hasInvoiceDate = Boolean(fields.invoiceDate || fields.issueDate);
+  const invoiceDate = fields.invoiceDate || fields.issueDate || null;
+  const debitDate = fields.debitDate || fields.paymentDate || null;
+  const invoiceLabel = formatFrenchLongDate(invoiceDate);
+  const debitLabel = formatFrenchLongDate(debitDate);
 
   const parts: string[] = [];
   if (issuer) {
@@ -118,20 +118,27 @@ export function buildFactualSummary(
     }
   }
 
-  let dateClause = "";
-  if (dateLabel) {
-    if ((type === "facture" || type === "devis") && isPaymentDate) {
-      dateClause = `prélevée le ${dateLabel}`;
-    } else if (type === "facture" || type === "devis") {
-      dateClause = `datée du ${dateLabel}`;
-    } else {
-      dateClause = `du ${dateLabel}`;
+  const dateClauses: string[] = [];
+  if ((type === "facture" || type === "devis") && hasInvoiceDate && invoiceLabel) {
+    dateClauses.push(`datée du ${invoiceLabel}`);
+    if (debitLabel && debitDate !== invoiceDate) {
+      dateClauses.push(`prélevée le ${debitLabel}`);
     }
+  } else if ((type === "facture" || type === "devis") && debitLabel) {
+    // Seulement une date de prélèvement connue
+    dateClauses.push(`prélevée le ${debitLabel}`);
+  } else if (invoiceLabel) {
+    dateClauses.push(`du ${invoiceLabel}`);
+  } else if (fields.date) {
+    const fallback = formatFrenchLongDate(fields.date);
+    if (fallback) dateClauses.push(`du ${fallback}`);
   }
 
   let sentence = parts.join(" ");
-  if (dateClause) {
-    sentence += `, ${dateClause}`;
+  if (dateClauses.length === 1) {
+    sentence += `, ${dateClauses[0]}`;
+  } else if (dateClauses.length > 1) {
+    sentence += `, ${dateClauses[0]} et ${dateClauses[1]}`;
   }
   sentence = sentence.replace(/\s+/g, " ").trim();
   if (!/[.!?]$/.test(sentence)) {

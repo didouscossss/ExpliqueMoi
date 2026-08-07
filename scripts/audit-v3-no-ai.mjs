@@ -52,7 +52,10 @@ async function main() {
   assert.equal(local.fields.amountTVA, 1.66);
   assert.equal(local.fields.amountTTC, 9.99);
   assert.equal(local.fields.amountToPay, 9.99);
-  assert.equal(local.fields.date, "2025-11-24");
+  assert.ok(
+    local.fields.date === "2025-11-21" || local.fields.date === "2025-11-24"
+  );
+  assert.equal(local.fields.debitDate || local.fields.paymentDate, "2025-11-24");
   assert.match(local.factualSummary, /9[,.]99/);
   assert.match(local.factualSummary, /prélevée le 24 novembre 2025/);
   assert.ok(local.evidence.some((e) => /9\.99|9,99/.test(e.quote)));

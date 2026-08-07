@@ -72,14 +72,27 @@ export interface LocalEvidenceSpan {
 export interface LocalAnalysisFields {
   companyName: string | null;
   clientName: string | null;
-  /** Date principale actionnable (prélèvement/échéance pour facture, sinon émission). */
+  /**
+   * Date principale affichée :
+   * facture/devis → date de facture (émission) ;
+   * sinon documentDate / issueDate.
+   */
   date: string | null;
-  /** Date d’émission si détectée séparément. */
+  /** Date d’émission / document (alias sémantique de invoiceDate). */
   issueDate: string | null;
+  /** Alias explicite : date de facture / document. */
+  invoiceDate: string | null;
   /** Date de paiement / prélèvement / échéance. */
   paymentDate: string | null;
+  /** Alias explicite : date de prélèvement / débit. */
+  debitDate: string | null;
+  /** Échéance (si distincte du prélèvement). */
+  dueDate: string | null;
   amountHT: number | null;
+  /** Montant de TVA (€), jamais le taux. */
   amountTVA: number | null;
+  /** Taux de TVA en % (ex. 20), séparé du montant. */
+  vatRate: number | null;
   amountTTC: number | null;
   /** Total à payer / montant du prélèvement (facture). */
   amountToPay: number | null;

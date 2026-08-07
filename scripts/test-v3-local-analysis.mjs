@@ -141,8 +141,12 @@ function testFacture() {
   assert.equal(result.fields.clientName, "Mme Alice Martin");
   // Facture : date principale = échéance/prélèvement si présente ; émission conservée à part.
   assert.equal(result.fields.issueDate, "2026-03-12");
-  assert.equal(result.fields.paymentDate, "2026-04-12");
-  assert.equal(result.fields.date, "2026-04-12");
+  assert.equal(result.fields.invoiceDate, "2026-03-12");
+  // Échéance (pas « prélèvement ») → dueDate / debitDate
+  assert.equal(result.fields.dueDate || result.fields.paymentDate, "2026-04-12");
+  assert.equal(result.fields.debitDate, "2026-04-12");
+  assert.equal(result.fields.date, "2026-03-12");
+  assert.equal(result.fields.vatRate, 20);
   assert.ok(result.deadlines.length >= 1);
   assert.ok(result.detectedActions.some((a) => /régler/i.test(a)));
   console.log("  OK", JSON.stringify(result.fields));
@@ -236,6 +240,8 @@ Somme à payer TTC : 9.99 €
   assert.equal(result.fields.amountTVA, 1.66);
   assert.equal(result.fields.amountTTC, 9.99);
   assert.equal(result.fields.amountToPay, 9.99);
+  // Fixture sans date d’émission : debit en secours pour fields.date
+  assert.equal(result.fields.debitDate || result.fields.paymentDate, "2025-11-24");
   assert.equal(result.fields.date, "2025-11-24");
   assert.match(result.factualSummary, /9[,.]99/);
   assert.match(result.factualSummary, /prélevée le 24 novembre 2025/);

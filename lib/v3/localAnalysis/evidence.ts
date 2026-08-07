@@ -54,6 +54,18 @@ function isVerbatimInSource(fullText: string, quote: string): boolean {
   return compactFull.includes(compactQuote);
 }
 
+/** Clé de dédup normalisée (conserve le quote original à l’affichage). */
+function normalizeQuoteKey(quote: string): string {
+  return String(quote || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/€|eur|euros?/gi, "e")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function pushEvidence(
   list: LocalEvidenceSpan[],
   seen: Set<string>,
@@ -64,9 +76,13 @@ function pushEvidence(
   if (quote.length < 3) return;
   // Jamais de citation inventée / reformulée : doit exister dans le texte source.
   if (!isVerbatimInSource(fullText, quote)) return;
-  const key = `${item.field}|${quote}`;
-  if (seen.has(key)) return;
-  seen.add(key);
+  // Dédup cross-field sur texte normalisé (ex. même « Somme à payer TTC 9.99 € »
+  // pour amountTTC et amountToPay → une seule preuve affichée).
+  const norm = normalizeQuoteKey(quote);
+  if (!norm) return;
+  if (seen.has(norm) || seen.has(`${item.field}|${norm}`)) return;
+  seen.add(norm);
+  seen.add(`${item.field}|${norm}`);
   list.push({
     id: `ev-${list.length + 1}`,
     ...item,
@@ -195,24 +211,28 @@ export function buildLocalEvidence(
         item.iso === fields.issueDate
     ) || analysis.dates[0];
 
-  if (paymentLike?.raw && fields.paymentDate) {
-    add("date", "Date de paiement / prélèvement", paymentLike.raw);
-  } else if (issueLike?.raw) {
-    add("date", "Date", issueLike.raw);
+  // Date principale = facture/émission ; prélèvement en preuve séparée.
+  if (issueLike?.raw) {
+    add("invoiceDate", "Date de facture", issueLike.raw);
+  } else if (fields.date) {
+    const fallback =
+      analysis.dates.find((item) => item.iso === fields.date) || analysis.dates[0];
+    if (fallback?.raw) add("date", "Date", fallback.raw);
   }
 
-  if (
-    issueLike?.raw &&
-    fields.issueDate &&
-    fields.paymentDate &&
-    fields.issueDate !== fields.paymentDate
-  ) {
-    add("issueDate", "Date d'émission", issueLike.raw);
+  if (paymentLike?.raw && (fields.debitDate || fields.paymentDate)) {
+    add("debitDate", "Date de prélèvement", paymentLike.raw);
   }
 
   for (const deadline of analysis.deadlines || []) {
-    if (deadline.raw) {
+    if (
+      deadline.raw &&
+      deadline.label !== "payment_date" &&
+      deadline.iso !== fields.paymentDate
+    ) {
       add("deadline", "Échéance", deadline.raw);
+    } else if (deadline.raw && deadline.label === "payment_date") {
+      add("debitDate", "Date de prélèvement", deadline.raw);
     }
   }
 

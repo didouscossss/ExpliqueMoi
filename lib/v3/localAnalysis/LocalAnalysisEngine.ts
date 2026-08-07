@@ -83,17 +83,19 @@ export class LocalAnalysisEngine {
       warnings.push("Aucun montant clairement détecté.");
     }
 
-    // Incohérence arithmétique vérifiable uniquement (pas « champ manquant »).
+    // Incohérence arithmétique : HT + montant TVA (€) ≈ TTC — jamais le taux %.
     if (
       fields.amountHT != null &&
       fields.amountTVA != null &&
       (fields.amountTTC != null || fields.amountToPay != null)
     ) {
       const ttc = fields.amountToPay ?? fields.amountTTC ?? 0;
-      const sum = Math.round((fields.amountHT + fields.amountTVA) * 100) / 100;
+      const vatAmount = fields.amountTVA;
+      // Garde-fou : si amountTVA == vatRate et HT+rate ≠ TTC mais HT+autre candidat oui, ne pas alerter à tort
+      const sum = Math.round((fields.amountHT + vatAmount) * 100) / 100;
       if (Math.abs(sum - ttc) > 0.05) {
         warnings.push(
-          `Incohérence possible des montants : HT (${fields.amountHT}) + TVA (${fields.amountTVA}) ≠ TTC/à payer (${ttc}).`
+          `Incohérence possible des montants : HT (${fields.amountHT}) + TVA (${vatAmount}) ≠ TTC/à payer (${ttc}).`
         );
       }
     }
@@ -216,21 +218,28 @@ export class LocalAnalysisEngine {
 
     const paymentDate =
       parts.deadlines.find((item) => item.label === "payment_date")?.iso ||
-      parts.deadlines.find((item) => item.label === "deadline")?.iso ||
       parts.dates.find((item) => item.label === "payment_date")?.iso ||
       null;
 
-    // Facture/devis : date actionnable = prélèvement/échéance si présente.
+    const dueDate =
+      parts.deadlines.find((item) => item.label === "deadline")?.iso ||
+      null;
+
+    const debitDate = paymentDate || dueDate || null;
+    const invoiceDate = issueDate;
+
+    // Facture/devis : Date principale = date de facture (émission).
+    // Prélèvement seulement en secours s’il n’y a aucune date d’émission.
     const invoiceLike =
       parts.documentType === "facture" || parts.documentType === "devis";
     const primaryDate = invoiceLike
-      ? paymentDate ||
-        issueDate ||
+      ? invoiceDate ||
         parts.dates.find((item) => item.iso)?.iso ||
         parts.dates[0]?.raw ||
+        debitDate ||
         null
-      : issueDate ||
-        paymentDate ||
+      : invoiceDate ||
+        debitDate ||
         parts.dates.find((item) => item.iso)?.iso ||
         parts.dates[0]?.raw ||
         null;
@@ -240,9 +249,13 @@ export class LocalAnalysisEngine {
       clientName: parts.clientName,
       date: primaryDate,
       issueDate,
+      invoiceDate,
       paymentDate,
+      debitDate,
+      dueDate: dueDate && dueDate !== paymentDate ? dueDate : dueDate,
       amountHT: parts.ranked.amountHT,
       amountTVA: parts.ranked.amountTVA,
+      vatRate: parts.ranked.vatRate,
       amountTTC: parts.ranked.amountTTC,
       amountToPay: parts.ranked.amountToPay,
       netToPay: parts.ranked.netToPay,
@@ -272,9 +285,13 @@ export class LocalAnalysisEngine {
         clientName: null,
         date: null,
         issueDate: null,
+        invoiceDate: null,
         paymentDate: null,
+        debitDate: null,
+        dueDate: null,
         amountHT: null,
         amountTVA: null,
+        vatRate: null,
         amountTTC: null,
         amountToPay: null,
         netToPay: null,

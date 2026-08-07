@@ -11,8 +11,12 @@ import type { LocalAmountFinding } from "../types/LocalAnalysis.js";
 import { linesOf, parseFrenchAmount } from "./normalize.js";
 
 /** Montants monétaires FR / OCR, y compris « 9 99 € » (espace = séparateur décimal). */
-const AMOUNT_TOKEN =
-  /(\d{1,3}(?:[ \u00a0]\d{3})+[.,]\d{1,2}|\d{1,3}(?:\.\d{3})+,\d{1,2}|\d+[.,]\d{1,2}|\d{1,3}[ \u00a0]\d{2}(?=[ \u00a0\s]*(?:€|eur|euros?))|\d{1,3}(?:[ \u00a0]\d{3})+|\d+)(?:[ \u00a0\s]*(?:€|eur|euros?))?/gi;
+/** Symbole monétaire : € / EUR / OCR « e » isolé après un montant. */
+const CURRENCY_TAIL = String.raw`(?:[ \u00a0\s]*(?:€|eur|euros?|(?<![a-z])e(?![a-z])))?`;
+const AMOUNT_TOKEN = new RegExp(
+  String.raw`(\d{1,3}(?:[ \u00a0]\d{3})+[.,]\d{1,2}|\d{1,3}(?:\.\d{3})+,\d{1,2}|\d+[.,]\d{1,2}|\d{1,3}[ \u00a0]\d{2}(?=[ \u00a0\s]*(?:€|eur|euros?|(?<![a-z])e(?![a-z])))|\d{1,3}(?:[ \u00a0]\d{3})+|\d+)${CURRENCY_TAIL}`,
+  "gi"
+);
 
 /** Rayon de contexte local (caractères) — assez pour un libellé, trop peu pour toute la page. */
 const CONTEXT_RADIUS_BEFORE = 56;
@@ -33,7 +37,10 @@ export interface RankedAmountCandidate {
 
 export interface AmountFieldSelection {
   amountHT: number | null;
+  /** Montant TVA monétaire (€). */
   amountTVA: number | null;
+  /** Taux TVA en pourcentage (ex. 20), jamais utiliséé comme montant. */
+  vatRate: number | null;
   amountTTC: number | null;
   amountToPay: number | null;
   netToPay: number | null;
@@ -243,27 +250,69 @@ export function scoreLineContext(context: string): {
   return { tags, score, reasons };
 }
 
-/** « TVA 20% » / taux sans montant monétaire → à ignorer comme montant. */
+/**
+ * Nombre associé à % / pourcent / taux → rate, jamais montant monétaire.
+ * Couvre « TVA [20.00%] 1.66 € » : seul 20.00 est un taux ; 1.66 reste un montant.
+ * Règle : le % doit être IMMÉDIATEMENT après ce token (pas un % plus tôt sur la ligne).
+ */
 function isLikelyVatRateToken(
   line: string,
   matchIndex: number,
   matchText: string,
-  value: number
+  _value: number
 ): boolean {
-  const commonRates = new Set([2.1, 5.5, 10, 20]);
-  if (!commonRates.has(value)) return false;
-  const hasMoneyDecimals = /[.,]\d{2}\b/.test(matchText) || /[ \u00a0]\d{2}\b/.test(matchText);
-  const hasCurrency = /€|eur|euros?/i.test(matchText);
-  if (hasMoneyDecimals || hasCurrency) return false;
-  const around = line.slice(
-    Math.max(0, matchIndex - 12),
-    Math.min(line.length, matchIndex + matchText.length + 4)
+  // Symbole monétaire collé au token → montant, pas taux
+  if (/€|eur|euros?|(?:^|\s)e(?:\s|$)/i.test(matchText)) return false;
+
+  const after = line.slice(
+    matchIndex + matchText.length,
+    matchIndex + matchText.length + 12
   );
-  if (/tva\s*$/i.test(line.slice(Math.max(0, matchIndex - 8), matchIndex))) {
-    if (/%/.test(around) || !hasMoneyDecimals) return true;
+
+  // « 20% », « 20.00% », « 20 % », « 20 %] », « 20%] »
+  if (/^\s*%/.test(after)) return true;
+  if (/^\s*\]\s*%/.test(after)) return true;
+  if (/^\s*%\s*\]/.test(after)) return true;
+
+  // Nombre à l’intérieur de [20.00%] : après le nombre on a « %] » ou « % »
+  // déjà couvert ; aussi « 20.00%] » si le [ est avant
+  const before = line.slice(Math.max(0, matchIndex - 4), matchIndex);
+  if (/\[/.test(before) && /^\s*%\s*\]/.test(after)) return true;
+  if (/\[/.test(before) && /^\s*%/.test(after)) return true;
+
+  // « 20 pourcent » / « taux 20 »
+  if (/^\s*(?:pour\s*cent|pourcentage)\b/i.test(after)) return true;
+  if (
+    /\btaux\b/i.test(before + matchText) &&
+    /^\s*%/.test(after)
+  ) {
+    return true;
   }
-  if (/%/.test(around) && /tva/i.test(line)) return true;
+
   return false;
+}
+
+/** Extrait les taux de TVA (%) présents dans le texte. */
+export function extractVatRates(text: string): number[] {
+  const rates: number[] = [];
+  const seen = new Set<number>();
+  const patterns = [
+    /(?:tva|vat|taux(?:\s*(?:de\s*)?tva)?)\s*[[(:]?\s*(\d{1,2}(?:[.,]\d{1,2})?)\s*%/gi,
+    /(\d{1,2}(?:[.,]\d{1,2})?)\s*%\s*\]?\s*(?:tva|vat|t\.?\s*v\.?\s*a)/gi,
+    /\[(\d{1,2}(?:[.,]\d{1,2})?)\s*%\]/gi,
+    /\((\d{1,2}(?:[.,]\d{1,2})?)\s*%\)/gi
+  ];
+  for (const re of patterns) {
+    for (const match of String(text || "").matchAll(re)) {
+      const raw = String(match[1] || "").replace(",", ".");
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value <= 0 || value > 100) continue;
+      if (seen.has(value)) continue;
+      seen.add(value);
+      rates.push(value);
+    }
+  }
+  return rates;
 }
 
 function isDateFragment(
@@ -546,11 +595,19 @@ function applyArithmeticBoost(candidates: RankedAmountCandidate[]): void {
   }
 }
 
+function hasMoneyCurrency(cand: RankedAmountCandidate): boolean {
+  return (
+    /€|eur|euros?/i.test(cand.raw) ||
+    /\d[.,]\d{2}\s*e\b/i.test(cand.raw) ||
+    /€|eur|euros?|\d[.,]\d{2}\s*e\b/i.test(cand.context || "")
+  );
+}
+
 function hasMoneyDecimals(cand: RankedAmountCandidate): boolean {
   return (
     /[.,]\d{2}\b/.test(cand.raw) ||
     /[ \u00a0]\d{2}\b/.test(cand.raw) ||
-    /€|eur|euros?/i.test(cand.raw)
+    hasMoneyCurrency(cand)
   );
 }
 
@@ -633,11 +690,31 @@ function toFinding(
  */
 export function selectAmountFields(text: string): AmountFieldSelection {
   const candidates = rankAmountCandidates(text);
+  const vatRates = extractVatRates(text);
+  const vatRate = vatRates[0] ?? null;
 
   // Seuils bas (y compris scores légèrement négatifs dus à un taux % voisin) :
   // un montant monétaire classé reste éligible ; le score départage.
   const ht = bestByTag(candidates, "ht", -50);
-  const tva = bestByTag(candidates, "tva", -50);
+  // Montant TVA : jamais un taux % (même 20.00 dans [20.00%]).
+  const tvaCandidates = candidates.filter((c) => {
+    if (!c.tags.includes("tva")) return false;
+    if (vatRate != null && Math.abs(c.value - vatRate) < 0.001 && !hasMoneyCurrency(c)) {
+      return false;
+    }
+    // Exige une forme monétaire pour le montant TVA
+    return hasMoneyDecimals(c) || hasMoneyCurrency(c);
+  });
+  const tva =
+    tvaCandidates.sort((a, b) => b.score - a.score)[0] ||
+    bestByTag(
+      candidates.filter(
+        (c) =>
+          !(vatRate != null && Math.abs(c.value - vatRate) < 0.001 && !hasMoneyCurrency(c))
+      ),
+      "tva",
+      -50
+    );
   const payable = bestByTag(candidates, "payable", -50);
   const ttc = bestByTag(candidates, "ttc", -50);
   const net = bestByTag(candidates, "net", -50);
@@ -753,6 +830,7 @@ export function selectAmountFields(text: string): AmountFieldSelection {
   return {
     amountHT: ht?.value ?? null,
     amountTVA: tva?.value ?? null,
+    vatRate,
     amountTTC: amountTTC?.value ?? null,
     amountToPay: amountToPay?.value ?? null,
     netToPay: netToPay?.value ?? null,
@@ -812,6 +890,7 @@ export function debugAmountPipeline(text: string): AmountPipelineDebug {
     selection: {
       amountHT: selection.amountHT,
       amountTVA: selection.amountTVA,
+      vatRate: selection.vatRate,
       amountTTC: selection.amountTTC,
       amountToPay: selection.amountToPay,
       netToPay: selection.netToPay,
