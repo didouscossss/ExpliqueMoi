@@ -8,6 +8,7 @@ export { detectDocumentType } from "./documentType.js";
 export { buildLocalEvidence } from "./evidence.js";
 export { buildFactualSummary } from "./factualSummary.js";
 export {
+  debugAmountPipeline,
   rankAmountCandidates,
   selectAmountFields
 } from "./amountRanking.js";

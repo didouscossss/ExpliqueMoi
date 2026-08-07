@@ -89,6 +89,37 @@ function bestAmountRaw(
   return match?.raw || null;
 }
 
+/** Élargit une citation montant avec le libellé voisin présent dans le texte. */
+function expandAmountQuote(fullText: string, raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const cleaned = String(raw).replace(/\s+/g, " ").trim();
+  if (!cleaned) return null;
+  if (fullText.includes(cleaned) && cleaned.length > 8) return cleaned;
+
+  // Cherche une ligne / segment contenant le montant + un libellé utile
+  const money = cleaned.match(
+    /(\d{1,3}(?:[ \u00a0]\d{3})*[.,]\d{2}|\d+[.,]\d{2})\s*(?:€|eur|euros?)?/i
+  );
+  const token = money?.[0] || cleaned;
+  const idx = fullText.indexOf(token);
+  if (idx < 0) {
+    return fullText.includes(cleaned) ? cleaned : cleaned;
+  }
+  const lineStart = fullText.lastIndexOf("\n", idx) + 1;
+  let lineEnd = fullText.indexOf("\n", idx);
+  if (lineEnd < 0) lineEnd = fullText.length;
+  let line = fullText.slice(lineStart, lineEnd).replace(/\s+/g, " ").trim();
+  // Sur ligne aplatie très longue, fenêtre autour du montant
+  if (line.length > 120) {
+    const local = fullText.slice(Math.max(0, idx - 40), Math.min(fullText.length, idx + token.length + 8));
+    line = local.replace(/\s+/g, " ").trim();
+  }
+  if (/payer|ttc|ht|tva|total|montant|somme|net/i.test(line)) {
+    return line;
+  }
+  return fullText.includes(cleaned) ? cleaned : token;
+}
+
 /**
  * Construit les preuves locales à partir de l’analyse et du texte source.
  */
@@ -185,34 +216,58 @@ export function buildLocalEvidence(
     }
   }
 
-  add(
-    "amountHT",
-    "Montant HT",
-    bestAmountRaw(amounts, ["HT"], fields.amountHT)
+  // Preuves montants : indépendantes du gagnant principalAmount.
+  // Utilise fields si présents, sinon les findings amounts[] (candidats scorés).
+  const htQuote = expandAmountQuote(
+    text,
+    bestAmountRaw(amounts, ["HT"], fields.amountHT) ||
+      amounts.find((a) => a.label === "HT" && a.raw)?.raw
   );
-  add(
-    "amountTVA",
-    "TVA",
-    bestAmountRaw(amounts, ["TVA"], fields.amountTVA)
+  const tvaQuote = expandAmountQuote(
+    text,
+    bestAmountRaw(amounts, ["TVA"], fields.amountTVA) ||
+      amounts.find((a) => a.label === "TVA" && a.raw)?.raw
   );
-  add(
-    "amountTTC",
-    "Montant TTC",
-    bestAmountRaw(amounts, ["TTC"], fields.amountTTC)
+  const ttcQuote = expandAmountQuote(
+    text,
+    bestAmountRaw(amounts, ["TTC"], fields.amountTTC) ||
+      amounts.find((a) => a.label === "TTC" && a.raw)?.raw
   );
-  add(
-    "amountToPay",
-    "Montant à payer",
-    bestAmountRaw(amounts, ["montant_a_payer"], fields.amountToPay)
+  const payQuote = expandAmountQuote(
+    text,
+    bestAmountRaw(amounts, ["montant_a_payer"], fields.amountToPay) ||
+      amounts.find((a) => a.label === "montant_a_payer" && a.raw)?.raw ||
+      // Si à payer === TTC, cite le libellé « somme à payer TTC » s’il existe
+      (fields.amountToPay != null && fields.amountToPay === fields.amountTTC
+        ? bestAmountRaw(amounts, ["TTC"], fields.amountTTC)
+        : null)
   );
-  add(
-    "netToPay",
-    "Net à payer",
-    bestAmountRaw(amounts, ["net_a_payer"], fields.netToPay)
+  const netQuote = expandAmountQuote(
+    text,
+    bestAmountRaw(amounts, ["net_a_payer"], fields.netToPay) ||
+      amounts.find((a) => a.label === "net_a_payer" && a.raw)?.raw
   );
 
-  // Si à payer === TTC et une seule preuve TTC, c’est OK.
-  // Garantir au moins le montant principal si manquant.
+  add("amountHT", "Montant HT", htQuote);
+  add("amountTVA", "TVA", tvaQuote);
+  add("amountTTC", "Montant TTC", ttcQuote);
+  add("amountToPay", "Montant à payer", payQuote);
+  add("netToPay", "Net à payer", netQuote);
+
+  // Autres montants factuels détectés (passages importants même si principal échoue)
+  for (const amount of amounts) {
+    if (!amount.raw || amount.value == null) continue;
+    if (
+      ["HT", "TVA", "TTC", "montant_a_payer", "net_a_payer"].includes(
+        String(amount.label || "")
+      )
+    ) {
+      continue;
+    }
+    // Ne cite que si verbatim dans le texte
+    add("amountOther", "Montant détecté", amount.raw);
+  }
+
   const principal = selectPrincipalAmountValue(fields);
   if (principal.value != null && !evidence.some((item) =>
     ["amountToPay", "amountTTC", "netToPay", "amountHT"].includes(item.field)

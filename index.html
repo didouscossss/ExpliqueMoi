@@ -2867,7 +2867,7 @@
 
     // Affichée dans l’UI pour vérifier le déploiement Vercel
     // Branche V3 : moteur /api/v3/analyze (V2 serveur conservée).
-    const APP_VERSION = "3.1.1-v3-amount-ranking";
+    const APP_VERSION = "3.1.2-v3-pdfjs-amount-fix";
     /** Active le pipeline V3 (OCR local → /api/v3/analyze). V2 reste disponible si false. */
     const USE_V3_ENGINE = true;
 
@@ -6273,7 +6273,7 @@
         const actionable = analysis.warnings.find(
           (item) =>
             item &&
-            !/non détecté|indisponible|Analyse V3|faits locaux/i.test(
+            !/non détecté|clairement détecté|Aucun montant|indisponible|Analyse V3|faits locaux/i.test(
               String(item)
             )
         );

@@ -154,6 +154,45 @@ export default async function handler(
     // ——— Faits 100 % locaux (avant tout appel IA) ———
     const localAnalysis = analyzeLocally(normalizedOcr);
 
+    // Diagnostic optionnel (body.debugAmounts) — aucun appel IA.
+    let amountDebug = null;
+    if (body.debugAmounts === true) {
+      const { debugAmountPipeline } = await import(
+        "../../lib/v3/localAnalysis/amountRanking.js"
+      );
+      const full = normalizedOcr.fullText || "";
+      amountDebug = {
+        textLength: full.length,
+        textPreview: full.slice(0, 800),
+        unicodeSample: Array.from(full.slice(0, 200)).map((ch) => ({
+          ch,
+          code: ch.codePointAt(0)
+        })),
+        keywordHits: {
+          "9,99": /9[,.]99/.test(full),
+          "8,33": /8[,.]33/.test(full),
+          "1,66": /1[,.]66/.test(full),
+          TTC: /\bttc\b/i.test(full),
+          HT: /\bht\b/i.test(full),
+          TVA: /\btva\b/i.test(full),
+          payer: /payer/i.test(full),
+          prelevement: /pr[ée]l[èe]vement/i.test(full)
+        },
+        pipeline: debugAmountPipeline(full)
+      };
+      logProviderEvent("info", "v3_amount_debug", {
+        requestId,
+        provider: "local",
+        model: "amountRanking",
+        durationMs: Date.now() - started,
+        httpStatus: 200,
+        ok: true,
+        charCount: full.length,
+        code: amountDebug.pipeline?.selection?.principal != null ? "HAS_PRINCIPAL" : "NO_PRINCIPAL",
+        action: "debugAmounts"
+      });
+    }
+
     if (!localIsUsable(localAnalysis) && !normalizedOcr.fullText.trim()) {
       return response.status(400).json({
         ok: false,
@@ -290,6 +329,7 @@ export default async function handler(
       version: "v3",
       action: action === "summarize" ? "summarize" : "analyze",
       localAnalysis,
+      ...(amountDebug ? { amountDebug } : {}),
       result: {
         ok: true,
         version: "v3",

@@ -24,10 +24,20 @@ export function linesOf(text: string): string[] {
 }
 
 export function parseFrenchAmount(raw: string): number | null {
-  const cleaned = String(raw || "")
-    .replace(/\s/g, "")
+  const original = String(raw || "").trim();
+  // OCR « 9 99 € » / « 9\u00a099 € » : espace/NBSP entre euros et centimes
+  const spacedCents = original.match(
+    /^(\d{1,3})[ \u00a0](\d{2})\s*(?:€|eur|euros?)?$/i
+  );
+  if (spacedCents) {
+    const value = Number(`${spacedCents[1]}.${spacedCents[2]}`);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const cleaned = original
     .replace(/€|eur|euros?/gi, "")
-    .replace(/\u00a0/g, "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s/g, "")
     .trim();
 
   if (!cleaned) {
