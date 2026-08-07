@@ -81,61 +81,180 @@ export function extractDates(text: string): {
   return { dates, deadlines };
 }
 
+/**
+ * Extraction des montants avec rang de confiance selon le libellé.
+ * Un « Prix HT 8,00 » (ligne) ne doit pas écraser un « Total HT 8,33 ».
+ * Un « Montant à payer / TTC » prime pour le montant principal d’une facture.
+ */
 export function extractAmounts(text: string): LocalAmountFinding[] {
-  const amounts: LocalAmountFinding[] = [];
-  const seen = new Set<string>();
+  const byKey = new Map<string, LocalAmountFinding>();
 
-  const patterns: Array<{ label: string; re: RegExp }> = [
+  const patterns: Array<{ label: string; rank: number; re: RegExp }> = [
+    // ——— À payer / dû (priorité max pour factures) ———
     {
-      label: "HT",
+      label: "montant_a_payer",
+      rank: 50,
       re: new RegExp(
-        String.raw`(?:total\s*)?(?:montant\s*)?(?:h\.?\s*t\.?|hors\s*taxes?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        String.raw`(?:montant|total|net)\s*[àa]\s*payer\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
         "gi"
       )
     },
     {
-      label: "TVA",
+      // Exige €/eur pour ne pas confondre avec « Date de prélèvement : 24/11/2025 ».
+      label: "montant_a_payer",
+      rank: 45,
       re: new RegExp(
-        String.raw`(?:montant\s*)?(?:t\.?\s*v\.?\s*a\.?|tva(?:\s*\d+\s*%)?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
-        "gi"
-      )
-    },
-    {
-      label: "TTC",
-      re: new RegExp(
-        String.raw`(?:total\s*)?(?:montant\s*)?(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        String.raw`(?:montant\s*(?:du|de)\s*)?(?:pr[ée]l[èe]vement|pr[ée]lever)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)`,
         "gi"
       )
     },
     {
       label: "net_a_payer",
+      rank: 48,
       re: new RegExp(
-        String.raw`(?:net\s*[àa]\s*payer|salaire\s*net)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        String.raw`(?:net\s*[àa]\s*payer|salaire\s*net(?:\s*[àa]\s*payer)?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        "gi"
+      )
+    },
+
+    // ——— TTC (totaux d’abord) ———
+    {
+      label: "TTC",
+      rank: 40,
+      re: new RegExp(
+        String.raw`(?:montant\s*total|total(?:\s*g[ée]n[ée]ral)?|montant)\s*(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        "gi"
+      )
+    },
+    {
+      label: "TTC",
+      rank: 28,
+      re: new RegExp(
+        String.raw`(?:t\.?\s*t\.?\s*c\.?|ttc|toutes\s*taxes\s*comprises?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        "gi"
+      )
+    },
+
+    // ——— HT (totaux d’abord ; « prix HT » plus faible) ———
+    {
+      label: "HT",
+      rank: 35,
+      re: new RegExp(
+        String.raw`(?:montant\s*total|total(?:\s*g[ée]n[ée]ral)?|montant)\s*(?:h\.?\s*t\.?|hors\s*taxes?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        "gi"
+      )
+    },
+    {
+      label: "HT",
+      rank: 12,
+      re: new RegExp(
+        String.raw`(?:prix\s*)?(?:h\.?\s*t\.?|hors\s*taxes?)\s*[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
+        "gi"
+      )
+    },
+
+    // ——— TVA : consommer le taux (20 %) avant le montant pour ne pas capturer 20 ———
+    {
+      label: "TVA",
+      rank: 30,
+      re: new RegExp(
+        String.raw`(?:montant\s*(?:de\s*(?:la\s*)?)?)?(?:t\.?\s*v\.?\s*a\.?|tva)\s*(?:\d+[.,]?\d*\s*%\s*)?[:=]?\s*${AMOUNT_NUM}\s*(?:€|eur|euros?)?`,
         "gi"
       )
     }
   ];
 
-  for (const { label, re } of patterns) {
+  for (const { label, rank, re } of patterns) {
     for (const match of text.matchAll(re)) {
       const rawNum = match[1];
       const value = parseFrenchAmount(rawNum);
-      const key = `${label}:${value}`;
-      if (seen.has(key)) {
+      if (value === null) {
         continue;
       }
-      seen.add(key);
-      amounts.push({
+
+      // Rejeter un « montant TVA » qui n’est clairement qu’un taux (ex. match « TVA 20 » sans €).
+      if (label === "TVA" && isLikelyVatRateNotAmount(match[0], value)) {
+        continue;
+      }
+
+      const key = `${label}:${value}`;
+      const existing = byKey.get(key);
+      if (existing && (existing.rank || 0) >= rank) {
+        continue;
+      }
+      byKey.set(key, {
         raw: match[0].trim(),
         value,
         currency: "EUR",
         label,
+        rank,
         page: null
       });
     }
   }
 
-  return amounts;
+  return [...byKey.values()].sort((a, b) => (b.rank || 0) - (a.rank || 0));
+}
+
+/** « TVA 20 » / « TVA 20% » sans montant monétaire réel → pas un amount. */
+function isLikelyVatRateNotAmount(rawMatch: string, value: number): boolean {
+  const compact = rawMatch.replace(/\s+/g, " ").trim();
+  // Taux usuels FR capturés seuls (sans décimales monétaires ni symbole €).
+  const commonRates = new Set([2.1, 5.5, 10, 20]);
+  if (!commonRates.has(value)) {
+    return false;
+  }
+  const hasCurrency = /€|eur|euros?/i.test(compact);
+  const hasMoneyDecimals = /,\d{2}\b/.test(compact) || /\.\d{2}\b/.test(compact);
+  // « TVA 20% » ou « TVA 20 » sans € ni ,xx → taux, pas montant.
+  if (/%/.test(compact) && !hasCurrency && !hasMoneyDecimals) {
+    return true;
+  }
+  if (!hasCurrency && !hasMoneyDecimals && /tva\s*\d+/i.test(compact)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Choisit le meilleur montant parmi des labels, en privilégiant le rang
+ * puis une cohérence HT + TVA ≈ TTC si disponible.
+ */
+export function pickBestAmount(
+  amounts: LocalAmountFinding[],
+  labels: string[],
+  opts?: { preferReconcileWith?: { ht?: number | null; tva?: number | null } }
+): number | null {
+  const candidates = amounts.filter(
+    (item) =>
+      item.value != null &&
+      Number.isFinite(item.value) &&
+      labels.includes(String(item.label || ""))
+  );
+  if (!candidates.length) {
+    return null;
+  }
+
+  const ht = opts?.preferReconcileWith?.ht;
+  const tva = opts?.preferReconcileWith?.tva;
+  const canReconcile =
+    ht != null && tva != null && Number.isFinite(ht) && Number.isFinite(tva);
+
+  candidates.sort((a, b) => {
+    const rankDiff = (b.rank || 0) - (a.rank || 0);
+    if (rankDiff !== 0) {
+      return rankDiff;
+    }
+    if (canReconcile) {
+      const target = (ht as number) + (tva as number);
+      const da = Math.abs((a.value as number) - target);
+      const db = Math.abs((b.value as number) - target);
+      return da - db;
+    }
+    return 0;
+  });
+
+  return candidates[0].value ?? null;
 }
 
 /** Validation IBAN basique (longueur + caractères) + MOD-97 si possible. */

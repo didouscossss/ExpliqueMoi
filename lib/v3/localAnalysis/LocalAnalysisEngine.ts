@@ -20,7 +20,8 @@ import {
   extractDates,
   extractIban,
   extractInvoiceNumber,
-  extractSiret
+  extractSiret,
+  pickBestAmount
 } from "./extractors.js";
 import { normalizeText } from "./normalize.js";
 
@@ -58,6 +59,7 @@ export class LocalAnalysisEngine {
 
     const references = [...invoiceNumbers, ...sirets, ...ibans];
     const fields = this.buildFields({
+      documentType: typeGuess.documentType,
       companyName,
       clientName,
       dates,
@@ -114,6 +116,7 @@ export class LocalAnalysisEngine {
   }
 
   private buildFields(parts: {
+    documentType: LocalAnalysis["documentType"];
     companyName: string | null;
     clientName: string | null;
     dates: LocalAnalysis["dates"];
@@ -122,12 +125,35 @@ export class LocalAnalysisEngine {
     sirets: LocalAnalysis["references"];
     invoiceNumbers: LocalAnalysis["references"];
   }): LocalAnalysisFields {
-    const amountHT = parts.amounts.find((item) => item.label === "HT")?.value ?? null;
-    const amountTVA = parts.amounts.find((item) => item.label === "TVA")?.value ?? null;
-    const amountTTC =
-      parts.amounts.find((item) => item.label === "TTC")?.value ??
-      parts.amounts.find((item) => item.label === "net_a_payer")?.value ??
-      null;
+    const amountHT = pickBestAmount(parts.amounts, ["HT"]);
+    const amountTVA = pickBestAmount(parts.amounts, ["TVA"], {
+      preferReconcileWith: undefined
+    });
+
+    // Facture / devis : TTC ou total à payer en priorité (pas un HT partiel).
+    // Bulletin : net à payer.
+    // Autres : comportement inchangé (TTC puis net).
+    const invoiceLike =
+      parts.documentType === "facture" || parts.documentType === "devis";
+    const isPayslip = parts.documentType === "bulletin_de_salaire";
+
+    let amountTTC: number | null;
+    if (isPayslip) {
+      amountTTC =
+        pickBestAmount(parts.amounts, ["net_a_payer", "TTC"]) ?? null;
+    } else if (invoiceLike) {
+      amountTTC =
+        pickBestAmount(parts.amounts, ["montant_a_payer", "TTC", "net_a_payer"], {
+          preferReconcileWith: { ht: amountHT, tva: amountTVA }
+        }) ?? null;
+    } else {
+      amountTTC =
+        pickBestAmount(parts.amounts, ["TTC", "montant_a_payer", "net_a_payer"]) ??
+        null;
+    }
+
+    // Si HT+TVA connus et TTC manquant mais un candidat réconcilie, déjà géré par rank.
+    // Dernier recours facture : si seul HT trouvé, ne pas le promouvoir en TTC.
 
     const primaryDate =
       parts.dates.find((item) => item.label === "document_date")?.iso ||

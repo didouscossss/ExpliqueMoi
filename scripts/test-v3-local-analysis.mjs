@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import { LocalAnalysisEngine } from "../lib/v3/localAnalysis/LocalAnalysisEngine.js";
 import { analyzeLocally } from "../lib/v3/localAnalysis/index.js";
+import { extractAmounts } from "../lib/v3/localAnalysis/extractors.js";
+import { mapV3ResponseToUiAnalysis } from "../lib/v3/client/mapToUiAnalysis.js";
 
 const SIRET = "73282932000074";
 const IBAN = "FR14 2004 1010 0505 0001 3M02 606";
@@ -26,6 +28,33 @@ TVA 20%: 20,00 €
 Montant TTC: 120,00 €
 IBAN: ${IBAN}
 Merci de régler par virement.
+`.trim(),
+
+  /** Facture type opérateur : ligne partielle HT + totaux HT/TVA/TTC + à payer. */
+  factureOperateur: `
+FREE MOBILE
+FACTURE
+Facture n° FM-998877
+Date de prélèvement : 24/11/2025
+
+Abonnement Free
+Prix HT 8,00 €
+Options 0,33 €
+
+Total HT 8,33 €
+TVA 20% 1,66 €
+Total TTC 9,99 €
+Montant à payer : 9,99 €
+`.trim(),
+
+  /** Même totaux sans libellé TTC explicite — seulement « à payer ». */
+  factureAPayerSeul: `
+FACTURE
+Fournisseur Telecom
+Prix HT 8,00 €
+Total HT : 8,33 €
+TVA 20% : 1,66 €
+Montant à payer : 9,99 €
 `.trim(),
 
   devis: `
@@ -114,6 +143,59 @@ function testFacture() {
   assert.ok(result.deadlines.length >= 1);
   assert.ok(result.detectedActions.some((a) => /régler/i.test(a)));
   console.log("  OK", JSON.stringify(result.fields));
+}
+
+function testFactureHtTvaTtcEtPrincipal() {
+  section("facture HT + TVA + TTC (pas de confusion ligne / total)");
+  const result = analyzeLocally(FIXTURES.factureOperateur);
+  assert.equal(result.documentType, "facture");
+  assert.equal(result.fields.amountHT, 8.33);
+  assert.equal(result.fields.amountTVA, 1.66);
+  assert.equal(result.fields.amountTTC, 9.99);
+  assert.notEqual(result.fields.amountHT, 8);
+  assert.notEqual(result.fields.amountTVA, 20);
+
+  const mapped = mapV3ResponseToUiAnalysis({
+    ok: true,
+    localAnalysis: result,
+    result: {
+      ok: true,
+      summary: "Facture Free Mobile 9,99 € TTC.",
+      explanation: { documentType: "facture", keyPoints: [], warnings: [] },
+      provider: "openai",
+      model: "gpt-4o-mini"
+    }
+  });
+  assert.match(mapped.amount.value, /9[,.]99/);
+  assert.match(mapped.amount.meaning, /TTC|à payer/i);
+  assert.doesNotMatch(mapped.amount.value, /^8[,.]00/);
+  console.log(
+    "  OK principal=",
+    mapped.amount.value,
+    "| HT/TVA/TTC=",
+    result.fields.amountHT,
+    result.fields.amountTVA,
+    result.fields.amountTTC
+  );
+}
+
+function testFactureMontantAPayerSansTtcLabel() {
+  section("facture montant à payer sans libellé TTC");
+  const result = analyzeLocally(FIXTURES.factureAPayerSeul);
+  assert.equal(result.documentType, "facture");
+  assert.equal(result.fields.amountHT, 8.33);
+  assert.equal(result.fields.amountTVA, 1.66);
+  assert.equal(result.fields.amountTTC, 9.99);
+  console.log("  OK à payer → amountTTC=", result.fields.amountTTC);
+}
+
+function testTvaRateNotCapturedAsAmount() {
+  section("TVA : ne pas capturer le taux (%) comme montant");
+  const amounts = extractAmounts("Total HT 8,33 €\nTVA 20% 1,66 €\nTotal TTC 9,99 €");
+  const tva = amounts.filter((a) => a.label === "TVA");
+  assert.ok(tva.some((a) => a.value === 1.66));
+  assert.ok(!tva.some((a) => a.value === 20));
+  console.log("  OK TVA amounts=", tva.map((a) => a.value));
 }
 
 function testDevis() {
@@ -212,6 +294,9 @@ function testPerformance() {
 async function main() {
   console.log("test-v3-local-analysis — ExpliqueMoi V3");
   testFacture();
+  testFactureHtTvaTtcEtPrincipal();
+  testFactureMontantAPayerSansTtcLabel();
+  testTvaRateNotCapturedAsAmount();
   testDevis();
   testContrat();
   testBulletin();

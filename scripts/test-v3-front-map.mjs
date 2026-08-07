@@ -46,4 +46,28 @@ assert.equal(mapped.issuer, "SAS DUPONT SERVICES");
 assert.equal(mapped.engine, "v3");
 assert.equal(mapped.provider, "openai");
 assert.ok(mapped.actions.length >= 1);
+assert.match(mapped.amount.value, /120/);
+assert.match(mapped.amount.meaning, /TTC|à payer/i);
+
+// Facture : ne pas afficher le HT partiel comme montant principal quand TTC existe
+const freeLikeUi = mapV3ResponseToUiAnalysis({
+  ok: true,
+  localAnalysis: {
+    documentType: "facture",
+    documentTypeConfidence: 0.9,
+    fields: {
+      amountHT: 8.33,
+      amountTVA: 1.66,
+      amountTTC: 9.99
+    }
+  },
+  result: {
+    ok: true,
+    summary: "Facture 9,99 € TTC.",
+    explanation: { documentType: "facture", keyPoints: [], warnings: [] }
+  }
+});
+assert.match(freeLikeUi.amount.value, /9[,.]99/);
+assert.doesNotMatch(freeLikeUi.amount.value, /^8/);
+
 console.log("✓ mapV3ResponseToUiAnalysis OK");

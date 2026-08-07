@@ -23,7 +23,13 @@ export interface LocalAmountFinding {
   raw: string;
   value?: number | null;
   currency?: string | null;
+  /** HT | TVA | TTC | net_a_payer | montant_a_payer | … */
   label?: string | null;
+  /**
+   * Force du libellé / contexte (plus élevé = total / à payer plutôt qu’une ligne partielle).
+   * Utilisé pour choisir le montant principal sans confondre un prix unitaire avec le total.
+   */
+  rank?: number;
   page?: number | null;
 }
 
