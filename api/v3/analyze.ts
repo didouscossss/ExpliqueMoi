@@ -172,7 +172,14 @@ export default async function handler(
 
     // Si l’IA a repris un libellé final (« Somme à payer TTC : 9.99 € »)
     // dans les keyPoints alors que l’OCR seul l’a manqué, enrichir les fields.
-    const explanation = (result.explanation || {}) as Record<string, unknown>;
+    const explanation =
+      result &&
+      typeof result === "object" &&
+      "explanation" in result &&
+      result.explanation &&
+      typeof result.explanation === "object"
+        ? (result.explanation as Record<string, unknown>)
+        : {};
     const keyPoints = Array.isArray(explanation.keyPoints)
       ? explanation.keyPoints.map(String)
       : [];
