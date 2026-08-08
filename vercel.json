@@ -7,6 +7,10 @@
     },
     "api/assist.js": {
       "maxDuration": 30
+    },
+    "api/v3/analyze.ts": {
+      "maxDuration": 45,
+      "includeFiles": "{lib/v3/**}"
     }
   }
 }
