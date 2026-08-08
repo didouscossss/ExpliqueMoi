@@ -236,12 +236,21 @@ export function explainTaxDocument(input: {
   fiscalKnowledge?: FiscalKnowledgeAnalysis | null;
   referenceHint?: string | null;
 }): TaxDocumentExplanation {
+  const familyHint = input.fiscalKnowledge?.suggestedFamily || null;
+  const familyAlias =
+    familyHint === "incomeTaxNotice"
+      ? "INCOME-TAX-NOTICE"
+      : familyHint === "propertyTax"
+        ? "PROPERTY-TAX-NOTICE"
+        : null;
+
   const primary =
     input.referenceHint ||
     input.fiscalKnowledge?.primaryIdentity?.normalized ||
     (typeof input.identity.reference?.value === "string"
       ? input.identity.reference.value
       : null) ||
+    familyAlias ||
     null;
 
   const resolved = resolveSemantic(primary);
