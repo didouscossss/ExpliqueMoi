@@ -170,5 +170,21 @@ export type {
   EvaluatedRequirement,
   TaxFieldQuestion,
   TaxFieldAssistance,
-  TaxAssistanceContext
+  TaxAssistanceContext,
+  CaseYearRelation,
+  DocumentRelationType,
+  DuplicateStatus,
+  CrossMatchVerdict,
+  FactConflictKind,
+  DocumentInstance,
+  DocumentRelation,
+  FactConflict,
+  UserProvidedFact,
+  MatchScoreBreakdown,
+  CaseRequirementMatch,
+  CaseCentricFieldView,
+  DocumentCentricView,
+  DocumentCaseMetrics,
+  DocumentCaseInvariants,
+  DocumentCase
 } from "./knowledge.js";

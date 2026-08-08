@@ -2303,11 +2303,11 @@
       <section class="card upload-card">
         <div class="upload-icon">↥</div>
 
-        <h2>Ajouter un document</h2>
+        <h2>Ajouter des documents</h2>
 
         <p>
-          Prenez plusieurs photos ou ajoutez des fichiers.
-          ExpliqueMoi les analysera comme un seul document.
+          Ajoutez un ou plusieurs fichiers (dossier multi-documents).
+          Chaque fichier conserve son identité ; ExpliqueMoi cherche les liens possibles entre eux, sans inventer un montant à déclarer.
         </p>
 
         <div class="upload-buttons">
@@ -2397,7 +2397,7 @@
         <div class="manual-content">
           <textarea
             id="manualText"
-            placeholder="Collez ici le texte de votre document..."
+            placeholder="Collez ici le texte d’un document…&#10;&#10;Dossier multi-documents : séparez avec&#10;---DOC:2042.pdf---&#10;…&#10;---DOC:attestation.pdf---&#10;…"
           ></textarea>
 
           <button
@@ -2408,8 +2408,41 @@
           >
             Analyser ce texte
           </button>
+
+          <button
+            id="analyzeDossierTextButton"
+            class="button primary-button"
+            type="button"
+            style="width:100%;margin-top:8px"
+          >
+            Analyser comme un dossier (multi-documents)
+          </button>
+          <p class="pages-hint" style="margin-top:8px">
+            Utilisez des séparateurs <code>---DOC:nom.pdf---</code> pour plusieurs documents.
+            Vous pourrez retirer un document puis relancer.
+          </p>
         </div>
       </details>
+
+      <section
+        id="dossierCard"
+        class="card selected-file-card hidden"
+      >
+        <div class="pages-header">
+          <strong id="dossierTitle">Documents du dossier</strong>
+          <span id="dossierCounter">0</span>
+        </div>
+        <div id="dossierList" class="pages-list"></div>
+        <button
+          id="analyzeDossierButton"
+          class="button primary-button analyze-button"
+          type="button"
+          disabled
+          style="margin-top:12px"
+        >
+          Analyser le dossier
+        </button>
+      </section>
 
       <div class="privacy">
         🔒 Votre fichier sert uniquement à produire votre explication.
@@ -2631,7 +2664,9 @@
         <div id="fiscalPurpose" class="fiscal-block"></div>
         <div id="fiscalDocumentFacts" class="fiscal-block"></div>
         <div id="fiscalActions" class="fiscal-block"></div>
+        <div id="fiscalCaseDocuments" class="fiscal-block"></div>
         <div id="fiscalFields" class="fiscal-block"></div>
+        <div id="fiscalCaseConflicts" class="fiscal-block"></div>
         <div id="fiscalUncertainties" class="fiscal-block"></div>
         <div id="fiscalRelated" class="fiscal-block"></div>
 
@@ -3080,6 +3115,8 @@
       isCompressing: false,
       isAnalyzing: false,
       isBusy: false,
+      /** V4-R — documents distincts du dossier (état local Preview). */
+      dossierDocuments: [],
       // Sprint 3 — conversation liée UNIQUEMENT au document courant
       documentId: null,
       chatHistory: [],
@@ -3220,6 +3257,19 @@
         "click",
         analyzeText
       );
+
+      const dossierBtn = $("analyzeDossierTextButton");
+      if (dossierBtn) {
+        dossierBtn.addEventListener("click", analyzeDossierFromText);
+      }
+      const dossierAnalyzeBtn = $("analyzeDossierButton");
+      if (dossierAnalyzeBtn) {
+        dossierAnalyzeBtn.addEventListener("click", analyzeDossierState);
+      }
+      const dossierList = $("dossierList");
+      if (dossierList) {
+        dossierList.addEventListener("click", handleDossierListClick);
+      }
 
       $("newDocumentButton").addEventListener(
         "click",
@@ -4857,7 +4907,9 @@
         "fiscalPurpose",
         "fiscalDocumentFacts",
         "fiscalActions",
+        "fiscalCaseDocuments",
         "fiscalFields",
+        "fiscalCaseConflicts",
         "fiscalUncertainties",
         "fiscalRelated",
         "fiscalSourcesList",
@@ -5399,6 +5451,127 @@
       };
     }
 
+    function parseDossierPaste(text) {
+      if (!/^---DOC/m.test(text || "")) {
+        return [{ fileName: "document.txt", text: text || "" }];
+      }
+      const parts = text.split(/^---DOC(?::([^\n]+))?---\s*$/m);
+      const docs = [];
+      for (let i = 1; i < parts.length; i += 2) {
+        const fileName = (parts[i] || "").trim() || `document-${docs.length + 1}.txt`;
+        const body = (parts[i + 1] || "").trim();
+        if (body.length >= 10) docs.push({ fileName, text: body });
+      }
+      return docs.length ? docs : [{ fileName: "document.txt", text }];
+    }
+
+    function renderDossierList() {
+      const list = $("dossierList");
+      const card = $("dossierCard");
+      const counter = $("dossierCounter");
+      const btn = $("analyzeDossierButton");
+      if (!list || !card) return;
+      const docs = state.dossierDocuments || [];
+      counter.textContent = String(docs.length);
+      if (!docs.length) {
+        card.classList.add("hidden");
+        if (btn) btn.disabled = true;
+        list.innerHTML = "";
+        return;
+      }
+      card.classList.remove("hidden");
+      if (btn) btn.disabled = docs.length < 1;
+      list.innerHTML = docs
+        .map(
+          (d, index) => `
+          <div class="page-item" data-dossier-index="${index}">
+            <div>
+              <strong>${escapeHtml(d.fileName || "Document")}</strong>
+              <p style="color:var(--muted);font-size:0.85rem;margin:0">
+                ${escapeHtml(String(d.text || "").slice(0, 80))}…
+              </p>
+            </div>
+            <button type="button" class="secondary-btn" data-dossier-remove="${index}">
+              Retirer
+            </button>
+          </div>`
+        )
+        .join("");
+    }
+
+    function handleDossierListClick(event) {
+      const btn = event.target.closest("[data-dossier-remove]");
+      if (!btn) return;
+      const index = Number(btn.getAttribute("data-dossier-remove"));
+      if (!Number.isFinite(index)) return;
+      state.dossierDocuments.splice(index, 1);
+      renderDossierList();
+    }
+
+    function setDossierFromPaste(text) {
+      state.dossierDocuments = parseDossierPaste(text).map((d) => ({
+        id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        fileName: d.fileName,
+        text: d.text
+      }));
+      renderDossierList();
+    }
+
+    async function analyzeDossierFromText() {
+      const text = $("manualText").value.trim();
+      if (text.length < 30) {
+        showError(
+          "Échec de l’analyse",
+          "Aucun texte exploitable n’a été détecté.",
+          {
+            keepRuntimeClean: true,
+            code: AnalysisErrorCode.NO_USABLE_CONTENT
+          }
+        );
+        return;
+      }
+      setDossierFromPaste(text);
+      await analyzeDossierState();
+    }
+
+    async function analyzeDossierState() {
+      const docs = state.dossierDocuments || [];
+      if (!docs.length) return;
+
+      // Envoi comme collage multi-DOC pour le chemin V4 / backend
+      const composed = docs
+        .map((d) => `---DOC:${d.fileName || "document.txt"}---\n${d.text}`)
+        .join("\n");
+
+      if (state.isAnalyzing) {
+        resetAnalysisRuntimeState({
+          clearPages: false,
+          reason: "restart-analysis"
+        });
+      }
+
+      const formData = new FormData();
+      formData.append("text", composed);
+      formData.append("dossier", "1");
+      formData.append(
+        "dossier_manifest",
+        JSON.stringify(
+          docs.map((d) => ({
+            fileName: d.fileName,
+            chars: (d.text || "").length
+          }))
+        )
+      );
+
+      await sendAnalysis(formData, {
+        pagesSnapshot: [],
+        manifest: null,
+        preparedPages: null,
+        heterogeneous: false,
+        dossierDocuments: docs
+      });
+    }
+
     async function analyzeText() {
       if (state.isCompressing || state.isSelectingFile) {
         return;
@@ -5425,6 +5598,11 @@
         );
 
         return;
+      }
+
+      // Si séparateurs DOC présents, traiter comme dossier
+      if (/^---DOC/m.test(text)) {
+        setDossierFromPaste(text);
       }
 
       const formData = new FormData();
@@ -5873,6 +6051,12 @@
             ? data.fiscal_document
             : null,
 
+        documentCase:
+          data?.document_case &&
+          typeof data.document_case === "object"
+            ? data.document_case
+            : null,
+
         actions:
           normalizeActions(data?.actions),
 
@@ -6280,7 +6464,7 @@
         analysis.evidence
       );
 
-      renderFiscalDocument(fiscal);
+      renderFiscalDocument(fiscal, analysis.documentCase);
 
       renderTables(analysis.tables);
 
@@ -6300,11 +6484,14 @@
       }
     }
 
-    function renderFiscalDocument(fiscal) {
+    function renderFiscalDocument(fiscal, documentCase) {
       const card = $("fiscalCard");
       if (!card) return;
 
-      if (!fiscal || typeof fiscal !== "object") {
+      if (
+        (!fiscal || typeof fiscal !== "object") &&
+        (!documentCase || typeof documentCase !== "object")
+      ) {
         card.classList.add("hidden");
         return;
       }
@@ -6313,17 +6500,152 @@
 
       setTextIfPresent(
         "fiscalHeadline",
-        fiscal.confidence_headline || "Explication du document"
+        documentCase?.documents_count > 1
+          ? `Dossier fiscal — ${documentCase.documents_count} documents`
+          : fiscal?.confidence_headline || "Explication du document"
       );
 
       const identity = $("fiscalIdentity");
       const purpose = $("fiscalPurpose");
       const facts = $("fiscalDocumentFacts");
       const actions = $("fiscalActions");
+      const caseDocs = $("fiscalCaseDocuments");
+      const caseConflicts = $("fiscalCaseConflicts");
       const uncertain = $("fiscalUncertainties");
       const related = $("fiscalRelated");
       const sourcesList = $("fiscalSourcesList");
       const premiumList = $("fiscalPremiumList");
+
+      if (caseDocs) {
+        const docs = Array.isArray(documentCase?.documents)
+          ? documentCase.documents
+          : [];
+        if (docs.length) {
+          caseDocs.innerHTML = `
+            <h3>Documents analysés — ${escapeHtml(
+              String(documentCase.documents_count || docs.length)
+            )}</h3>
+            <ul class="fiscal-list">
+              ${docs
+                .map((d) => {
+                  const title =
+                    d.detected_reference ||
+                    d.recognition_label ||
+                    d.file_name ||
+                    "Document";
+                  const year =
+                    d.year != null ? String(d.year) : "Année non déterminée";
+                  const linked = Array.isArray(d.potentially_linked_to)
+                    ? d.potentially_linked_to
+                        .slice(0, 3)
+                        .map(
+                          (l) =>
+                            `<li>${escapeHtml(l.field_code)} — ${escapeHtml(
+                              l.reason || ""
+                            )}</li>`
+                        )
+                        .join("")
+                    : "";
+                  return `
+                    <li class="fiscal-field-item">
+                      <details>
+                        <summary>
+                          <span class="fiscal-field-code">${escapeHtml(
+                            d.detected_reference || "DOC"
+                          )}</span>
+                          <span>${escapeHtml(title)}</span>
+                        </summary>
+                        <div class="fiscal-field-body">
+                          <p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                            d.file_name || ""
+                          )}</p>
+                          <p><strong>Année :</strong> ${escapeHtml(year)}</p>
+                          <p>${escapeHtml(
+                            d.recognition_label ||
+                              "Type de document non identifié avec certitude."
+                          )}</p>
+                          ${
+                            d.duplicate_message
+                              ? `<p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                                  d.duplicate_message
+                                )}</p>`
+                              : ""
+                          }
+                          ${
+                            linked
+                              ? `<p style="margin-top:0.4rem"><strong>Potentiellement lié à</strong></p><ul class="fiscal-list">${linked}</ul>`
+                              : ""
+                          }
+                        </div>
+                      </details>
+                    </li>`;
+                })
+                .join("")}
+            </ul>`;
+        } else {
+          caseDocs.innerHTML = "";
+        }
+      }
+
+      if (caseConflicts) {
+        const conflicts = Array.isArray(documentCase?.conflicts)
+          ? documentCase.conflicts
+          : [];
+        const amb = Array.isArray(documentCase?.ambiguities)
+          ? documentCase.ambiguities
+          : [];
+        const items = [
+          ...conflicts.map((c) => c.description),
+          ...amb
+        ].filter(Boolean);
+        if (items.length) {
+          caseConflicts.innerHTML = `
+            <h3>Informations à vérifier</h3>
+            <p style="color:var(--muted);font-size:0.88rem">Plusieurs informations différentes ont été trouvées.</p>
+            <ul class="fiscal-list">
+              ${items
+                .slice(0, 8)
+                .map((t) => `<li>${escapeHtml(t)}</li>`)
+                .join("")}
+            </ul>`;
+        } else {
+          caseConflicts.innerHTML = "";
+        }
+      }
+
+      // Vue case-centric dossier prioritaire sur tax_fields mono-doc
+      fiscal =
+        fiscal && typeof fiscal === "object" ? { ...fiscal } : {};
+      if (
+        documentCase &&
+        Array.isArray(documentCase.tax_fields) &&
+        documentCase.tax_fields.length
+      ) {
+        fiscal.tax_fields = documentCase.tax_fields.map((f) => ({
+          field_code: f.field_code,
+          label: f.label,
+          explanation: f.explanation,
+          document_value: null,
+          presence_label: f.information_status || "Dossier",
+          missing_requirements: (f.to_verify || []).map((t) => ({
+            label: t,
+            status_label: "À vérifier"
+          })),
+          ambiguous_requirements: [],
+          supporting_documents: f.supporting_documents || [],
+          general_conditions: f.general_conditions || [],
+          priority_questions: f.priority_questions || [],
+          more_questions_count: 0,
+          candidate_fact_notes: (f.found_by_document || []).flatMap((d) =>
+            (d.notes || []).map(
+              (n) => `${d.file_name || "Document"} — ${n}`
+            )
+          ),
+          official_sources: f.official_sources || [],
+          understand_cta_label: "M’aider à comprendre cette case",
+          information_status_label: f.information_status
+        }));
+      }
 
       if (identity) {
         const chips = [];
@@ -8973,6 +9295,8 @@
 
       state.isSelectingFile = false;
       state.isCompressing = false;
+      state.dossierDocuments = [];
+      renderDossierList();
       syncActionControls();
     }
 

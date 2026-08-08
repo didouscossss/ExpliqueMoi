@@ -190,3 +190,26 @@ export {
   explainRequirementsWithContext,
   decideFieldApplicability
 } from "./fr/tax/fields/requirements/premiumBoundary.js";
+export {
+  buildDocumentCase,
+  addDocumentsToCase,
+  removeDocumentFromCase,
+  buildCaseTaxAssistanceContext,
+  assertUploadOrderStable,
+  type DocumentCaseInput,
+  type BuildDocumentCaseOptions
+} from "./fr/tax/case/buildDocumentCase.js";
+export { auditDocumentCase } from "./fr/tax/case/audit.js";
+export { checkDocumentCaseSafety } from "./fr/tax/case/safety.js";
+export {
+  findCandidateFactsForRequirementInCase,
+  scoreFactForRequirement
+} from "./fr/tax/case/matchScoring.js";
+export { buildDocumentRelations } from "./fr/tax/case/relations.js";
+export { detectFactConflicts } from "./fr/tax/case/conflicts.js";
+export { assessDuplicates } from "./fr/tax/case/duplicates.js";
+export {
+  hashDocumentContent,
+  buildCaseId,
+  normalizeDocumentText
+} from "./fr/tax/case/hash.js";

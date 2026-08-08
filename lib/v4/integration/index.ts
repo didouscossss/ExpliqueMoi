@@ -19,6 +19,7 @@ export {
 } from "./mapToPreview.js";
 export {
   runV4PreviewAnalysis,
+  parseMultiDocumentPaste,
   type V4PreviewRunInput,
   type V4PreviewRunResult
 } from "./runPreview.js";
@@ -35,3 +36,8 @@ export {
   type FiscalViewFact,
   type FiscalViewAction
 } from "./fiscalViewModel.js";
+export {
+  runV4PreviewDocumentCase,
+  type V4DocumentCaseRunInput
+} from "./runDocumentCase.js";
+export { documentCaseToPreviewJson } from "./documentCaseViewModel.js";

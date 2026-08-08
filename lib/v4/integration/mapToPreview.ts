@@ -35,6 +35,8 @@ export interface PreviewAnalysisMapped {
   amounts_detail: Array<{ label: string; value: string; kind: string; page: string }>;
   /** V4-O — view model fiscal (null pour factures / non fiscal). */
   fiscal_document: Record<string, unknown> | null;
+  /** V4-R — dossier multi-documents (null si un seul document). */
+  document_case?: Record<string, unknown> | null;
   /** Debug Preview — jamais inventé. */
   v4_debug: Record<string, unknown>;
   /** Invariants UI d’intégration. */
@@ -381,6 +383,7 @@ export function mapV4ResultToPreviewAnalysis(
     tables: [],
     amounts_detail,
     fiscal_document,
+    document_case: null,
     v4_debug: {
       engine: "v4",
       primaryDocumentType: diagnostics.primaryDocumentType,

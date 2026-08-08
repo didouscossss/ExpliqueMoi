@@ -748,18 +748,237 @@ export interface TaxFieldAssistance {
 }
 
 /**
- * Contexte futur Premium — structure seule, aucun appel LLM en V4-Q.
+ * Contexte futur Premium — structure seule, aucun appel LLM en V4-Q/R.
+ * Étendu V4-R pour le dossier multi-documents.
  */
 export interface TaxAssistanceContext {
+  caseId?: string | null;
+  targetField?: string | null;
   fieldKnowledge: FrenchTaxFieldEntry | null;
   fieldRequirements: FrenchTaxFieldRequirements | null;
+  relevantDocuments?: DocumentInstance[];
   relevantDocumentFacts: CandidateDocumentFact[];
+  evidenceLinks?: RequirementEvidenceLink[];
+  conflicts?: FactConflict[];
   missingRequirements: EvaluatedRequirement[];
   ambiguities: EvaluatedRequirement[];
-  userAnswers: Array<{ requirementId: string; answer: string }>;
+  deterministicQuestions?: TaxFieldQuestion[];
+  userAnswers: UserProvidedFact[] | Array<{ requirementId: string; answer: string }>;
   provenance: KnowledgeProvenance[];
   informationStatus: FieldInformationStatus;
   questions: TaxFieldQuestion[];
+}
+
+/* ─── V4-R — Dossier multi-documents ─── */
+
+export type CaseYearRelation =
+  | "sameYear"
+  | "yearStable"
+  | "yearMismatch"
+  | "yearUnknown";
+
+export type DocumentRelationType =
+  | "sameFiscalYear"
+  | "possibleSupportingDocument"
+  | "relatedTaxForm"
+  | "sameDeclarant"
+  | "possibleFieldEvidence"
+  | "unknown";
+
+export type DuplicateStatus =
+  | "possibleDuplicate"
+  | "possibleVersion"
+  | "distinct";
+
+export type CrossMatchVerdict =
+  | "strong"
+  | "candidate"
+  | "ambiguous"
+  | "rejected";
+
+export type FactConflictKind =
+  | "year"
+  | "amount"
+  | "role"
+  | "identity"
+  | "emptyVsValue"
+  | "other";
+
+/** Instance stable d’un document dans un dossier — jamais le seul fileName. */
+export interface DocumentInstance {
+  documentId: string;
+  fileName: string | null;
+  contentHash: string;
+  detectedType: string | null;
+  detectedReference: string | null;
+  fiscalYear: number | null;
+  documentYear: number | null;
+  confidence: number;
+  recognitionLabel: string;
+  text: string;
+  /** Faits indexés — chaque entrée conserve documentId. */
+  facts: CandidateDocumentFact[];
+  detectedFields: DetectedTaxField[];
+  fieldExplanations: TaxFieldExplanation[];
+  duplicateOf: string | null;
+  duplicateStatus: DuplicateStatus;
+  isPrimaryCopy: boolean;
+  provenance: KnowledgeProvenance[];
+}
+
+export interface DocumentRelation {
+  relationId: string;
+  fromDocumentId: string;
+  toDocumentId: string;
+  relationType: DocumentRelationType;
+  confidence: number;
+  evidence: EvidenceSpan[];
+  reason: string;
+  fieldCodeHint?: string | null;
+  yearRelation?: CaseYearRelation | null;
+}
+
+export interface FactConflict {
+  conflictId: string;
+  kind: FactConflictKind;
+  documentIds: string[];
+  factIds: string[];
+  description: string;
+  evidence: EvidenceSpan[];
+}
+
+/** Réponse utilisateur explicite — UserProvidedFact ≠ OfficialKnowledge. */
+export interface UserProvidedFact {
+  kind: "user";
+  questionId: string;
+  requirementId: string;
+  answer: string;
+  answeredAt: string | null;
+  source: "user";
+}
+
+export interface MatchScoreBreakdown {
+  documentTypeMatch: number;
+  yearMatch: number;
+  roleMatch: number;
+  factTypeMatch: number;
+  keywordMatch: number;
+  fieldEvidenceMatch: number;
+  rejectReasons: string[];
+  contributions: Array<{ key: string; value: number; note: string }>;
+}
+
+export interface CaseRequirementMatch {
+  requirementId: string;
+  fieldCode: string;
+  status: RequirementStatus;
+  statusLabel: string;
+  verdict: CrossMatchVerdict;
+  candidateFacts: CandidateDocumentFact[];
+  evidenceLinks: RequirementEvidenceLink[];
+  scoreBreakdowns: Array<{
+    factId: string;
+    documentId: string | null;
+    breakdown: MatchScoreBreakdown;
+    verdict: CrossMatchVerdict;
+  }>;
+  aggregatedValue: null;
+  yearRelation: CaseYearRelation;
+}
+
+export interface CaseCentricFieldView {
+  fieldCode: string;
+  label: string | null;
+  whatIsIt: string | null;
+  foundByDocument: Array<{
+    documentId: string;
+    fileName: string | null;
+    notes: string[];
+  }>;
+  toVerify: string[];
+  supportingDocuments: SupportingDocumentHint[];
+  generalConditions: string[];
+  officialSources: Array<{ title: string; url: string }>;
+  informationStatus: FieldInformationStatus;
+  priorityQuestions: TaxFieldQuestion[];
+  suggestedDeclaredAmount: null;
+}
+
+export interface DocumentCentricView {
+  documentId: string;
+  fileName: string | null;
+  detectedType: string | null;
+  detectedReference: string | null;
+  year: number | null;
+  recognitionLabel: string;
+  confidence: number;
+  detectedFacts: Array<{ label: string; value: string }>;
+  potentiallyLinkedTo: Array<{
+    fieldCode: string;
+    relationType: string;
+    reason: string;
+    confidence: number;
+  }>;
+  duplicateStatus: DuplicateStatus;
+  duplicateMessage: string | null;
+}
+
+export interface DocumentCaseMetrics {
+  documents: number;
+  facts: number;
+  requirements: number;
+  candidateMatches: number;
+  strongMatches: number;
+  ambiguousMatches: number;
+  rejectedMatches: number;
+  relations: number;
+  conflicts: number;
+}
+
+export interface DocumentCaseInvariants {
+  crossDocumentFactLostProvenance: number;
+  crossDocumentUnsafeMerge: number;
+  crossDocumentUnsafeAggregation: number;
+  yearMismatchPromotedToStrong: number;
+  roleMismatchPromotedToStrong: number;
+  unknownDocumentPromotedToKnown: number;
+  duplicateDocumentDoubleCounted: number;
+  uploadOrderChangesConclusion: number;
+  removedDocumentFactSurvives: number;
+  candidateRelationPresentedAsCertain: number;
+  userAnswerPromotedToOfficialKnowledge: number;
+  knowledgePromotedToUserFact: number;
+  automaticUnsafeAggregation: number;
+  missingPresentedAsUserDoesNotHave: number;
+  unsupportedTaxAmount: number;
+  unsupportedEligibilityDecision: number;
+}
+
+/**
+ * Dossier multi-documents — faits toujours rattachés à leur document source.
+ */
+export interface DocumentCase {
+  caseId: string;
+  documents: DocumentInstance[];
+  factIndex: CandidateDocumentFact[];
+  relations: DocumentRelation[];
+  ambiguities: string[];
+  conflicts: FactConflict[];
+  requirementMatches: CaseRequirementMatch[];
+  fieldAssistance: TaxFieldAssistance[];
+  caseCentricViews: CaseCentricFieldView[];
+  documentCentricViews: DocumentCentricView[];
+  userAnswers: UserProvidedFact[];
+  metrics: DocumentCaseMetrics;
+  taxContext: {
+    primaryReferences: string[];
+    yearsPresent: number[];
+    fieldCodesPresent: string[];
+  };
+  provenance: KnowledgeProvenance[];
+  suggestedDeclaredAmount: null;
+  eligibilityDecision: null;
+  invariants: DocumentCaseInvariants;
 }
 
 export interface ExternalSourceRecord {
