@@ -103,10 +103,15 @@ function testClassificationMultiScores() {
     scores: {
       invoice: 0.91,
       bankStatement: 0.12,
-      taxNotice: 0.05
+      taxDocument: 0.05
     },
     primary: "invoice",
     confidence: toConfidence(0.91),
+    status: "resolved",
+    alternatives: [{ type: "bankStatement", confidence: 0.12 }],
+    secondarySections: [],
+    evidence: [],
+    contradictions: [],
     signals: {
       strong: ["facture", "total ttc"],
       secondary: ["iban"],
@@ -141,7 +146,12 @@ function testDocumentProfileInterface() {
   const classification = {
     scores: { invoice: 0.91 },
     primary: /** @type {const} */ ("invoice"),
-    confidence: toConfidence(0.91)
+    confidence: toConfidence(0.91),
+    status: /** @type {const} */ ("resolved"),
+    alternatives: [],
+    secondarySections: [],
+    evidence: [],
+    contradictions: []
   };
   assert.equal(stub.supports(classification, session), true);
   const analyzed = stub.analyze({
@@ -195,7 +205,12 @@ function testDocumentSessionLifecycle() {
   session.setClassification({
     scores: { invoice: 0.9 },
     primary: "invoice",
-    confidence: toConfidence(0.9)
+    confidence: toConfidence(0.9),
+    status: "resolved",
+    alternatives: [],
+    secondarySections: [],
+    evidence: [],
+    contradictions: []
   });
   assert.equal(session.classification?.primary, "invoice");
 

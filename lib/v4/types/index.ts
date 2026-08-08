@@ -48,7 +48,12 @@ export type {
 export type {
   DocumentTypeId,
   DocumentTypeScores,
+  SignalFamily,
   ClassificationSignals,
+  ClassificationEvidenceItem,
+  ClassificationStatus,
+  ClassificationAlternative,
+  SecondarySectionSignal,
   DocumentClassification
 } from "./documentClassification.js";
 export { DOCUMENT_TYPE_IDS } from "./documentClassification.js";

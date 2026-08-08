@@ -41,7 +41,12 @@ export function __v4aTypecheckSmoke(): string {
   const classification: DocumentClassification = {
     scores: { unknown: 1 },
     primary: "unknown",
-    confidence: toConfidence(0.2)
+    confidence: toConfidence(0.2),
+    status: "unknown",
+    alternatives: [],
+    secondarySections: [],
+    evidence: [],
+    contradictions: []
   };
   const ok = profile.supports(classification, session);
   session.destroy();
