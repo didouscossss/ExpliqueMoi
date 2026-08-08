@@ -7,6 +7,7 @@
  * V4-D : DocumentSchemaRouter + SchemaProfile
  * V4-E : DocumentProfileRegistry + FieldExpectation + résolution
  * V4-F : DocumentUnderstanding + synthèse structurée evidence-first
+ * V4-G : DocumentExplanation déterministe et traçable
  * V3 / V2 inchangées. Aucun branchement UI. Aucun provider IA.
  */
 
@@ -16,3 +17,4 @@ export * from "./relations/index.js";
 export * from "./classification/index.js";
 export * from "./profiles/index.js";
 export * from "./understanding/index.js";
+export * from "./explanation/index.js";

@@ -94,5 +94,15 @@ export type {
   DocumentUnderstanding
 } from "./documentUnderstanding.js";
 
+export type {
+  ExplanationStatus,
+  ExplanationWarningKind,
+  ExplanationFact,
+  ExplanationAction,
+  ExplanationWarning,
+  ExplanationSecondaryInfo,
+  DocumentExplanation
+} from "./documentExplanation.js";
+
 export type { DocumentSessionInit } from "./documentSession.js";
 export { DocumentSession } from "./documentSession.js";
