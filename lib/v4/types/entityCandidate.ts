@@ -36,14 +36,20 @@ export type EntityType =
   | "warning"
   | "table";
 
+/** Raison atomique et traçable d’un delta de score. */
+export interface ScoreReason {
+  signal: string;
+  delta: number;
+}
+
 /**
  * Hypothèse de rôle pour un candidat.
- * score : 0..100 (plus lisible pour le debug / ranking).
+ * score : 0..1 (somme clampée des deltas). Aucun winner définitif à ce stade.
  */
 export interface RoleHypothesis {
   role: string;
   score: number;
-  reasons?: string[];
+  reasons: ScoreReason[];
 }
 
 /**
@@ -65,6 +71,19 @@ export interface EntityCandidate<T = unknown> {
   page: number;
   blockIds?: string[];
   bbox?: BoundingBox | null;
+  /** Fenêtre textuelle locale (ligne ± voisines) pour le scoring. */
+  context?: CandidateContext;
+}
+
+/** Contexte lexical / spatial autour d’une détection. */
+export interface CandidateContext {
+  sameLine: string;
+  previousLine: string;
+  nextLine: string;
+  /** Avant le match sur la même ligne. */
+  before: string;
+  /** Après le match sur la même ligne. */
+  after: string;
 }
 
 /** Alias explicites demandés par l’architecture (même structure). */
@@ -81,9 +100,12 @@ export type MoneyRole =
   | "invoiceTotal"
   | "amountDue"
   | "amountHT"
+  | "amountTTC"
   | "vatAmount"
+  | "linePrice"
   | "offerPrice"
   | "taxAmount"
   | "balance"
   | "netToPay"
+  | "capitalSocial"
   | "other";

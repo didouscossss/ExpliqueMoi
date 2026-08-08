@@ -20,8 +20,10 @@ export type { TextSource, TextBlock } from "./textBlock.js";
 
 export type {
   EntityType,
+  ScoreReason,
   RoleHypothesis,
   EntityCandidate,
+  CandidateContext,
   MoneyCandidate,
   PersonCandidate,
   OrganizationCandidate,

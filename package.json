@@ -13,8 +13,9 @@
     "test:analysis-quality": "node scripts/test-analysis-quality.mjs",
     "test:upload-payload": "node scripts/test-upload-payload.mjs",
     "test:v4-types": "tsx scripts/test-v4-types.mjs",
+    "test:v4-candidates": "tsx scripts/test-v4-candidates.mjs",
     "test:v4-typecheck": "tsc -p tsconfig.v4.json --noEmit",
-    "test:v4": "npm run test:v4-typecheck && npm run test:v4-types"
+    "test:v4": "npm run test:v4-typecheck && npm run test:v4-types && npm run test:v4-candidates"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",

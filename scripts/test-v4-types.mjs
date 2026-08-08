@@ -42,8 +42,16 @@ function testMoneyCandidateHasHypothesesNotFinalRole() {
     value: 25.99,
     raw: "25,99 €",
     hypotheses: [
-      { role: "invoiceTotal", score: 72, reasons: ["libellé TTC"] },
-      { role: "offerPrice", score: 41, reasons: ["contexte offre"] }
+      {
+        role: "amountTTC",
+        score: 0.72,
+        reasons: [{ signal: "sameLineLabel:TTC", delta: 0.55 }]
+      },
+      {
+        role: "offerPrice",
+        score: 0.41,
+        reasons: [{ signal: "sameLineLabel:offer", delta: 0.35 }]
+      }
     ],
     evidence: [{ text: "Total TTC 25,99 €", page: 1 }],
     page: 1
@@ -52,7 +60,8 @@ function testMoneyCandidateHasHypothesesNotFinalRole() {
   assert.equal(money.value, 25.99);
   assert.equal(money.hypotheses.length, 2);
   assert.ok(!("role" in money), "pas de rôle unique prématuré sur le candidat");
-  assert.ok(money.hypotheses.every((h) => h.score >= 0 && h.score <= 100));
+  assert.ok(money.hypotheses.every((h) => h.score >= 0 && h.score <= 1));
+  assert.ok(Array.isArray(money.hypotheses[0].reasons));
   console.log("  OK", money.hypotheses.map((h) => h.role).join(", "));
 }
 
@@ -65,8 +74,16 @@ function testReferenceNotPerson() {
     value: "2009682949",
     raw: "N° client : 2009682949",
     hypotheses: [
-      { role: "clientNumber", score: 80 },
-      { role: "accountNumber", score: 20 }
+      {
+        role: "clientNumber",
+        score: 0.8,
+        reasons: [{ signal: "sameLineLabel:clientNumber", delta: 0.5 }]
+      },
+      {
+        role: "accountIdentifier",
+        score: 0.2,
+        reasons: [{ signal: "base:reference", delta: 0.2 }]
+      }
     ],
     evidence: [{ text: "N° client : 2009682949", page: 1 }],
     page: 1
@@ -162,7 +179,13 @@ function testDocumentSessionLifecycle() {
       id: "m1",
       type: "money",
       value: 25.99,
-      hypotheses: [{ role: "invoiceTotal", score: 72 }],
+      hypotheses: [
+        {
+          role: "amountTTC",
+          score: 0.72,
+          reasons: [{ signal: "sameLineLabel:TTC", delta: 0.55 }]
+        }
+      ],
       evidence: [{ text: "Total TTC 25,99 €", page: 1 }],
       page: 1
     }
