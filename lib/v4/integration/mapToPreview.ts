@@ -103,12 +103,17 @@ export function mapV4ResultToPreviewAnalysis(
       ? "Les éléments extraits ne permettent pas encore d’identifier clairement ce document."
       : identity.label);
 
-  const actions = presentation.actions
-    .filter((a) => a.text && a.status !== "noExplicitActionDetected")
-    .map((a) => ({
-      action: a.text,
-      how: a.label || ""
-    }));
+  // Prélèvement / infos paiement ≠ actions utilisateur Preview
+  const userActions = presentation.actions.filter(
+    (a) =>
+      a.kind === "userAction" &&
+      a.text &&
+      a.status !== "noExplicitActionDetected"
+  );
+  const actions = userActions.map((a) => ({
+    action: a.text,
+    how: a.label || ""
+  }));
 
   const request = actions[0]?.action || "Aucune demande certaine.";
 
@@ -178,6 +183,13 @@ export function mapV4ResultToPreviewAnalysis(
 
   const evidence = presentation.evidencePassages
     .filter((p) => p.excerpt && p.excerpt.trim().length >= 4)
+    .filter(
+      (p) =>
+        !/r[eé]seaux?\s+sociaux|des questions sur|facebook|instagram|support\s+client/i.test(
+          p.excerpt
+        )
+    )
+    .slice(0, 8)
     .map((p) => ({
       page: p.page ? `Page ${p.page}` : "Document",
       quote: p.excerpt,
@@ -186,17 +198,27 @@ export function mapV4ResultToPreviewAnalysis(
         : ""
     }));
 
-  // Urgence : seulement si warning/action deadline réellement supportés
+  // Urgence « bientôt » uniquement si action utilisateur réelle + deadline d'action
+  // (paymentDate / prélèvement ≠ actionDeadline)
   let urgencyLevel: PreviewAnalysisMapped["urgency"]["level"] = "none";
   let urgencyMessage = "Aucune urgence particulière n’a été identifiée.";
-  const deadlineDate = presentation.importantDates.find(
+  const actionDeadlineDate = presentation.importantDates.find(
     (d) =>
       !isAmbiguous(d) &&
-      /deadline|échéance|limite/i.test(`${d.kind} ${d.label}`)
+      !/pr[eé]l[eè]vement|paymentDate|paiement/i.test(`${d.kind} ${d.label}`) &&
+      /deadline|échéance|limite|actionDeadline|dueDate/i.test(
+        `${d.kind} ${d.label} ${d.sourceFacts?.join(" ") || ""}`
+      )
   );
-  if (presentation.actions.length && deadlineDate) {
+  const hasRealWarning = presentation.warnings.some(
+    (w) => w.kind !== "missing" && w.status !== "missing"
+  );
+  if (userActions.length && actionDeadlineDate) {
     urgencyLevel = "soon";
-    urgencyMessage = deadlineDate.text || "Une échéance est indiquée.";
+    urgencyMessage = actionDeadlineDate.text || "Une échéance est indiquée.";
+  } else if (userActions.length === 0 && !hasRealWarning) {
+    urgencyLevel = "none";
+    urgencyMessage = "Aucune urgence particulière n’a été identifiée.";
   } else if (presentation.warnings.some((w) => w.kind === "arithmeticInconsistency")) {
     urgencyLevel = "uncertain";
     urgencyMessage = "Certaines informations du document méritent une vérification.";

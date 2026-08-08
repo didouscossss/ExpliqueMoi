@@ -59,7 +59,9 @@ export function detectSecondarySections(
   // --- paymentInformation ---
   if (
     structures.hasPrelevement ||
-    /prelevement|pr[eé]l[eè]vement/.test(lex)
+    /prelevement|pr[eé]l[eè]vement|sera\s+prelev|preleve\s+automatiquement/.test(
+      lex
+    )
   ) {
     pushUnique(hits, "paymentInformation", 0.8, "prelevement");
   }

@@ -98,16 +98,11 @@ export function countInventions(
   );
   for (const a of presentation.actions) {
     if (a.status === "noExplicitActionDetected") continue;
-    // Action utilisateur → ExplanationAction ; info prélèvement → secondary/action supportée
+    // Seules les actions utilisateur explicites appartiennent à presentation.actions
     const ok =
-      a.sourceFacts.some((s) => s.startsWith("action:")) ||
-      (a.kind === "prelevementInfo" &&
-        a.sourceFacts.some(
-          (s) =>
-            s.startsWith("secondary:paymentInformation") ||
-            s.startsWith("action:")
-        ) &&
-        a.evidence.length > 0);
+      a.kind === "userAction" &&
+      a.sourceFacts.some((s) => s.startsWith("action:")) &&
+      a.evidence.length > 0;
     if (!ok) inventedActions += 1;
   }
 

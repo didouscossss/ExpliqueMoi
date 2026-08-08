@@ -256,7 +256,7 @@ export function buildDocumentExplanation(input: {
     [
       ...u.importantDates
         .filter((d) =>
-          /deadline|dueDate|paymentDeadline|actionDeadline|effectiveDate|endDate/i.test(
+          /deadline|dueDate|paymentDate|paymentDeadline|actionDeadline|effectiveDate|endDate/i.test(
             d.kind
           )
         )

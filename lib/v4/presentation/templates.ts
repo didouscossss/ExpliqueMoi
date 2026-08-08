@@ -155,8 +155,11 @@ export function buildReasonText(
     taxObligation: "Ce document concerne une obligation fiscale.",
     explanation: "Ce document explique une procédure ou une information.",
     formSubmission: "Ce document est un formulaire à compléter."
+    // billingNotice : pas de reason — l'identité documentaire suffit
   };
-  const text = map[String(purpose.value)];
+  const key = String(purpose.value);
+  if (key === "billingNotice" || key === "unknown") return null;
+  const text = map[key];
   if (!text) return null;
   // Ne pas utiliser « vous avez reçu ce document car c'est une facture »
   return { text, sources: [purpose] };
@@ -212,6 +215,7 @@ export function dateLabel(field: string): string {
     invoiceDate: "Date de facture",
     documentDate: "Date du document",
     dueDate: "Date d'échéance",
+    paymentDate: "Date de prélèvement",
     paymentDeadline: "Date limite de paiement",
     actionDeadline: "Échéance d'action",
     effectiveDate: "Date d'effet",

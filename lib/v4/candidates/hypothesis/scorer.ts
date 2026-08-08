@@ -365,13 +365,29 @@ function scoreDateRole(
   const L = lex(ctx);
   if (role === "invoiceDate") {
     labelHit(reasons, L, /date\s+(de\s+)?facture|date\s+d['’]?emission|emise\s+le/, "invoiceDate");
+  } else if (role === "paymentDate") {
+    labelHit(
+      reasons,
+      L,
+      /prelevement|sera\s+prelev|preleve\s+le|date\s+de\s+prelevement|paiement\s+le/,
+      "paymentDate"
+    );
   } else if (role === "dueDate" || role === "deadline") {
     labelHit(
       reasons,
       L,
-      /echeance|a\s+payer\s+avant|au\s+plus\s+tard|avant\s+le|dans\s+un\s+delai|merci\s+de|date\s+limite|limite\s+de\s+paiement/,
+      /echeance|a\s+payer\s+avant|au\s+plus\s+tard|avant\s+le|dans\s+un\s+delai|merci\s+de|date\s+limite|limite\s+de\s+paiement|reglez|effectuez\s+le\s+virement/,
       "deadline"
     );
+    // Date de prélèvement automatique ≠ deadline utilisateur
+    if (
+      /prelevement\s+automatique|sera\s+prelev|preleve\s+automatiquement|date\s+de\s+prelevement/.test(
+        L.blob
+      ) &&
+      !/avant\s+le|a\s+payer\s+avant|reglez|merci\s+de/.test(L.blob)
+    ) {
+      pushReason(reasons, "negative:autoDebitNotDeadline", -0.6);
+    }
   } else if (role === "documentDate") {
     labelHit(reasons, L, /\bdate\b/, "date");
   }

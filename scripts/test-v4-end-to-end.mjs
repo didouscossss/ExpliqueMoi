@@ -393,6 +393,152 @@ Total TTC : 60,00 €
       console.log("  ambiguousFields=", r.diagnostics.ambiguousFields, amb?.value);
     });
 
+    wrap("O — Facture énergie complexe multi-sections (V4-K.1)", () => {
+      const r = run(`
+Facture Energie Electricité
+Période de consommation : 01/12/2025 au 31/12/2025
+Votre consommation
+Abonnement : 15,40 € HTVA
+Consommation : 286,20 € HTVA
+Acheminement : 48,50 € HTVA
+Services : 21,83 € HTVA
+Sous-total énergie : 350,10 € HTVA
+TVA 6 % sur énergie : 21,01 €
+Sous-total énergie TTC : 371,11 €
+Services complémentaires
+Services + 21,83 € HTVA
+TVA 21 % sur services : 4,58 €
+Sous-total services TTC : 26,41 €
+Total général
+Total HTVA : 371,93 €
+Total TVA : 25,70 €
+Total TTC : 397,63 €
+Le montant de 397,63 € sera prélevé automatiquement le 18 janvier 2026.
+Mandat SEPA actif
+Des questions sur votre facture Energie Electricité 631,85 € HTVA
+Sur les réseaux sociaux : = 397,63 € TTC
+Support client : 0 800 00 00 00
+`.trim());
+      Eq(r.diagnostics.primaryDocumentType, "invoice");
+      const ttc =
+        amountVal(r, "amountTTC") ??
+        r.explanation.amounts.find((a) => a.field === "amountTTC")?.value;
+      Eq(ttc, 397.63);
+      A(!r.diagnostics.hasArithmeticInconsistency, "pas de faux arithmeticInconsistency");
+      A(!r.presentation.warnings.some((w) => w.kind === "arithmeticInconsistency"));
+      Eq(r.diagnostics.presentationActionsCount, 0);
+      A(
+        r.presentation.secondaryInformation.some(
+          (s) =>
+            s.kind === "paymentInformation" && /pr[eé]l[eè]vement/i.test(s.text)
+        ),
+        "paymentInformation prélèvement"
+      );
+      A(
+        !r.presentation.importantDates.some((d) =>
+          /actionDeadline/i.test(`${d.kind} ${d.sourceFacts?.join(" ")}`)
+        ),
+        "paymentDate ≠ actionDeadline"
+      );
+      A(
+        !r.presentation.evidencePassages.some((p) =>
+          /r[eé]seaux?\s+sociaux|des questions sur/i.test(p.excerpt)
+        ),
+        "evidence sans bruit footer/support"
+      );
+      A(
+        !r.presentation.reason ||
+          !/demande de paiement/i.test(r.presentation.reason.text || "")
+      );
+      assertInvariants(r, "O");
+      assertions += 12;
+      console.log(
+        "  ttc=",
+        ttc,
+        "arith=",
+        r.diagnostics.hasArithmeticInconsistency,
+        "actions=",
+        r.diagnostics.presentationActionsCount,
+        "evidence=",
+        r.presentation.evidencePassages.map((p) => p.excerpt).slice(0, 3)
+      );
+    });
+
+    wrap("P — Prélèvement vs action (cas A/B/C)", () => {
+      const a = run(`
+Facture
+Total HT : 331,36 €
+TVA 20 % : 66,27 €
+Total TTC : 397,63 €
+Le montant de 397,63 € sera prélevé automatiquement le 18 janvier 2026.
+`.trim());
+      Eq(a.diagnostics.presentationActionsCount, 0);
+      A(
+        a.presentation.secondaryInformation.some((s) =>
+          /pr[eé]l[eè]vement/i.test(s.text)
+        )
+      );
+      A(
+        !a.presentation.importantDates.some((d) =>
+          /actionDeadline/i.test(String(d.kind))
+        )
+      );
+      const payDate = a.presentation.importantDates.find((d) =>
+        /pr[eé]l[eè]vement|paymentDate/i.test(`${d.kind} ${d.label}`)
+      );
+      A(
+        payDate == null ||
+          String(payDate.value).includes("2026-01-18") ||
+          /18 janvier/i.test(payDate.text || "")
+      );
+      assertInvariants(a, "P-A");
+
+      const b = run(`
+Facture
+Total HT : 331,36 €
+TVA 20 % : 66,27 €
+Total TTC : 397,63 €
+Merci de régler 397,63 € avant le 18 janvier 2026.
+`.trim());
+      A(b.diagnostics.presentationActionsCount >= 1, "cas B action paiement");
+      A(
+        b.presentation.importantDates.some(
+          (d) =>
+            String(d.value).includes("2026-01-18") ||
+            /18 janvier/i.test(d.text || "")
+        ),
+        "cas B deadline"
+      );
+      assertInvariants(b, "P-B");
+
+      const c = run(`
+Facture
+Total HT : 331,36 €
+TVA 20 % : 66,27 €
+Total TTC : 397,63 €
+Retournez le mandat SEPA signé avant le 18 janvier 2026.
+`.trim());
+      A(c.diagnostics.presentationActionsCount >= 1, "cas C action mandat");
+      A(
+        c.presentation.importantDates.some(
+          (d) =>
+            String(d.value).includes("2026-01-18") ||
+            /18 janvier/i.test(d.text || "")
+        ),
+        "cas C deadline"
+      );
+      assertInvariants(c, "P-C");
+      assertions += 12;
+      console.log(
+        "  A actions=",
+        a.diagnostics.presentationActionsCount,
+        "B=",
+        b.diagnostics.presentationActionsCount,
+        "C=",
+        c.diagnostics.presentationActionsCount
+      );
+    });
+
     Eq(fetchCalls, 0, "0 fetch");
     assertions += 1;
 

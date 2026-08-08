@@ -213,52 +213,125 @@ function buildEssential(explanation: DocumentExplanation): PresentationItem[] {
   });
 }
 
+/** Prélèvement automatique / SEPA actif = info, sauf directive utilisateur explicite. */
+function isAutoDebitDescription(desc: string): boolean {
+  const d = desc.toLowerCase();
+  const hasUserDirective =
+    /\b(r[eé]glez|effectuez|retournez|transmettez|envoyez|compl[eé]tez|mettez\s+[aà]\s+jour|merci\s+de|veuillez|vous\s+devez)\b/.test(
+      d
+    );
+  if (hasUserDirective) return false;
+  return /pr[eé]l[eè]vement\s+automatique|sera\s+pr[eé]lev|pr[eé]lev[eé]\s+automatiquement|mandat\s+sepa\s+actif|paiement\s+par\s+pr[eé]l[eè]vement/.test(
+    d
+  );
+}
+
+function buildPaymentInfoItems(
+  explanation: DocumentExplanation
+): PresentationItem[] {
+  const out: PresentationItem[] = [];
+  const moneyFact = explanation.amounts.find(
+    (x) =>
+      (x.field === "amountDue" || x.field === "amountTTC") &&
+      isUsableFactStatus(x.status) &&
+      !Array.isArray(x.value)
+  );
+  const money = moneyFact ? formatMoneyFR(moneyFact.value) : null;
+  const paymentDate = explanation.deadlines.find(
+    (d) =>
+      (d.field === "paymentDate" || d.kind === "paymentDate") &&
+      isUsableFactStatus(d.status) &&
+      !Array.isArray(d.value)
+  );
+  const d = paymentDate ? formatDateFR(paymentDate.value) : null;
+
+  for (const a of explanation.actions) {
+    if (a.status === "noExplicitActionDetected" || !a.description) continue;
+    if (!isAutoDebitDescription(a.description)) continue;
+    const actionDate = a.deadline ? formatDateFR(a.deadline.value) : null;
+    const dateText = d || actionDate;
+    let text = "Un prélèvement automatique est indiqué.";
+    if (money && dateText) {
+      text = `Un prélèvement de ${money} est prévu le ${dateText}.`;
+    } else if (money) {
+      text = `Un prélèvement de ${money} est indiqué.`;
+    } else if (dateText) {
+      text = `Un prélèvement automatique est prévu le ${dateText}.`;
+    }
+    out.push({
+      kind: "paymentInformation",
+      label: "Informations de paiement",
+      text,
+      status: "info",
+      tier: "important",
+      sourceFacts: [
+        `action:${a.actionType}`,
+        ...(moneyFact ? [sourceKey(moneyFact)] : []),
+        ...(paymentDate ? [sourceKey(paymentDate)] : []),
+        ...(a.deadline ? [sourceKey(a.deadline)] : [])
+      ],
+      evidence: [
+        ...a.evidence,
+        ...(moneyFact?.evidence || []),
+        ...(paymentDate?.evidence || []),
+        ...(a.deadline?.evidence || [])
+      ]
+    });
+  }
+
+  const paySec = explanation.secondaryInformation.find(
+    (s) => s.sectionKind === "paymentInformation"
+  );
+  const hasPrelevementSignal =
+    paySec?.signals.some((s) => /prelevement|sepa|payment/i.test(s)) ||
+    paySec?.evidence.some((e) =>
+      /pr[eé]l[eè]vement|mandat\s+sepa|sera\s+pr[eé]lev/i.test(e.text)
+    ) ||
+    Boolean(paymentDate);
+
+  if (
+    hasPrelevementSignal &&
+    !out.length &&
+    explanation.documentType.primary === "invoice" &&
+    ((paySec?.evidence?.length || 0) > 0 ||
+      (paymentDate?.evidence?.length || 0) > 0)
+  ) {
+    let text = money
+      ? `Un prélèvement automatique de ${money} est indiqué.`
+      : "Un prélèvement automatique est indiqué.";
+    if (money && d) {
+      text = `Un prélèvement de ${money} est prévu le ${d}.`;
+    } else if (d) {
+      text = `Un prélèvement automatique est prévu le ${d}.`;
+    }
+    out.push({
+      kind: "paymentInformation",
+      label: "Informations de paiement",
+      text,
+      status: "info",
+      tier: "important",
+      sourceFacts: [
+        ...(paySec ? ["secondary:paymentInformation"] : []),
+        ...(paymentDate ? [sourceKey(paymentDate)] : []),
+        ...(moneyFact ? [sourceKey(moneyFact)] : [])
+      ],
+      evidence: [
+        ...(paySec?.evidence || []),
+        ...(moneyFact?.evidence || []),
+        ...(paymentDate?.evidence || [])
+      ]
+    });
+  }
+
+  return out;
+}
+
 function buildActions(explanation: DocumentExplanation): PresentationItem[] {
   const out: PresentationItem[] = [];
   for (const a of explanation.actions) {
     if (a.status === "noExplicitActionDetected" || !a.description) continue;
-    // Ne pas transformer prélèvement en « payez »
-    const desc = a.description.toLowerCase();
-    const isPrelevement =
-      /pr[eé]l[eè]vement|mandat\s+sepa|pr[eé]lev[eé]\s+automatiquement/.test(
-        desc
-      );
-    if (isPrelevement) {
-      const moneyFact = explanation.amounts.find(
-        (x) =>
-          (x.field === "amountDue" || x.field === "amountTTC") &&
-          isUsableFactStatus(x.status) &&
-          !Array.isArray(x.value)
-      );
-      const money = moneyFact ? formatMoneyFR(moneyFact.value) : null;
-      const d = a.deadline ? formatDateFR(a.deadline.value) : null;
-      let text = "Un prélèvement automatique est indiqué.";
-      if (money && d) {
-        text = `Un prélèvement de ${money} est prévu le ${d}.`;
-      } else if (money) {
-        text = `Un prélèvement de ${money} est indiqué.`;
-      } else if (d) {
-        text = `Un prélèvement automatique est prévu le ${d}.`;
-      }
-      out.push({
-        kind: "prelevementInfo",
-        label: "Prélèvement",
-        text,
-        status: "info",
-        tier: "important",
-        sourceFacts: [
-          `action:${a.actionType}`,
-          ...(moneyFact ? [sourceKey(moneyFact)] : []),
-          ...(a.deadline ? [sourceKey(a.deadline)] : [])
-        ],
-        evidence: [
-          ...a.evidence,
-          ...(moneyFact?.evidence || []),
-          ...(a.deadline?.evidence || [])
-        ]
-      });
-      continue;
-    }
+    // Prélèvement / SEPA actif ≠ action utilisateur
+    if (isAutoDebitDescription(a.description)) continue;
 
     out.push({
       kind: "userAction",
@@ -274,48 +347,6 @@ function buildActions(explanation: DocumentExplanation): PresentationItem[] {
       evidence: [...a.evidence, ...(a.deadline?.evidence || [])]
     });
   }
-
-  // Info prélèvement depuis secondary sans inventer d'action « payer »
-  const paySec = explanation.secondaryInformation.find(
-    (s) => s.sectionKind === "paymentInformation"
-  );
-  const hasPrelevementSignal =
-    paySec?.signals.some((s) => /prelevement|sepa|payment/i.test(s)) ||
-    paySec?.evidence.some((e) =>
-      /pr[eé]l[eè]vement|mandat\s+sepa/i.test(e.text)
-    );
-  if (
-    hasPrelevementSignal &&
-    (paySec?.evidence?.length || 0) > 0 &&
-    !out.some((o) => o.kind === "prelevementInfo") &&
-    explanation.documentType.primary === "invoice"
-  ) {
-    const moneyFact = explanation.amounts.find(
-      (x) =>
-        (x.field === "amountDue" || x.field === "amountTTC") &&
-        isUsableFactStatus(x.status) &&
-        !Array.isArray(x.value)
-    );
-    const money = moneyFact ? formatMoneyFR(moneyFact.value) : null;
-    out.push({
-      kind: "prelevementInfo",
-      label: "Prélèvement",
-      text: money
-        ? `Un prélèvement automatique de ${money} est indiqué.`
-        : "Un prélèvement automatique est indiqué.",
-      status: "info",
-      tier: "important",
-      sourceFacts: [
-        `secondary:paymentInformation`,
-        ...(moneyFact ? [sourceKey(moneyFact)] : [])
-      ],
-      evidence: [
-        ...(paySec?.evidence || []),
-        ...(moneyFact?.evidence || [])
-      ]
-    });
-  }
-
   return out;
 }
 
@@ -457,7 +488,7 @@ function buildSecondary(explanation: DocumentExplanation): PresentationItem[] {
     contractualInformation: "Informations contractuelles",
     taxInformation: "Informations fiscales"
   };
-  return explanation.secondaryInformation
+  const fromSections = explanation.secondaryInformation
     .filter((s) => s.sectionKind !== "bankStatement")
     .filter((s) => s.evidence.length > 0)
     .map((s) => ({
@@ -469,51 +500,120 @@ function buildSecondary(explanation: DocumentExplanation): PresentationItem[] {
       sourceFacts: [`secondary:${s.sectionKind}`, ...s.derivedFrom],
       evidence: [...s.evidence]
     }));
+
+  const paymentInfo = buildPaymentInfoItems(explanation);
+  // Remplacer le libellé générique paymentInformation si on a un texte précis
+  const hasDetailedPayment = paymentInfo.length > 0;
+  const filtered = hasDetailedPayment
+    ? fromSections.filter((s) => s.kind !== "paymentInformation")
+    : fromSections;
+  return [...paymentInfo, ...filtered];
+}
+
+const NOISE_EVIDENCE_RE =
+  /r[eé]seaux?\s+sociaux|facebook|instagram|twitter|linkedin|www\.|http|support|faq|des questions|contactez|service\s+client|t[eé]l\s*:|hotline|capital\s+social|siret|rcs\b|mentions\s+l[eé]gales|cookie/i;
+
+function evidenceFactPriority(fact: string): number {
+  if (/^warning:arithmeticInconsistency/.test(fact)) return 100;
+  if (/^action:/.test(fact)) return 95;
+  if (/amountTTC|amountDue|netToPay/.test(fact)) return 90;
+  if (/paymentDate|actionDeadline|dueDate|paymentDeadline/.test(fact)) return 85;
+  if (/documentType|invoiceDate|issuer/.test(fact)) return 80;
+  if (/amountHT|vatAmount|vatRate/.test(fact)) return 55;
+  if (/secondary:paymentInformation|paymentInformation/.test(fact)) return 70;
+  if (/warning:/.test(fact)) return 60;
+  return 20;
 }
 
 function buildEvidencePassages(
-  explanation: DocumentExplanation
+  explanation: DocumentExplanation,
+  presentationItems: PresentationItem[]
 ): PresentationEvidencePassage[] {
-  const map = new Map<string, PresentationEvidencePassage>();
-  const absorb = (facts: string[], evidence: { page: number; blockId?: string | null; text: string }[]) => {
+  // Un passage Preview doit supporter un fait Presentation important — pas un dump OCR.
+  const importantFactKeys = new Set<string>();
+  for (const item of presentationItems) {
+    if (item.tier === "secondary" && item.kind !== "paymentInformation") continue;
+    if (item.status === "missing") continue;
+    for (const s of item.sourceFacts || []) importantFactKeys.add(s);
+    // Aussi les clés field brutes
+    for (const s of item.sourceFacts || []) {
+      const field = s.includes(":") ? s.split(":").slice(1).join(":") : s;
+      if (field) importantFactKeys.add(field);
+    }
+  }
+  // Toujours prioriser identité / montants / dates / actions / warnings Presentation
+  for (const item of [
+    ...presentationItems.filter((i) => i.kind === "documentIdentity"),
+    ...presentationItems.filter((i) => /amount|date|action|warning|payment/i.test(i.kind))
+  ]) {
+    for (const s of item.sourceFacts || []) importantFactKeys.add(s);
+  }
+
+  const map = new Map<
+    string,
+    PresentationEvidencePassage & { score: number }
+  >();
+  const absorb = (
+    facts: string[],
+    evidence: { page: number; blockId?: string | null; text: string }[]
+  ) => {
+    const relevant = facts.filter(
+      (f) =>
+        importantFactKeys.has(f) ||
+        importantFactKeys.has(f.split(":")[0]) ||
+        evidenceFactPriority(f) >= 70
+    );
+    if (!relevant.length) return;
     for (const e of evidence) {
-      if (!e.text) continue;
+      if (!e.text || e.text.trim().length < 6) continue;
+      if (NOISE_EVIDENCE_RE.test(e.text) && evidenceFactPriority(relevant[0]) < 90) {
+        continue;
+      }
       const key = `${e.page}|${e.blockId || ""}|${e.text}`;
+      const baseScore =
+        Math.max(...relevant.map(evidenceFactPriority)) +
+        (NOISE_EVIDENCE_RE.test(e.text) ? -80 : 0) +
+        (/total\s+ttc|montant|facture|pr[eé]l[eè]vement|avant\s+le|r[eé]glez|retournez/i.test(
+          e.text
+        )
+          ? 15
+          : 0) -
+        (e.text.length > 160 ? 10 : 0);
       const existing = map.get(key);
       if (existing) {
-        for (const f of facts) {
+        for (const f of relevant) {
           if (!existing.supportedFacts.includes(f)) {
             existing.supportedFacts.push(f);
           }
         }
+        existing.score = Math.max(existing.score, baseScore);
       } else {
         map.set(key, {
           page: e.page,
           blockId: e.blockId ?? null,
           excerpt: e.text,
-          supportedFacts: [...facts]
+          supportedFacts: [...relevant],
+          score: baseScore
         });
       }
     }
   };
 
-  for (const f of [
-    ...explanation.amounts,
-    ...explanation.deadlines,
-    ...explanation.importantFacts,
-    ...explanation.summaryFacts
-  ]) {
-    absorb([sourceKey(f)], f.evidence);
-  }
-  for (const a of explanation.actions) {
-    if (a.status === "noExplicitActionDetected") continue;
-    absorb([`action:${a.actionType}`], a.evidence);
+  for (const item of presentationItems) {
+    if (item.tier === "secondary" && item.kind !== "paymentInformation") continue;
+    absorb(item.sourceFacts || [], item.evidence || []);
   }
   for (const w of explanation.warnings) {
-    absorb([`warning:${w.kind}`], w.evidence);
+    if (w.kind === "arithmeticInconsistency") {
+      absorb([`warning:${w.kind}`], w.evidence);
+    }
   }
 
-  return [...map.values()].slice(0, 40);
+  return [...map.values()]
+    .filter((p) => p.supportedFacts.length > 0 && p.score >= 50)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map(({ score: _s, ...rest }) => rest);
 }
 
 export function buildUserPresentation(
@@ -541,16 +641,41 @@ export function buildUserPresentation(
       }
     : null;
 
+  const actions = buildActions(explanation);
+  const importantDates = buildDates(explanation);
+  const importantAmounts = buildAmounts(explanation);
+  const warnings = buildWarnings(explanation);
+  const secondaryInformation = buildSecondary(explanation);
+  const essential = buildEssential(explanation);
+  const evidencePassages = buildEvidencePassages(explanation, [
+    {
+      kind: "documentIdentity",
+      label: documentIdentity.label,
+      text: documentIdentity.text,
+      status: "info",
+      tier: "primary",
+      sourceFacts: documentIdentity.sourceFacts,
+      evidence: documentIdentity.evidence
+    },
+    ...essential,
+    ...actions,
+    ...(reason ? [reason] : []),
+    ...importantDates,
+    ...importantAmounts,
+    ...warnings,
+    ...secondaryInformation.filter((s) => s.kind === "paymentInformation")
+  ]);
+
   const partial = {
     documentIdentity,
-    essential: buildEssential(explanation),
-    actions: buildActions(explanation),
+    essential,
+    actions,
     reason,
-    importantDates: buildDates(explanation),
-    importantAmounts: buildAmounts(explanation),
-    warnings: buildWarnings(explanation),
-    evidencePassages: buildEvidencePassages(explanation),
-    secondaryInformation: buildSecondary(explanation)
+    importantDates,
+    importantAmounts,
+    warnings,
+    evidencePassages,
+    secondaryInformation
   };
 
   const counts = countUnsupportedPresentationFacts(partial);

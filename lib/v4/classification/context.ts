@@ -124,7 +124,10 @@ function detectStructures(
     );
 
   const hasIban = candidates.some((c) => c.type === "iban") || /\biban\b/.test(lex);
-  const hasPrelevement = /prelevement|prélèvement|mandat\s+sepa/.test(lex);
+  const hasPrelevement =
+    /prelevement|prélèvement|mandat\s+sepa|sera\s+prelev|preleve\s+automatiquement/.test(
+      lex
+    );
 
   return {
     hasTransactionTable,

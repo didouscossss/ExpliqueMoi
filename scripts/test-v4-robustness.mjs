@@ -169,6 +169,35 @@ function main() {
       console.log("  due=", amountVal(r, "amountDue"), "secondary=", kinds);
     });
 
+    wrap("4b — Facture énergie multi-taux (V4-K.1)", () => {
+      const r = run(F.complexEnergyInvoiceK1);
+      Eq(r.diagnostics.primaryDocumentType, "invoice");
+      report.classificationsOk += 1;
+      Eq(amountVal(r, "amountTTC"), 397.63);
+      A(!r.diagnostics.hasArithmeticInconsistency);
+      Eq(r.diagnostics.presentationActionsCount, 0);
+      A(
+        r.presentation.secondaryInformation.some((s) =>
+          /pr[eé]l[eè]vement/i.test(s.text)
+        )
+      );
+      A(
+        !r.presentation.evidencePassages.some((p) =>
+          /r[eé]seaux?\s+sociaux|des questions sur/i.test(p.excerpt)
+        )
+      );
+      assertInvariants(r, "energyK1", report);
+      assertions += 8;
+      console.log(
+        "  ttc=",
+        amountVal(r, "amountTTC"),
+        "arith=",
+        r.diagnostics.hasArithmeticInconsistency,
+        "actions=",
+        r.diagnostics.presentationActionsCount
+      );
+    });
+
     wrap("5 — Faux positif relevé bancaire", () => {
       const r = run(F.falseBankStatement);
       A(r.diagnostics.primaryDocumentType !== "bankStatement");

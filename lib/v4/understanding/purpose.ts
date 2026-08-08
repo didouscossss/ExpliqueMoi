@@ -41,7 +41,13 @@ function contentSignals(
     });
   };
 
-  push("paymentRequest", /montant\s+[aà]\s+payer|total\s+ttc|facture/i, 0.35, "content:paymentCue");
+  // Demande de paiement = directive utilisateur explicite (pas le seul mot « facture »)
+  push(
+    "paymentRequest",
+    /montant\s+[aà]\s+payer|net\s+[aà]\s+payer|r[eé]glez|effectuez\s+le\s+virement|somme\s+[aà]\s+payer/i,
+    0.4,
+    "content:paymentCue"
+  );
   push("informationRequest", /transmettre|merci\s+de|justificatif|veuillez/i, 0.4, "content:requestCue");
   push("certification", /attestation|certifie|je\s+soussign/i, 0.4, "content:certCue");
   push("agreement", /\bcontrat\b|\bconvention\b|prend\s+effet|pr[eé]avis/i, 0.4, "content:contractCue");
@@ -49,20 +55,55 @@ function contentSignals(
   push("taxObligation", /imp[oô]t|montant\s+[aà]\s+payer|date\s+limite/i, 0.3, "content:taxCue");
   push("explanation", /guide|mode\s+d['’]?emploi|comment\s+faire|\b[eé]tape/i, 0.35, "content:guideCue");
   push("information", /nous\s+vous\s+informons|pour\s+information|mis\s+[aà]\s+jour/i, 0.25, "content:infoCue");
+  // Facture + prélèvement auto = information de facturation, pas obligation manuelle
+  push(
+    "billingNotice",
+    /pr[eé]l[eè]vement\s+automatique|sera\s+pr[eé]lev|mandat\s+sepa/i,
+    0.45,
+    "content:autoDebitCue"
+  );
+  push(
+    "billingNotice",
+    /\bfacture\b|total\s+ttc|consommation|electricit|energie/i,
+    0.3,
+    "content:invoiceCue"
+  );
 
-  // Champs résolus renforcent
+  // Champs résolus renforcent — montant / facture seuls ≠ demande de paiement manuel
   const has = (name: string) =>
     fields.some((f) => f.field === name && f.status === "resolved");
-  if (has("amountDue") || has("amountTTC")) {
+  const autoDebit = /pr[eé]l[eè]vement\s+automatique|sera\s+pr[eé]lev|mandat\s+sepa/i.test(
+    text
+  );
+  const explicitPayAsk =
+    /montant\s+[aà]\s+payer|net\s+[aà]\s+payer|r[eé]glez|effectuez\s+le\s+virement|somme\s+[aà]\s+payer|reste\s+[aà]\s+payer/i.test(
+      text
+    );
+  if (has("amountDue") && explicitPayAsk && !autoDebit) {
     signals.push({
       kind: "paymentRequest",
       weight: 0.25,
+      evidence: enrichEvidence(
+        fields.find((f) => f.field === "amountDue")?.evidence,
+        blocks
+      ),
+      reasons: [{ signal: "field:amountDue:payAsk", delta: 0.25 }]
+    });
+  } else if (has("amountTTC") || has("amountDue")) {
+    signals.push({
+      kind: "billingNotice",
+      weight: autoDebit ? 0.25 : 0.15,
       evidence: enrichEvidence(
         fields.find((f) => f.field === "amountDue" || f.field === "amountTTC")
           ?.evidence,
         blocks
       ),
-      reasons: [{ signal: "field:amount", delta: 0.25 }]
+      reasons: [
+        {
+          signal: autoDebit ? "field:amount:autoDebit" : "field:amount:billing",
+          delta: autoDebit ? 0.25 : 0.15
+        }
+      ]
     });
   }
   if (has("requestedActions") || has("deadlines")) {
@@ -79,7 +120,8 @@ function contentSignals(
 
   // Type = signal faible seulement
   const typeMap: Partial<Record<DocumentTypeId, string>> = {
-    invoice: "paymentRequest",
+    // Facture ≠ automatiquement « demande de paiement » manuel
+    invoice: "billingNotice",
     administrativeLetter: "informationRequest",
     certificate: "certification",
     notice: "information",

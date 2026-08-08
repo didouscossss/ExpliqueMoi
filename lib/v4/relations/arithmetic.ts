@@ -47,6 +47,93 @@ function isCredibleVatAmount(c: EntityCandidate): boolean {
   return roleScore(c, "vatAmount") >= 0.45;
 }
 
+/** Montants de ligne / section locale — pas un trio fiscal global. */
+function isSectionLocalAmount(c: EntityCandidate): boolean {
+  const line = normalizeLex(c.context?.sameLine || "");
+  const blob = normalizeLex(
+    [c.context?.previousLine, c.context?.sameLine, c.context?.nextLine]
+      .filter(Boolean)
+      .join(" ")
+  );
+  return /acheminement|abonnement|consommation|services?\b|htva\b|reseaux?\s+sociaux|support|contact|faq|sous[-\s]?total|detail|ligne|index\b|kwh/.test(
+    `${line} ${blob}`
+  );
+}
+
+function lineIndex(c: EntityCandidate): number | null {
+  const fromBlock = Number(String(c.blockIds?.[0] || "").replace(/\D/g, ""));
+  if (fromBlock > 0) return fromBlock;
+  const fromEv = Number(
+    String(c.evidence?.[0]?.lineId || c.evidence?.[0]?.blockId || "").replace(
+      /\D/g,
+      ""
+    )
+  );
+  return fromEv > 0 ? fromEv : null;
+}
+
+/**
+ * Affinité de bundle comptable (0..1).
+ * Absence de proximité ≠ incohérence — seulement un score faible.
+ */
+function bundleAffinity(a: EntityCandidate, b: EntityCandidate): number {
+  if (a.id === b.id) return 1;
+  if (a.page !== b.page) return 0;
+
+  const aLine = a.context?.sameLine || "";
+  const bLine = b.context?.sameLine || "";
+  if (aLine && aLine === bLine) return 1;
+
+  const aPrev = a.context?.previousLine || "";
+  const aNext = a.context?.nextLine || "";
+  const bPrev = b.context?.previousLine || "";
+  const bNext = b.context?.nextLine || "";
+  if (
+    (aLine && (aLine === bPrev || aLine === bNext)) ||
+    (bLine && (bLine === aPrev || bLine === aNext))
+  ) {
+    return 0.75;
+  }
+
+  const ai = lineIndex(a);
+  const bi = lineIndex(b);
+  if (ai != null && bi != null) {
+    const dist = Math.abs(ai - bi);
+    if (dist <= 1) return 0.7;
+    if (dist <= 3) return 0.55;
+    if (dist <= 6) return 0.35;
+    return 0.1;
+  }
+
+  // Même page sans proximité mesurable : faible — insuffisant pour contradiction
+  const aTotal = /\btotal\b/.test(normalizeLex(aLine));
+  const bTotal = /\btotal\b/.test(normalizeLex(bLine));
+  if (aTotal && bTotal) return 0.4;
+  return 0.15;
+}
+
+/** Même bundle comptable : preuves structurelles suffisantes (pas cross-section). */
+function sameAccountingBundle(
+  ht: EntityCandidate,
+  vat: EntityCandidate,
+  ttc: EntityCandidate
+): boolean {
+  if (isSectionLocalAmount(ht) || isSectionLocalAmount(vat)) {
+    // Un HT/TVA de ligne locale ne peut contredire un TTC global
+    // que s'il est adjacent au TTC.
+    const localToTtc =
+      Math.min(bundleAffinity(ht, ttc), bundleAffinity(vat, ttc)) >= 0.7;
+    if (!localToTtc) return false;
+  }
+  const ab = bundleAffinity(ht, vat);
+  const bc = bundleAffinity(vat, ttc);
+  const ac = bundleAffinity(ht, ttc);
+  // Exiger une proximité réelle sur au moins 2 paires, et un minimum global
+  const strong = [ab, bc, ac].filter((x) => x >= 0.55).length;
+  const min = Math.min(ab, bc, ac);
+  return strong >= 2 && min >= 0.35;
+}
+
 export interface ArithmeticScanResult {
   relations: Relation[];
   contradictions: Contradiction[];
@@ -98,12 +185,22 @@ export function scanArithmeticRelations(
           isCredibleInvoiceHt(ht) &&
           isCredibleInvoiceTtc(ttc) &&
           isCredibleVatAmount(vat);
+        const sameBundle = sameAccountingBundle(ht, vat, ttc);
 
-        if (ok && ttcGreater) {
+        if (ok && ttcGreater && sameBundle) {
           pushReason(
             reasons,
             `arithmetic:HT+TVA≈TTC (${num(ht)}+${num(vat)}=${sum}≈${num(ttc)})`,
             W.htPlusVatEqualsTtc
+          );
+          pushReason(
+            reasons,
+            "bundle:sameAccountingBundle",
+            Math.min(
+              bundleAffinity(ht, vat),
+              bundleAffinity(vat, ttc),
+              bundleAffinity(ht, ttc)
+            ) * 0.2
           );
           relations.push({
             id: nextRelationId("arith"),
@@ -117,9 +214,12 @@ export function scanArithmeticRelations(
             label: "HT + TVA ≈ TTC"
           });
 
-          // Cherche un taux compatible
+          // Cherche un taux compatible (même zone)
           let rateCand: EntityCandidate | undefined;
           for (const rate of rates) {
+            if (bundleAffinity(rate, ht) < 0.35 && bundleAffinity(rate, ttc) < 0.35) {
+              continue;
+            }
             const expected =
               Math.round(num(ht) * (1 + num(rate) / 100) * 100) / 100;
             if (nearlyEqual(expected, num(ttc), W.moneyTolerance)) {
@@ -146,8 +246,7 @@ export function scanArithmeticRelations(
             }
           }
 
-          // Bundle global seulement si les rôles métier sont alignés
-          // (évite 10+90=100 / 50+58=108 comme « meilleure » solution).
+          // Bundle cohérent : rôles + même section comptable
           if (roleAlignedBundle) {
             coherentBundles.push({
               ht,
@@ -165,13 +264,21 @@ export function scanArithmeticRelations(
         } else if (
           !ok &&
           topTrioRoles &&
-          isCredibleVatAmount(vat)
+          isCredibleVatAmount(vat) &&
+          sameBundle
         ) {
+          // Contradiction UNIQUEMENT avec preuve de même bundle.
+          // Absence de preuve de cohérence ≠ preuve d'incohérence.
           const penaltyReasons: ScoreReason[] = [];
           pushReason(
             penaltyReasons,
             `contradiction:HT+TVA≠TTC (${num(ht)}+${num(vat)}=${sum}≠${num(ttc)})`,
             W.arithmeticMismatch
+          );
+          pushReason(
+            penaltyReasons,
+            "bundle:sameAccountingBundle",
+            0.1
           );
           contradictions.push({
             id: nextRelationId("contra"),
@@ -189,9 +296,16 @@ export function scanArithmeticRelations(
       for (const rate of rates) {
         const expected =
           Math.round(num(ht) * (1 + num(rate) / 100) * 100) / 100;
+        const rateNear =
+          bundleAffinity(ht, ttc) >= 0.55 &&
+          (bundleAffinity(rate, ht) >= 0.35 || bundleAffinity(rate, ttc) >= 0.35);
         if (!nearlyEqual(expected, num(ttc), W.moneyTolerance)) {
-          if (topTrioRoles && isTopRole(rate, "vatRate")) {
-            // HT×taux ≠ TTC alors que les rôles principaux pointent ici
+          if (
+            topTrioRoles &&
+            isTopRole(rate, "vatRate") &&
+            rateNear &&
+            !isSectionLocalAmount(ht)
+          ) {
             contradictions.push({
               id: nextRelationId("contra"),
               subjectIds: [ht.id, rate.id, ttc.id],
@@ -209,7 +323,7 @@ export function scanArithmeticRelations(
           }
           continue;
         }
-        if (!ttcGreater) continue;
+        if (!ttcGreater || !rateNear) continue;
         const already = relations.some(
           (r) =>
             r.sourceCandidateId === ht.id &&

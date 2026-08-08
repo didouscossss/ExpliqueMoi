@@ -81,7 +81,20 @@ export const invoiceProfile = createDocumentProfile({
       preferredRoles: ["dueDate", "deadline"],
       importance: "medium",
       confidenceThreshold: 0.55,
-      positiveContext: [/[eé]ch[eé]ance|payable|avant\s+le/i]
+      positiveContext: [/[eé]ch[eé]ance|payable|avant\s+le/i],
+      negativeSignals: [
+        /pr[eé]l[eè]vement\s+automatique|sera\s+pr[eé]lev|date\s+de\s+pr[eé]l[eè]vement/i
+      ]
+    }),
+    field({
+      field: "paymentDate",
+      candidateTypes: ["date", "deadline"],
+      preferredRoles: ["paymentDate", "dueDate"],
+      importance: "medium",
+      confidenceThreshold: 0.5,
+      positiveContext: [
+        /pr[eé]l[eè]vement|sera\s+pr[eé]lev|date\s+de\s+pr[eé]l[eè]vement|paiement\s+le/i
+      ]
     }),
     field({
       field: "servicePeriod",

@@ -330,6 +330,109 @@ Total TTC : 150,00 €
       console.log("  mapper OK reason=", JSON.stringify(mapped.why_received));
     }
 
+    section("K.1 — Facture énergie complexe Preview");
+    {
+      const run = runV4PreviewAnalysis({
+        resetIds: true,
+        pastedText: `
+Facture Energie Electricité
+Abonnement : 15,40 € HTVA
+Consommation : 286,20 € HTVA
+Acheminement : 48,50 € HTVA
+Services + 21,83 € HTVA
+TVA 6 % sur énergie : 21,01 €
+Sous-total énergie TTC : 371,11 €
+TVA 21 % sur services : 4,58 €
+Sous-total services TTC : 26,41 €
+Total HTVA : 371,93 €
+Total TVA : 25,70 €
+Total TTC : 397,63 €
+Le montant de 397,63 € sera prélevé automatiquement le 18 janvier 2026.
+Mandat SEPA actif
+Des questions sur votre facture Energie Electricité 631,85 € HTVA
+Sur les réseaux sociaux : = 397,63 € TTC
+`.trim()
+      });
+      Eq(run.ok, true);
+      assertUiInvariants(run.analysis, "energyK1");
+      Eq(run.analysis.v4_debug.primaryDocumentType, "invoice");
+      A(/397/.test(run.analysis.amount.value), "montant principal 397,63");
+      Eq(run.analysis.actions.length, 0, "prélèvement ≠ action");
+      A(!run.analysis.warnings.some((w) => /incoh[eé]rent/i.test(w)));
+      Eq(run.analysis.v4_debug.hasArithmeticInconsistency, false);
+      Eq(run.analysis.urgency.level, "none", "pas À faire prochainement");
+      A(!/demande de paiement/i.test(run.analysis.why_received || ""));
+      A(
+        !run.analysis.evidence.some((e) =>
+          /r[eé]seaux?\s+sociaux|des questions sur/i.test(e.quote)
+        )
+      );
+      assertions += 10;
+      console.log(
+        "  amount=",
+        run.analysis.amount.value,
+        "urgency=",
+        run.analysis.urgency.level,
+        "actions=",
+        run.analysis.actions.length,
+        "why=",
+        run.analysis.why_received
+      );
+    }
+
+    section("K.1 — Prélèvement vs régler vs mandat");
+    {
+      const a = runV4PreviewAnalysis({
+        resetIds: true,
+        pastedText: `
+Facture
+Total HT : 331,36 €
+TVA 20 % : 66,27 €
+Total TTC : 397,63 €
+Le montant de 397,63 € sera prélevé automatiquement le 18 janvier 2026.
+`.trim()
+      });
+      Eq(a.analysis.actions.length, 0);
+      Eq(a.analysis.urgency.level, "none");
+
+      const b = runV4PreviewAnalysis({
+        resetIds: true,
+        pastedText: `
+Facture
+Total HT : 331,36 €
+TVA 20 % : 66,27 €
+Total TTC : 397,63 €
+Merci de régler 397,63 € avant le 18 janvier 2026.
+`.trim()
+      });
+      A(b.analysis.actions.length >= 1, "cas B action");
+      A(
+        b.analysis.urgency.level === "soon" || b.analysis.dates.length >= 1,
+        "cas B deadline/urgency"
+      );
+
+      const c = runV4PreviewAnalysis({
+        resetIds: true,
+        pastedText: `
+Facture
+Total HT : 331,36 €
+TVA 20 % : 66,27 €
+Total TTC : 397,63 €
+Retournez le mandat SEPA signé avant le 18 janvier 2026.
+`.trim()
+      });
+      A(c.analysis.actions.length >= 1, "cas C action");
+      assertions += 6;
+      console.log(
+        "  A/B/C actions=",
+        a.analysis.actions.length,
+        b.analysis.actions.length,
+        c.analysis.actions.length,
+        "urgency B=",
+        b.analysis.urgency.level
+      );
+    }
+
     section("USE_V4_ENGINE=false — comportement flag");
     {
       process.env.USE_V4_ENGINE = "false";

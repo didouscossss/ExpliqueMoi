@@ -25,6 +25,7 @@ const DATE_KINDS = new Set([
   "documentDate",
   "invoiceDate",
   "dueDate",
+  "paymentDate",
   "paymentDeadline",
   "effectiveDate",
   "endDate",

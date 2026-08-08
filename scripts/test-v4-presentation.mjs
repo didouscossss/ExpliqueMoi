@@ -87,13 +87,9 @@ Total TTC : 25,99 €
       assert.equal(p.documentIdentity.documentType, "invoice");
       // Pas d'instruction « payez »
       assert.ok(!p.actions.some((a) => /payez|régler|paiement manuel/i.test(a.text)));
-      assert.ok(
-        p.actions.length === 0 ||
-          p.actions.every((a) => a.kind === "prelevementInfo")
-      );
       // Sans prélèvement ni action explicite → vide
-      const userActs = p.actions.filter((a) => a.kind === "userAction");
-      assert.equal(userActs.length, 0);
+      assert.equal(p.actions.length, 0);
+      assert.ok(p.actions.every((a) => a.kind === "userAction"));
       assertClean(p, explanation);
       console.log("  actions=", p.actions.map((a) => a.text));
     }
@@ -111,16 +107,18 @@ Mandat SEPA
 IBAN FR76 1234 5678 9012 3456 7890 123
 `.trim());
       assert.equal(p.documentIdentity.documentType, "invoice");
-      const prev = p.actions.filter((a) => a.kind === "prelevementInfo");
-      assert.ok(prev.length >= 1, "info prélèvement");
+      assert.equal(p.actions.length, 0, "prélèvement ≠ action utilisateur");
       assert.ok(!p.actions.some((a) => /^Payez/i.test(a.text)));
+      const payInfo = p.secondaryInformation.filter((s) =>
+        ["bankingDetails", "paymentInformation"].includes(s.kind)
+      );
+      assert.ok(payInfo.length >= 1, "info prélèvement en secondary");
       assert.ok(
-        p.secondaryInformation.some((s) =>
-          ["bankingDetails", "paymentInformation"].includes(s.kind)
-        )
+        payInfo.some((s) => /pr[eé]l[eè]vement/i.test(s.text)),
+        "texte prélèvement"
       );
       assertClean(p, explanation);
-      console.log("  prelevement=", prev.map((a) => a.text));
+      console.log("  payment secondary=", payInfo.map((a) => a.text));
     }
 
     section("D — Facture contradictoire");

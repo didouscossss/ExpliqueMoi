@@ -19,7 +19,14 @@ export const ROLES_BY_TYPE: Record<EntityType, readonly string[]> = {
     "other"
   ],
   percentage: ["vatRate", "discountRate", "other"],
-  date: ["invoiceDate", "dueDate", "documentDate", "deadline", "other"],
+  date: [
+    "invoiceDate",
+    "dueDate",
+    "paymentDate",
+    "documentDate",
+    "deadline",
+    "other"
+  ],
   person: ["recipient", "sender", "signatory", "other"],
   organization: ["issuer", "recipientOrg", "legalIssuer", "other"],
   reference: [

@@ -43,7 +43,7 @@ export function buildStructuredSummary(input: {
 
   const deadlines = [
     ...input.importantDates.filter((d) =>
-      /deadline|dueDate|paymentDeadline|actionDeadline/i.test(d.kind)
+      /deadline|dueDate|paymentDate|paymentDeadline|actionDeadline/i.test(d.kind)
     ),
     ...explicitActions
       .map((a) => a.deadline)

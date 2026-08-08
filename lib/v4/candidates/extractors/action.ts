@@ -15,8 +15,8 @@ const ACTION_PATTERNS: RegExp[] = [
   /vous\s+devez\s+([^.\n]{5,80})/gi,
   /(?<!ne\s)(?<!n['’])doit\s+([^.\n]{5,60})/gi,
   /transmettre\s+([^.\n]{5,80})/gi,
-  // Impératifs de démarche (formulaires) — pas les négations (filtrées à part)
-  /\b((?:retournez|transmettez|envoyez|compl[eé]tez|joignez)\s+[^.\n]{5,80})/gi
+  // Impératifs de paiement / démarche — pas les négations (filtrées à part)
+  /\b((?:r[eé]glez|effectuez|retournez|transmettez|envoyez|compl[eé]tez|joignez|mettez\s+[aà]\s+jour)\s+[^.\n]{5,80})/gi
 ];
 
 /** Négation / éventualité : ne pas extraire d’obligation. */
@@ -40,6 +40,17 @@ function isNonObligatoryLine(line: string): boolean {
   // Formule d’accompagnement (« veuillez trouver ci-joint ») ≠ obligation métier
   if (
     /\btrouver\s+(ci[-\s]?joint|en\s+annexe|ci[-\s]?apres)\b|\bci[-\s]?joint\b/.test(
+      lex
+    )
+  ) {
+    return true;
+  }
+  // Prélèvement automatique / paiement déjà programmé ≠ action utilisateur
+  if (
+    /prelevement\s+automatique|sera\s+prelev|preleve\s+automatiquement|mandat\s+sepa\s+actif|paiement\s+par\s+prelevement/.test(
+      lex
+    ) &&
+    !/\breglez\b|\beffectuez\b|\bretournez\b|\bmettez\s+[aà]\s+jour\b|\btransmettez\b/.test(
       lex
     )
   ) {
