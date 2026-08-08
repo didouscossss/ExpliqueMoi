@@ -4,8 +4,16 @@ export {
   listSchemaProfiles,
   registerSchemaProfile,
   getSchemaProfile,
-  supportedDocumentTypes
+  supportedDocumentTypes,
+  FISCAL_SPECIALIZED_SCHEMA_PROFILES
 } from "./profiles/registry.js";
+export {
+  incomeTaxReturnSchemaProfile,
+  incomeTaxNoticeSchemaProfile,
+  propertyTaxSchemaProfile,
+  taxFormSchemaProfile,
+  unknownTaxDocumentSchemaProfile
+} from "./profiles/fiscalSpecialized.js";
 export {
   buildClassificationContext,
   type ClassificationContext,

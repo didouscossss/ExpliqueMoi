@@ -115,3 +115,22 @@ export type {
 
 export type { DocumentSessionInit } from "./documentSession.js";
 export { DocumentSession } from "./documentSession.js";
+
+export type {
+  KnowledgeCountry,
+  FrenchTaxFamily,
+  FiscalNumericKind,
+  FiscalReferenceRole,
+  KnowledgeRelationType,
+  KnowledgeSourceType,
+  KnowledgeProvenance,
+  KnowledgeFact,
+  DocumentFactRef,
+  TaxDocumentRelation,
+  FrenchTaxDocumentEntry,
+  FrenchTaxDocumentRegistry,
+  DetectedFiscalReference,
+  FiscalKnowledgeSignal,
+  FiscalKnowledgeAnalysis,
+  ExternalSourceRecord
+} from "./knowledge.js";

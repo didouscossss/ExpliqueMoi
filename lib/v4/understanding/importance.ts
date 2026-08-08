@@ -99,6 +99,30 @@ const PROFILE_BOOST: Partial<
     fiscalPeriod: "high",
     taxAmount: "high"
   },
+  incomeTaxNotice: {
+    amountDue: "critical",
+    refundAmount: "critical",
+    paymentDeadline: "critical",
+    fiscalPeriod: "high",
+    taxAmount: "high",
+    amountPaid: "high"
+  },
+  incomeTaxReturn: {
+    fiscalPeriod: "critical",
+    reference: "high",
+    taxpayer: "high",
+    taxableBase: "medium"
+  },
+  propertyTax: {
+    amountDue: "critical",
+    taxAmount: "critical",
+    paymentDeadline: "critical",
+    fiscalPeriod: "high"
+  },
+  unknownTaxDocument: {
+    taxAmount: "medium",
+    amountDue: "medium"
+  },
   explanatoryDocument: {
     title: "high",
     sections: "high",

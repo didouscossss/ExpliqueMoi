@@ -16,6 +16,11 @@ export type DocumentTypeId =
   | "invoice"
   | "bankStatement"
   | "taxDocument"
+  | "incomeTaxReturn"
+  | "incomeTaxNotice"
+  | "propertyTax"
+  | "taxForm"
+  | "unknownTaxDocument"
   | "administrativeLetter"
   | "contract"
   | "payslip"
@@ -119,6 +124,11 @@ export const DOCUMENT_TYPE_IDS: readonly DocumentTypeId[] = [
   "invoice",
   "bankStatement",
   "taxDocument",
+  "incomeTaxReturn",
+  "incomeTaxNotice",
+  "propertyTax",
+  "taxForm",
+  "unknownTaxDocument",
   "administrativeLetter",
   "contract",
   "payslip",

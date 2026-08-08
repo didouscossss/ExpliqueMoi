@@ -32,3 +32,8 @@ export { financialStatementProfile } from "./definitions/financialStatement.js";
 export { explanatoryDocumentProfile } from "./definitions/explanatory.js";
 export { unknownProfile } from "./definitions/unknown.js";
 export { receiptProfile } from "./definitions/receipt.js";
+export { incomeTaxNoticeProfile } from "./definitions/incomeTaxNotice.js";
+export { incomeTaxReturnProfile } from "./definitions/incomeTaxReturn.js";
+export { propertyTaxProfile } from "./definitions/propertyTax.js";
+export { unknownTaxDocumentProfile } from "./definitions/unknownTaxDocument.js";
+export type { ProfilePipelineOptions } from "./pipeline.js";

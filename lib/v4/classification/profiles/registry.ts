@@ -19,6 +19,26 @@ import {
   receiptProfile
 } from "./misc.js";
 import { taxDocumentProfile } from "./taxDocument.js";
+import {
+  incomeTaxNoticeSchemaProfile,
+  incomeTaxReturnSchemaProfile,
+  propertyTaxSchemaProfile,
+  taxFormSchemaProfile,
+  unknownTaxDocumentSchemaProfile
+} from "./fiscalSpecialized.js";
+
+/**
+ * Profils fiscaux spécialisés V4-L.
+ * Non inclus dans DEFAULT — activés uniquement via fiscalKnowledge (opt-in).
+ * Évite de changer le comportement production Preview (taxDocument inchangé).
+ */
+export const FISCAL_SPECIALIZED_SCHEMA_PROFILES: SchemaProfile[] = [
+  incomeTaxReturnSchemaProfile,
+  incomeTaxNoticeSchemaProfile,
+  propertyTaxSchemaProfile,
+  taxFormSchemaProfile,
+  unknownTaxDocumentSchemaProfile
+];
 
 const DEFAULT_SCHEMA_PROFILES: SchemaProfile[] = [
   invoiceProfile,

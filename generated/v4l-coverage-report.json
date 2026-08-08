@@ -1,0 +1,27 @@
+{
+  "registryEntries": 13,
+  "familiesCovered": [
+    "incomeTaxReturn",
+    "professionalIncomeDeclaration",
+    "taxCreditReduction",
+    "rentalIncomeDeclaration",
+    "foreignIncomeDeclaration",
+    "incomeTaxNotice",
+    "propertyTax",
+    "corporateTax",
+    "vatDeclaration",
+    "businessTax",
+    "unknownTaxDocument"
+  ],
+  "officialReferences": 10,
+  "versionedReferences": 12,
+  "officialSources": 5,
+  "syntheticFixtures": 9,
+  "classificationSuccess": 9,
+  "referenceRoleSuccess": 2,
+  "falsePositiveReferences": 1,
+  "unknownTaxDocuments": 1,
+  "unsupportedExplanationFacts": 0,
+  "unsupportedPresentationFacts": 0,
+  "invariantsOk": true
+}

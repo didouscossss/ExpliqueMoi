@@ -19,12 +19,20 @@ import { invoiceProfile } from "./definitions/invoice.js";
 import { payslipProfile } from "./definitions/payslip.js";
 import { receiptProfile } from "./definitions/receipt.js";
 import { taxDocumentProfile } from "./definitions/taxDocument.js";
+import { incomeTaxNoticeProfile } from "./definitions/incomeTaxNotice.js";
+import { incomeTaxReturnProfile } from "./definitions/incomeTaxReturn.js";
+import { propertyTaxProfile } from "./definitions/propertyTax.js";
+import { unknownTaxDocumentProfile } from "./definitions/unknownTaxDocument.js";
 import { unknownProfile } from "./definitions/unknown.js";
 
 const DEFAULT_PROFILES: DocumentProfile[] = [
   invoiceProfile,
   administrativeLetterProfile,
   taxDocumentProfile,
+  incomeTaxNoticeProfile,
+  incomeTaxReturnProfile,
+  propertyTaxProfile,
+  unknownTaxDocumentProfile,
   bankStatementProfile,
   contractProfile,
   payslipProfile,

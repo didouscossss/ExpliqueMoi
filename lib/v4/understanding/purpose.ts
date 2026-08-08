@@ -134,6 +134,11 @@ function contentSignals(
     contract: "agreement",
     bankStatement: "accountStatement",
     taxDocument: "taxObligation",
+    incomeTaxReturn: "formSubmission",
+    incomeTaxNotice: "taxObligation",
+    propertyTax: "taxObligation",
+    taxForm: "formSubmission",
+    unknownTaxDocument: "taxObligation",
     payslip: "employmentRecord",
     form: "formSubmission",
     explanatoryDocument: "explanation"

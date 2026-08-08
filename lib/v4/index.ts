@@ -12,6 +12,7 @@
  * V4-I : Pipeline end-to-end + diagnostics
  * V4-J : Stress / robustesse
  * V4-K : Intégration Preview contrôlée (feature flag, adaptateur, mapper)
+ * V4-L : Fondation connaissance fiscale FR (opt-in fiscalKnowledge)
  * V3 inchangée par défaut (USE_V4_ENGINE=false).
  */
 
@@ -25,3 +26,4 @@ export * from "./explanation/index.js";
 export * from "./presentation/index.js";
 export * from "./pipeline/index.js";
 export * from "./integration/index.js";
+export * from "./knowledge/index.js";

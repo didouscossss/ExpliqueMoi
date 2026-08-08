@@ -4,6 +4,8 @@
  *
  * TextBlocks → candidats → relations → classification → profile/fields
  * → understanding → explanation → presentation
+ *
+ * V4-L : fiscalKnowledge opt-in (défaut false) — pas de changement Preview.
  */
 
 import type { DocumentClassification } from "../types/documentClassification.js";
@@ -13,11 +15,15 @@ import type {
   ProfileResolutionResult
 } from "../types/documentProfile.js";
 import type { EntityCandidate } from "../types/entityCandidate.js";
+import type { FiscalKnowledgeAnalysis } from "../types/knowledge.js";
 import type { ConsistencyResult, Relation } from "../types/relation.js";
 import type { TextBlock } from "../types/textBlock.js";
 import type { DocumentUnderstanding } from "../types/documentUnderstanding.js";
 import type { UserPresentation } from "../types/userPresentation.js";
+import { ExplanationPipeline } from "../explanation/pipeline.js";
 import { PresentationPipeline } from "../presentation/pipeline.js";
+import { ProfilePipeline } from "../profiles/pipeline.js";
+import { UnderstandingPipeline } from "../understanding/pipeline.js";
 import { buildV4Diagnostics, type V4Diagnostics } from "./diagnostics.js";
 
 export interface AnalyzeDocumentV4Input {
@@ -25,6 +31,11 @@ export interface AnalyzeDocumentV4Input {
   text?: string;
   /** Blocs déjà extraits (pdf.js / OCR) — priorité sur text. */
   blocks?: readonly TextBlock[];
+  /**
+   * V4-L — active registre fiscal FR + détecteur de références.
+   * Défaut false : Preview / production inchangés.
+   */
+  fiscalKnowledge?: boolean;
 }
 
 export interface AnalyzeDocumentV4Result {
@@ -39,6 +50,8 @@ export interface AnalyzeDocumentV4Result {
   explanation: DocumentExplanation;
   presentation: UserPresentation;
   diagnostics: V4Diagnostics;
+  /** Analyse knowledge si fiscalKnowledge=true. */
+  fiscalKnowledge?: FiscalKnowledgeAnalysis | null;
 }
 
 /**
@@ -48,6 +61,53 @@ export interface AnalyzeDocumentV4Result {
 export function analyzeDocumentV4(
   input: AnalyzeDocumentV4Input
 ): AnalyzeDocumentV4Result {
+  const useFiscal = Boolean(input.fiscalKnowledge);
+
+  if (useFiscal) {
+    const profilePipe = new ProfilePipeline({ fiscalKnowledge: true });
+    const profileResult =
+      input.blocks && input.blocks.length > 0
+        ? profilePipe.runOnBlocks(input.blocks)
+        : profilePipe.runOnText(input.text || "");
+
+    const understanding = new UnderstandingPipeline().fromProfileResult(
+      profileResult
+    );
+    const explanation = new ExplanationPipeline().fromUnderstandingResult(
+      understanding
+    );
+    const presentation = new PresentationPipeline().fromExplanationResult(
+      explanation
+    );
+
+    const diagnostics = buildV4Diagnostics({
+      classification: presentation.classification,
+      resolution: presentation.resolution,
+      relations: presentation.relations,
+      consistency: presentation.consistency,
+      understanding: presentation.understanding,
+      explanation: presentation.explanation,
+      presentation: presentation.presentation,
+      explanationInvariantErrors: presentation.explanationInvariantErrors,
+      presentationInvariantErrors: presentation.presentationInvariantErrors
+    });
+
+    return {
+      blocks: presentation.blocks,
+      candidates: presentation.candidates,
+      relations: presentation.relations,
+      consistency: presentation.consistency,
+      classification: presentation.classification,
+      profile: presentation.profile,
+      fields: presentation.resolution,
+      understanding: presentation.understanding,
+      explanation: presentation.explanation,
+      presentation: presentation.presentation,
+      diagnostics,
+      fiscalKnowledge: profileResult.fiscalKnowledge ?? null
+    };
+  }
+
   const pipeline = new PresentationPipeline();
 
   const result =
@@ -78,7 +138,8 @@ export function analyzeDocumentV4(
     understanding: result.understanding,
     explanation: result.explanation,
     presentation: result.presentation,
-    diagnostics
+    diagnostics,
+    fiscalKnowledge: null
   };
 }
 
