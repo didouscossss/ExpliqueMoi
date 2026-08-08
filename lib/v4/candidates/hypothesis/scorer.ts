@@ -325,7 +325,7 @@ function scoreDateRole(
     labelHit(
       reasons,
       L,
-      /echeance|a\s+payer\s+avant|au\s+plus\s+tard|avant\s+le|dans\s+un\s+delai|merci\s+de/,
+      /echeance|a\s+payer\s+avant|au\s+plus\s+tard|avant\s+le|dans\s+un\s+delai|merci\s+de|date\s+limite|limite\s+de\s+paiement/,
       "deadline"
     );
   } else if (role === "documentDate") {

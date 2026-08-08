@@ -139,14 +139,32 @@ function testDocumentProfileInterface() {
   /** @type {import("../lib/v4/index.ts").DocumentProfile} */
   const stub = {
     id: "invoice",
+    expectedFields: [],
+    optionalFields: [],
     supports(classification) {
       return (classification.scores.invoice || 0) >= 0.5;
     },
+    resolveFields() {
+      return {
+        profileId: "invoice",
+        fields: [],
+        completeness: {
+          completeness: 1,
+          missingRequired: [],
+          ambiguous: [],
+          resolvedHighConfidence: [],
+          resolved: [],
+          notApplicable: []
+        },
+        relations: [],
+        warnings: []
+      };
+    },
+    validate(ctx) {
+      return { ok: true, resolution: this.resolveFields(ctx), issues: [] };
+    },
     analyze() {
       return { fields: [], relations: [], warnings: [] };
-    },
-    validate(result) {
-      return result;
     }
   };
   const session = DocumentSession.create();
@@ -168,8 +186,9 @@ function testDocumentProfileInterface() {
     blocks: []
   });
   assert.deepEqual(analyzed.fields, []);
+  assert.equal(stub.resolveFields({ classification, candidates: [], blocks: [] }).profileId, "invoice");
   session.destroy();
-  console.log("  OK supports/analyze/validate");
+  console.log("  OK supports/resolveFields/validate/analyze");
 }
 
 function testDocumentSessionLifecycle() {

@@ -63,6 +63,16 @@ export {
 } from "./documentClassification.js";
 
 export type {
+  FieldImportance,
+  FieldCardinality,
+  FieldResolutionStatus,
+  FieldExpectation,
+  RelationExpectation,
+  FieldAlternative,
+  ResolvedField,
+  ProfileCompleteness,
+  ProfileResolutionResult,
+  ProfileValidationResult,
   DocumentProfileContext,
   ProfileAnalysisResult,
   DocumentProfile
