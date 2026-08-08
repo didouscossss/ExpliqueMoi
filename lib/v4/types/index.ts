@@ -104,5 +104,14 @@ export type {
   DocumentExplanation
 } from "./documentExplanation.js";
 
+export type {
+  PresentationTier,
+  PresentationItem,
+  PresentationIdentity,
+  PresentationEvidencePassage,
+  UserPresentation,
+  SourceFactRef
+} from "./userPresentation.js";
+
 export type { DocumentSessionInit } from "./documentSession.js";
 export { DocumentSession } from "./documentSession.js";
