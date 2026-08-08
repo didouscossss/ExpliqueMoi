@@ -94,7 +94,10 @@ Congés payés
 RELEVE DE COMPTE
 Banque Populaire
 IBAN: ${IBAN}
+Solde précédent : 1 100,00 €
+Date valeur Débit Crédit Libellé
 Solde créditeur au 28/02/2026: 1 250,00 €
+Nouveau solde : 1 250,00 €
 `.trim(),
 
   courrier: `
@@ -327,6 +330,29 @@ function testReleve() {
   console.log("  OK iban=", result.fields.iban);
 }
 
+function testFactureElectriciteAvecIban() {
+  section("facture électricité + IBAN ≠ relevé bancaire");
+  const text = `
+Facture d'électricité
+Numéro de facture : FAC-2025-001
+Date de facture : 15/11/2025
+Consommation électrique
+Abonnement
+Taxes et contributions
+Total HT 48,52 €
+TVA 20 % 9,70 €
+Total TTC 58,22 €
+Montant de facture : 58,22 €
+Prélèvement automatique
+Titulaire du compte : M DUPONT
+IBAN: ${IBAN}
+BIC AGRIFRPP
+`.trim();
+  const result = analyzeLocally(text);
+  assert.equal(result.documentType, "facture");
+  console.log("  OK type=facture (malgré IBAN/BIC/prélèvement)");
+}
+
 function testCourrier() {
   section("courrier");
   const result = analyzeLocally(FIXTURES.courrier);
@@ -397,6 +423,7 @@ async function main() {
   testContrat();
   testBulletin();
   testReleve();
+  testFactureElectriciteAvecIban();
   testCourrier();
   testOrdonnance();
   testInconnu();
