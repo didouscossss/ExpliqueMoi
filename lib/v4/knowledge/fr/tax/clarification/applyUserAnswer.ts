@@ -26,6 +26,10 @@ import {
 import { explainClarificationChanges } from "./explainCaseChanges.js";
 import { parseClarificationAnswer } from "./parseAnswer.js";
 import { selectNextClarificationQuestion } from "./selectNextQuestion.js";
+import {
+  evaluateDocumentCaseApplicability,
+  mergeApplicabilityQuestionsIntoSession
+} from "../applicability/index.js";
 
 export interface ApplyClarificationResult {
   state: ClarificationState;
@@ -63,6 +67,16 @@ export function initClarificationState(
   previous?: ClarificationSession | null
 ): ClarificationState {
   let session = buildClarificationSession(docCase, previous);
+  // V4-T — bridge applicability → questions (sans écrire de UserProvidedFacts)
+  const app = evaluateDocumentCaseApplicability({
+    ...docCase,
+    clarificationSession: session
+  });
+  session = mergeApplicabilityQuestionsIntoSession(
+    session,
+    app.evaluations,
+    app.invariants
+  );
   const next = selectNextClarificationQuestion(session, docCase);
   if (next) {
     session = {
@@ -82,7 +96,9 @@ export function initClarificationState(
   const withSession: DocumentCase = {
     ...docCase,
     clarificationSession: session,
-    userAnswers: session.activeUserFacts
+    userAnswers: session.activeUserFacts,
+    applicabilityEvaluations: app.evaluations,
+    applicabilityInvariants: app.invariants
   };
   return {
     session,
@@ -425,11 +441,31 @@ function finalizeWithRecalc(
   changeSet.explanations = explainClarificationChanges(changeSet);
   nextSession.changeHistory = [...nextSession.changeHistory, changeSet];
 
+  // V4-T — recalcul applicabilité après réponse
+  const app = evaluateDocumentCaseApplicability({
+    ...rebuilt,
+    conflicts: mergedConflicts,
+    clarificationSession: nextSession,
+    userAnswers: nextSession.activeUserFacts
+  });
+  nextSession = mergeApplicabilityQuestionsIntoSession(
+    nextSession,
+    app.evaluations,
+    app.invariants
+  );
+
   const documentCase: DocumentCase = {
     ...rebuilt,
     conflicts: mergedConflicts,
     clarificationSession: nextSession,
     userAnswers: nextSession.activeUserFacts,
+    applicabilityEvaluations: app.evaluations,
+    applicabilityInvariants: app.invariants,
+    caseCentricViews: rebuilt.caseCentricViews.map((v) => ({
+      ...v,
+      applicability:
+        app.evaluations.find((e) => e.fieldCode === v.fieldCode) || null
+    })),
     suggestedDeclaredAmount: null,
     eligibilityDecision: null
   };

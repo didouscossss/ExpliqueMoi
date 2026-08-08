@@ -32,6 +32,9 @@ import { assessDuplicates } from "./duplicates.js";
 import { buildCaseId, buildDocumentId, hashDocumentContent } from "./hash.js";
 import { findCandidateFactsForRequirementInCase } from "./matchScoring.js";
 import { buildDocumentRelations } from "./relations.js";
+import {
+  evaluateDocumentCaseApplicability
+} from "../applicability/evaluateApplicability.js";
 
 export interface DocumentCaseInput {
   text: string;
@@ -524,7 +527,7 @@ export function buildDocumentCase(
     }
   }
 
-  const caseCentricViews = buildCaseCentricViews(
+  let caseCentricViews = buildCaseCentricViews(
     fieldAssistance,
     documents,
     requirementMatches
@@ -549,7 +552,7 @@ export function buildDocumentCase(
     )
   ].sort();
 
-  return {
+  const draft: DocumentCase = {
     caseId,
     documents,
     factIndex,
@@ -581,6 +584,21 @@ export function buildDocumentCase(
     suggestedDeclaredAmount: null,
     eligibilityDecision: null,
     invariants
+  };
+
+  // V4-T — applicabilité déterministe (après faits / avant exposition)
+  const app = evaluateDocumentCaseApplicability(draft);
+  caseCentricViews = caseCentricViews.map((v) => ({
+    ...v,
+    applicability:
+      app.evaluations.find((e) => e.fieldCode === v.fieldCode) || null
+  }));
+
+  return {
+    ...draft,
+    caseCentricViews,
+    applicabilityEvaluations: app.evaluations,
+    applicabilityInvariants: app.invariants
   };
 }
 
@@ -803,7 +821,14 @@ export function buildCaseTaxAssistanceContext(
     unresolvedConflicts: docCase.conflicts.filter(
       (c) => !c.resolution || c.resolution === "unresolved"
     ),
-    changeHistory: docCase.clarificationSession?.changeHistory || []
+    changeHistory: docCase.clarificationSession?.changeHistory || [],
+    applicabilityEvaluations: docCase.applicabilityEvaluations || [],
+    applicabilityEvidence: (docCase.applicabilityEvaluations || []).flatMap(
+      (e) => e.evidence
+    ),
+    unresolvedApplicabilityQuestions: (docCase.applicabilityEvaluations || [])
+      .filter((e) => e.status === "needsInformation")
+      .flatMap((e) => e.missingInformation)
   };
 }
 
@@ -827,7 +852,12 @@ export function assertUploadOrderStable(
       ]),
       conflictKinds: c.conflicts.map((x) => x.kind).sort(),
       relationTypes: c.relations.map((r) => r.relationType).sort(),
-      suggested: c.suggestedDeclaredAmount
+      suggested: c.suggestedDeclaredAmount,
+      applicability: (c.applicabilityEvaluations || []).map((e) => [
+        e.fieldCode,
+        e.status,
+        e.ruleId
+      ])
     });
   const ok = sig(caseA) === sig(caseB);
   return { ok, uploadOrderChangesConclusion: ok ? 0 : 1 };

@@ -768,6 +768,10 @@ export interface TaxAssistanceContext {
   currentQuestion?: ClarificationQuestion | null;
   unresolvedConflicts?: FactConflict[];
   changeHistory?: ClarificationChangeSet[];
+  /** V4-T — évaluations d’applicabilité déterministes. */
+  applicabilityEvaluations?: TaxApplicabilityEvaluation[];
+  applicabilityEvidence?: TaxApplicabilityEvidence[];
+  unresolvedApplicabilityQuestions?: TaxApplicabilityMissingInformation[];
   provenance: KnowledgeProvenance[];
   informationStatus: FieldInformationStatus;
   questions: TaxFieldQuestion[];
@@ -1024,6 +1028,165 @@ export interface ClarificationState {
   lastChangeSet: ClarificationChangeSet | null;
 }
 
+/* ─── V4-T — Applicabilité fiscale déterministe ─── */
+
+export type TaxApplicabilityStatus =
+  | "applicable"
+  | "notApplicable"
+  | "unknown"
+  | "needsInformation"
+  | "conflicted";
+
+export type TaxApplicabilityConditionResult =
+  | "true"
+  | "false"
+  | "unknown"
+  | "conflicted";
+
+export type TaxApplicabilityEvidenceSourceKind =
+  | "document"
+  | "user"
+  | "officialKnowledge";
+
+export type TaxApplicabilityYearPolicy = "exact" | "verifiedStable";
+
+export type TaxApplicabilityPredicate =
+  | "factExists"
+  | "factEquals"
+  | "factIn"
+  | "booleanIs"
+  | "roleIs"
+  | "yearIs"
+  | "documentTypePresent"
+  | "fieldPresent"
+  | "userFactEquals"
+  | "regimeIs"
+  | "amountPresent";
+
+export interface TaxApplicabilityConditionNode {
+  op?: "allOf" | "anyOf" | "not";
+  /** Sous-conditions pour allOf / anyOf / not */
+  conditions?: TaxApplicabilityConditionNode[];
+  predicate?: TaxApplicabilityPredicate;
+  fieldCode?: string | null;
+  value?: string | number | boolean | null;
+  values?: Array<string | number | boolean>;
+  documentType?: string | null;
+  role?: TaxFieldDeclarantRole | null;
+  year?: number | null;
+  /** Autorise explicitement l’usage d’un UserProvidedFact pour ce prédicat. */
+  allowUserFact?: boolean;
+  /** Identifiant d’information manquante pour bridge clarification. */
+  missingInformationId?: string | null;
+  missingQuestion?: string | null;
+  expectedAnswerType?: ClarificationAnswerType | null;
+}
+
+export interface TaxApplicabilityRule {
+  ruleId: string;
+  fieldCode: string;
+  documentRef: string | null;
+  taxYears: number[];
+  yearPolicy: TaxApplicabilityYearPolicy;
+  conditions: TaxApplicabilityConditionNode;
+  /** Effet si conditions = true */
+  effectWhenTrue: "applicable" | "notApplicable";
+  /** Effet si conditions = false (souvent notApplicable ou unknown) */
+  effectWhenFalse: "applicable" | "notApplicable" | "unknown" | "needsInformation";
+  provenance: KnowledgeProvenance[];
+  sourceExcerpt: string;
+  verificationStatus: "verified" | "partial" | "unverified";
+  requiredRole?: TaxFieldDeclarantRole | null;
+  /** Si true, une absence de fait → needsInformation (jamais false). */
+  absenceIsUnknown: boolean;
+}
+
+export interface TaxApplicabilityEvidence {
+  evidenceId: string;
+  sourceKind: TaxApplicabilityEvidenceSourceKind;
+  label: string;
+  detail: string;
+  factId?: string | null;
+  documentId?: string | null;
+  userFactId?: string | null;
+  ruleId?: string | null;
+  provenance?: KnowledgeProvenance[];
+}
+
+export interface TaxApplicabilityConditionEvaluation {
+  result: TaxApplicabilityConditionResult;
+  evidence: TaxApplicabilityEvidence[];
+  missingInformation: TaxApplicabilityMissingInformation[];
+  conflicts: string[];
+  trace: string;
+}
+
+export interface TaxApplicabilityMissingInformation {
+  id: string;
+  fieldCode: string;
+  question: string;
+  expectedAnswerType: ClarificationAnswerType;
+  reason: string;
+  ruleId: string;
+}
+
+export interface TaxApplicabilityEvaluation {
+  fieldCode: string;
+  status: TaxApplicabilityStatus;
+  headline: string;
+  ruleId: string | null;
+  reasons: string[];
+  satisfiedConditions: string[];
+  unsatisfiedConditions: string[];
+  missingInformation: TaxApplicabilityMissingInformation[];
+  conflicts: string[];
+  evidence: TaxApplicabilityEvidence[];
+  sources: Array<{ title: string; url: string }>;
+  yearPolicy: TaxApplicabilityYearPolicy | null;
+  yearRelation: CaseYearRelation;
+  role: TaxFieldDeclarantRole | null;
+  limits: string[];
+  clarificationQuestionCandidates: Array<{
+    requirementId: string;
+    question: string;
+    expectedAnswerType: ClarificationAnswerType;
+    reason: string;
+  }>;
+}
+
+export interface TaxApplicabilityExplanation {
+  status: TaxApplicabilityStatus;
+  headline: string;
+  why: string[];
+  conditionsSatisfied: string[];
+  conditionsNotSatisfied: string[];
+  missingInformation: string[];
+  conflicts: string[];
+  provenance: Array<{ title: string; url: string }>;
+  limits: string[];
+}
+
+export interface TaxApplicabilityInvariants {
+  knowledgePromotedToUserFact: number;
+  knowledgePromotedToDocumentFact: number;
+  documentFactPromotedToApplicabilityWithoutRule: number;
+  userFactPromotedToApplicabilityWithoutRule: number;
+  absencePromotedToNegative: number;
+  unsupportedApplicable: number;
+  unsupportedNotApplicable: number;
+  unsupportedEligibilityDecision: number;
+  supportingDocumentPromotedToEligibility: number;
+  crossYearApplicabilityPromotion: number;
+  crossRoleApplicabilityPromotion: number;
+  conflictAutoResolved: number;
+  unknownPromotedToKnown: number;
+  refusedPromotedToNegative: number;
+  automaticUnsafeAggregation: number;
+  applicabilityClarificationLoop: number;
+  uploadOrderChangesApplicability: number;
+  missingApplicabilityProvenance: number;
+}
+
 export interface MatchScoreBreakdown {
   documentTypeMatch: number;
   yearMatch: number;
@@ -1070,6 +1233,8 @@ export interface CaseCentricFieldView {
   officialSources: Array<{ title: string; url: string }>;
   informationStatus: FieldInformationStatus;
   priorityQuestions: TaxFieldQuestion[];
+  /** V4-T — pertinence / applicabilité (≠ obligation, ≠ éligibilité). */
+  applicability?: TaxApplicabilityEvaluation | null;
   suggestedDeclaredAmount: null;
 }
 
@@ -1140,6 +1305,9 @@ export interface DocumentCase {
   userAnswers: UserProvidedFact[];
   /** V4-S — session de clarification attachée au dossier. */
   clarificationSession?: ClarificationSession | null;
+  /** V4-T — évaluations d’applicabilité par case. */
+  applicabilityEvaluations?: TaxApplicabilityEvaluation[];
+  applicabilityInvariants?: TaxApplicabilityInvariants;
   metrics: DocumentCaseMetrics;
   taxContext: {
     primaryReferences: string[];

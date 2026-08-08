@@ -230,3 +230,22 @@ export {
   type ApplyClarificationResult,
   type ClarificationAuditReport
 } from "./fr/tax/clarification/index.js";
+export {
+  evaluateCondition,
+  resetApplicabilityEvidenceIdsForTests,
+  evaluateTaxFieldApplicability,
+  evaluateDocumentCaseApplicability,
+  assertApplicabilityOrderStable,
+  emptyApplicabilityInvariants,
+  TAX_APPLICABILITY_RULES,
+  getApplicabilityRulesForField,
+  listApplicabilityRuleIds,
+  explainTaxApplicability,
+  applicabilityStatusLabel,
+  buildClarificationCandidatesFromApplicability,
+  mergeApplicabilityQuestionsIntoSession,
+  buildApplicabilityEvidence,
+  resetApplicabilityBuildIdsForTests,
+  auditTaxApplicability,
+  type ApplicabilityAuditReport
+} from "./fr/tax/applicability/index.js";

@@ -1,8 +1,16 @@
 /**
- * View model dossier multi-documents pour Preview — V4-R.
+ * View model dossier multi-documents pour Preview — V4-R/T.
  */
 
-import type { DocumentCase } from "../types/knowledge.js";
+import type {
+  DocumentCase,
+  TaxApplicabilityStatus
+} from "../types/knowledge.js";
+import { applicabilityStatusLabel } from "../knowledge/fr/tax/applicability/explainApplicability.js";
+
+function statusLabelFr(status: TaxApplicabilityStatus): string {
+  return applicabilityStatusLabel(status);
+}
 
 export function documentCaseToPreviewJson(
   docCase: DocumentCase
@@ -67,6 +75,28 @@ export function documentCaseToPreviewJson(
         question: q.question,
         reason: q.reason
       })),
+      applicability: v.applicability
+        ? {
+            status: v.applicability.status,
+            status_label: statusLabelFr(v.applicability.status),
+            headline: v.applicability.headline,
+            reasons: v.applicability.reasons,
+            evidence: v.applicability.evidence.map((e) => ({
+              source_kind: e.sourceKind,
+              label: e.label,
+              detail: e.detail
+            })),
+            missing_information: v.applicability.missingInformation.map((m) => ({
+              id: m.id,
+              question: m.question,
+              reason: m.reason
+            })),
+            conflicts: v.applicability.conflicts,
+            sources: v.applicability.sources,
+            rule_id: v.applicability.ruleId,
+            limits: v.applicability.limits
+          }
+        : null,
       suggested_declared_amount: null
     })),
     metrics: {
@@ -135,6 +165,12 @@ export function documentCaseToPreviewJson(
             }))
         }
       : null,
+    applicability_summary: (docCase.applicabilityEvaluations || []).map((e) => ({
+      field_code: e.fieldCode,
+      status: e.status,
+      status_label: statusLabelFr(e.status),
+      headline: e.headline
+    })),
     suggested_declared_amount: null,
     eligibility_decision: null,
     invariants: {

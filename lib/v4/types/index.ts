@@ -196,5 +196,18 @@ export type {
   ClarificationChangeSet,
   ClarificationSession,
   ClarificationInvariants,
-  ClarificationState
+  ClarificationState,
+  TaxApplicabilityStatus,
+  TaxApplicabilityConditionResult,
+  TaxApplicabilityEvidenceSourceKind,
+  TaxApplicabilityYearPolicy,
+  TaxApplicabilityPredicate,
+  TaxApplicabilityConditionNode,
+  TaxApplicabilityRule,
+  TaxApplicabilityEvidence,
+  TaxApplicabilityConditionEvaluation,
+  TaxApplicabilityMissingInformation,
+  TaxApplicabilityEvaluation,
+  TaxApplicabilityExplanation,
+  TaxApplicabilityInvariants
 } from "./knowledge.js";

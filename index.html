@@ -6604,6 +6604,99 @@
       }
     }
 
+    function renderFieldApplicabilityHtml(app) {
+      if (!app || typeof app !== "object") return "";
+      const statusLabel =
+        app.status_label ||
+        ({
+          applicable: "Conditions satisfaites",
+          notApplicable: "Non applicable selon les informations disponibles",
+          needsInformation: "Information nécessaire",
+          conflicted: "Informations contradictoires",
+          unknown: "Impossible à déterminer"
+        }[app.status] || "Impossible à déterminer");
+      const reasons = Array.isArray(app.reasons) ? app.reasons : [];
+      const evidence = Array.isArray(app.evidence) ? app.evidence : [];
+      const missing = Array.isArray(app.missing_information)
+        ? app.missing_information
+        : [];
+      const sources = Array.isArray(app.sources) ? app.sources : [];
+      const conflicts = Array.isArray(app.conflicts) ? app.conflicts : [];
+      return `
+        <div class="fiscal-applicability" style="margin-top:0.65rem;display:grid;gap:8px">
+          <p><strong>Pertinence de cette case</strong></p>
+          <p class="fiscal-chip" style="justify-self:start">${escapeHtml(
+            statusLabel
+          )}</p>
+          ${
+            app.headline
+              ? `<p>${escapeHtml(app.headline)}</p>`
+              : ""
+          }
+          ${
+            reasons.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Pourquoi ?</strong></p>
+                 <ul class="fiscal-list">${reasons
+                   .slice(0, 4)
+                   .map((r) => `<li>${escapeHtml(r)}</li>`)
+                   .join("")}</ul>`
+              : ""
+          }
+          ${
+            evidence.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Informations utilisées</strong></p>
+                 <ul class="fiscal-list">${evidence
+                   .slice(0, 4)
+                   .map(
+                     (e) =>
+                       `<li><span class="fiscal-fact-label">${escapeHtml(
+                         e.label || e.source_kind || "Preuve"
+                       )}</span>${escapeHtml(e.detail || "")}</li>`
+                   )
+                   .join("")}</ul>`
+              : ""
+          }
+          ${
+            conflicts.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Contradictions</strong></p>
+                 <ul class="fiscal-list">${conflicts
+                   .map((c) => `<li>${escapeHtml(c)}</li>`)
+                   .join("")}</ul>`
+              : ""
+          }
+          ${
+            missing.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Information manquante</strong></p>
+                 <ul class="fiscal-list">${missing
+                   .slice(0, 3)
+                   .map(
+                     (m) =>
+                       `<li>${escapeHtml(m.question || m.reason || "")}</li>`
+                   )
+                   .join("")}</ul>
+                 <p class="fiscal-provenance-user">Une question peut vous être proposée plus haut pour préciser ce point.</p>`
+              : ""
+          }
+          ${
+            sources.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Source officielle</strong></p>
+                 <ul class="fiscal-list">${sources
+                   .slice(0, 2)
+                   .map(
+                     (s) =>
+                       `<li><a href="${escapeHtml(
+                         s.url
+                       )}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+                         s.title
+                       )}</a></li>`
+                   )
+                   .join("")}</ul>`
+              : ""
+          }
+        </div>
+      `;
+    }
+
     function renderFiscalClarification(documentCase) {
       const el = $("fiscalClarification");
       if (!el) return;
@@ -6948,7 +7041,8 @@
           ),
           official_sources: f.official_sources || [],
           understand_cta_label: "M’aider à comprendre cette case",
-          information_status_label: f.information_status
+          information_status_label: f.information_status,
+          applicability: f.applicability || null
         }));
       }
 
@@ -7157,6 +7251,7 @@
                                    .join("")}</ul>`
                               : ""
                           }
+                          ${renderFieldApplicabilityHtml(f.applicability)}
                           ${
                             Array.isArray(f.general_conditions) &&
                             f.general_conditions.length
