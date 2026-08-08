@@ -53,6 +53,11 @@ export interface PreviewAnalysisMapped {
     uncertainRenderedAsCertain: number;
     technicalLabelsExposed: number;
     unsupportedUserActions: number;
+    taxFieldKnowledgePromotedToFact: number;
+    unsupportedFieldValues: number;
+    emptyFieldConvertedToZero: number;
+    unverifiedFieldDefinitionPresentedAsVerified: number;
+    fieldFalsePositiveCritical: number;
   };
 }
 
@@ -410,7 +415,28 @@ export function mapV4ResultToPreviewAnalysis(
       uncertainRenderedAsCertain:
         fiscalVm?.invariants.uncertainRenderedAsCertain ?? 0,
       technicalLabelsExposed: fiscalVm?.invariants.technicalLabelsExposed ?? 0,
-      unsupportedUserActions: fiscalVm?.invariants.unsupportedUserActions ?? 0
+      unsupportedUserActions: fiscalVm?.invariants.unsupportedUserActions ?? 0,
+      taxFieldKnowledgePromotedToFact:
+        fiscalVm?.invariants.taxFieldKnowledgePromotedToFact ??
+        result.fiscalKnowledge?.invariants.taxFieldKnowledgePromotedToFact ??
+        0,
+      unsupportedFieldValues:
+        fiscalVm?.invariants.unsupportedFieldValues ??
+        result.fiscalKnowledge?.invariants.unsupportedFieldValues ??
+        0,
+      emptyFieldConvertedToZero:
+        fiscalVm?.invariants.emptyFieldConvertedToZero ??
+        result.fiscalKnowledge?.invariants.emptyFieldConvertedToZero ??
+        0,
+      unverifiedFieldDefinitionPresentedAsVerified:
+        fiscalVm?.invariants.unverifiedFieldDefinitionPresentedAsVerified ??
+        result.fiscalKnowledge?.invariants
+          .unverifiedFieldDefinitionPresentedAsVerified ??
+        0,
+      fieldFalsePositiveCritical:
+        fiscalVm?.invariants.fieldFalsePositiveCritical ??
+        result.fiscalKnowledge?.invariants.fieldFalsePositiveCritical ??
+        0
     }
   };
 }

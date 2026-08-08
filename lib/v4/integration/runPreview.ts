@@ -109,7 +109,10 @@ export function runV4PreviewAnalysis(
       inv.inventedAmounts !== 0 ||
       inv.inventedReasons !== 0 ||
       (inv.knowledgePromotedToDocumentFact || 0) !== 0 ||
-      (inv.unsupportedUserActions || 0) !== 0
+      (inv.unsupportedUserActions || 0) !== 0 ||
+      (inv.taxFieldKnowledgePromotedToFact || 0) !== 0 ||
+      (inv.emptyFieldConvertedToZero || 0) !== 0 ||
+      (inv.fieldFalsePositiveCritical || 0) !== 0
     ) {
       return {
         ok: false,

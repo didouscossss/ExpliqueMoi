@@ -32,7 +32,15 @@ export type {
   TaxKnowledgeSection,
   TaxCerfaInfo,
   TaxDocumentSemanticKnowledge,
-  TaxDocumentExplanation
+  TaxDocumentExplanation,
+  TaxFieldValueType,
+  TaxFieldDeclarantRole,
+  TaxFieldPresence,
+  TaxFieldCheckboxState,
+  FrenchTaxFieldEntry,
+  FrenchTaxFieldRegistry,
+  DetectedTaxField,
+  TaxFieldExplanation
 } from "../types/knowledge.js";
 
 export { FISCAL_EXTERNAL_SOURCES } from "./sources/licenses.js";
@@ -114,3 +122,28 @@ export {
   explainTaxDocumentType
 } from "./fr/tax/semantic/explainTaxDocument.js";
 export { auditTaxKnowledgeQuality } from "./fr/tax/semantic/qualityAudit.js";
+export {
+  FRENCH_TAX_FIELD_REGISTRY_VERSION,
+  buildSeedFieldRegistry,
+  loadFrenchTaxFieldRegistry,
+  resetFrenchTaxFieldRegistryCacheForTests,
+  lookupFieldByCode
+} from "./fr/tax/fields/loadRegistry.js";
+export {
+  lookupTaxField,
+  findRelatedTaxFields,
+  knownTaxFieldCodes,
+  type TaxFieldLookupQuery,
+  type TaxFieldLookupResult
+} from "./fr/tax/fields/lookup.js";
+export { detectFrenchTaxFields } from "./fr/tax/fields/detectFields.js";
+export {
+  explainTaxField,
+  explainDetectedTaxFields
+} from "./fr/tax/fields/explainTaxField.js";
+export { normalizeTaxFieldCode, looksLikeTaxFieldCode } from "./fr/tax/fields/normalizeFieldCode.js";
+export {
+  PRIORITY_TAX_FIELDS,
+  getPriorityTaxField
+} from "./fr/tax/fields/priorityFields.js";
+export { auditTaxFieldRegistry } from "./fr/tax/fields/qualityAudit.js";

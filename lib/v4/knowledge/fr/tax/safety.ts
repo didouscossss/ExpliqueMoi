@@ -81,6 +81,18 @@ export function checkFiscalKnowledgeSafety(
       violations.push("knowledgeWithoutProvenance");
     }
   }
+  if ((analysis.invariants.taxFieldKnowledgePromotedToFact || 0) > 0) {
+    violations.push("taxFieldKnowledgePromotedToFact");
+  }
+  if ((analysis.invariants.emptyFieldConvertedToZero || 0) > 0) {
+    violations.push("emptyFieldConvertedToZero");
+  }
+  if ((analysis.invariants.unverifiedFieldDefinitionPresentedAsVerified || 0) > 0) {
+    violations.push("unverifiedFieldDefinitionPresentedAsVerified");
+  }
+  if ((analysis.invariants.fieldFalsePositiveCritical || 0) > 0) {
+    violations.push("fieldFalsePositiveCritical");
+  }
 
   return { ok: violations.length === 0, violations };
 }

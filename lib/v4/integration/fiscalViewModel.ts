@@ -50,6 +50,21 @@ export interface FiscalViewProvenance {
   authority: string;
 }
 
+export interface FiscalViewField {
+  fieldCode: string;
+  label: string | null;
+  section: string | null;
+  explanation: string | null;
+  declarantRoleLabel: string | null;
+  /** Valeur documentaire uniquement — jamais inventée depuis Knowledge. */
+  documentValue: string | null;
+  presenceLabel: string;
+  page: number | null;
+  confidence: number;
+  qualityLabel: string | null;
+  warnings: string[];
+}
+
 export interface FiscalDocumentViewModel {
   recognized: boolean;
   recognitionLevel: FiscalRecognitionLevel;
@@ -71,6 +86,8 @@ export interface FiscalDocumentViewModel {
   possibleActions: FiscalViewAction[];
   importantPoints: string[];
   relatedDocuments: FiscalViewRelated[];
+  /** V4-P — cases/rubriques (priorité : avec valeur, puis mentionnées). */
+  taxFields: FiscalViewField[];
   uncertainties: string[];
   evidence: FiscalViewEvidence[];
   provenance: FiscalViewProvenance[];
@@ -83,7 +100,27 @@ export interface FiscalDocumentViewModel {
     uncertainRenderedAsCertain: number;
     technicalLabelsExposed: number;
     unsupportedUserActions: number;
+    taxFieldKnowledgePromotedToFact: number;
+    unsupportedFieldValues: number;
+    emptyFieldConvertedToZero: number;
+    unverifiedFieldDefinitionPresentedAsVerified: number;
+    fieldFalsePositiveCritical: number;
   };
+}
+
+function presenceLabelFr(presence: string): string {
+  switch (presence) {
+    case "presentWithValue":
+      return "Valeur détectée dans le document";
+    case "presentEmpty":
+      return "Case présente sans valeur renseignée";
+    case "ambiguous":
+      return "Valeur ambiguë — non rattachée";
+    case "valueUnknown":
+      return "Valeur non déterminée";
+    default:
+      return "Case non détectée comme champ rempli";
+  }
 }
 
 const NON_FISCAL_PRIMARY = new Set([
@@ -512,8 +549,36 @@ export function buildFiscalDocumentViewModel(
       id: "ask-document",
       label: "Poser une question approfondie",
       description: "Bientôt : questions/réponses personnalisées sur votre situation (premium)."
+    },
+    {
+      id: "evaluate-field",
+      label: "Cette case me concerne-t-elle ?",
+      description: "Bientôt : aide à l’applicabilité selon votre situation (premium)."
     }
   ];
+
+  // V4-P — cases détectées (priorité valeur > mention > reste), max 8 en surface
+  const fieldExplanations = kn.fieldExplanations || [];
+  const rankedFields = [...fieldExplanations].sort((a, b) => {
+    const score = (p: string) =>
+      p === "presentWithValue" ? 0 : p === "presentEmpty" ? 1 : p === "ambiguous" ? 2 : 3;
+    return score(a.presence) - score(b.presence) || b.confidence - a.confidence;
+  });
+  const taxFields: FiscalViewField[] = rankedFields.slice(0, 8).map((fe) => ({
+    fieldCode: fe.fieldCode,
+    label: fe.label,
+    section: fe.section,
+    explanation: fe.plainLanguageWhat || fe.whatIsIt,
+    declarantRoleLabel: fe.declarantRoleLabel,
+    documentValue: fe.documentValue,
+    presenceLabel: presenceLabelFr(fe.presence),
+    page: fe.page,
+    confidence: fe.confidence,
+    qualityLabel: qualityStatusLabelFr(fe.qualityStatus),
+    warnings: (fe.warnings || []).filter(
+      (w) => !/conseil fiscal personnalisé/i.test(w)
+    )
+  }));
 
   const knowledgePromoted = tx.invariants.documentFactsFromKnowledge || 0;
   let unsupportedUserActions = 0;
@@ -579,6 +644,7 @@ export function buildFiscalDocumentViewModel(
     possibleActions: supportedActions,
     importantPoints: importantPoints.slice(0, 8),
     relatedDocuments: relatedDocuments.slice(0, 8),
+    taxFields,
     uncertainties: uncertainties.slice(0, 8),
     evidence,
     provenance: provenance.slice(0, 6),
@@ -589,7 +655,14 @@ export function buildFiscalDocumentViewModel(
       knowledgePromotedToDocumentFact: knowledgePromoted,
       uncertainRenderedAsCertain,
       technicalLabelsExposed,
-      unsupportedUserActions
+      unsupportedUserActions,
+      taxFieldKnowledgePromotedToFact:
+        kn.invariants.taxFieldKnowledgePromotedToFact || 0,
+      unsupportedFieldValues: kn.invariants.unsupportedFieldValues || 0,
+      emptyFieldConvertedToZero: kn.invariants.emptyFieldConvertedToZero || 0,
+      unverifiedFieldDefinitionPresentedAsVerified:
+        kn.invariants.unverifiedFieldDefinitionPresentedAsVerified || 0,
+      fieldFalsePositiveCritical: kn.invariants.fieldFalsePositiveCritical || 0
     }
   };
 }
@@ -629,6 +702,19 @@ export function fiscalViewModelToPreviewJson(
       title: r.title,
       note: r.note
     })),
+    tax_fields: vm.taxFields.map((f) => ({
+      field_code: f.fieldCode,
+      label: f.label,
+      section: f.section,
+      explanation: f.explanation,
+      declarant_role_label: f.declarantRoleLabel,
+      document_value: f.documentValue,
+      presence_label: f.presenceLabel,
+      page: f.page,
+      confidence: f.confidence,
+      quality_label: f.qualityLabel,
+      warnings: f.warnings
+    })),
     uncertainties: vm.uncertainties,
     evidence: vm.evidence,
     provenance: vm.provenance,
@@ -640,7 +726,14 @@ export function fiscalViewModelToPreviewJson(
         vm.invariants.knowledgePromotedToDocumentFact,
       uncertain_rendered_as_certain: vm.invariants.uncertainRenderedAsCertain,
       technical_labels_exposed: vm.invariants.technicalLabelsExposed,
-      unsupported_user_actions: vm.invariants.unsupportedUserActions
+      unsupported_user_actions: vm.invariants.unsupportedUserActions,
+      tax_field_knowledge_promoted_to_fact:
+        vm.invariants.taxFieldKnowledgePromotedToFact,
+      unsupported_field_values: vm.invariants.unsupportedFieldValues,
+      empty_field_converted_to_zero: vm.invariants.emptyFieldConvertedToZero,
+      unverified_field_definition_presented_as_verified:
+        vm.invariants.unverifiedFieldDefinitionPresentedAsVerified,
+      field_false_positive_critical: vm.invariants.fieldFalsePositiveCritical
     }
   };
 }

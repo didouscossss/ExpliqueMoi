@@ -379,6 +379,10 @@ export interface FiscalKnowledgeAnalysis {
   primaryIdentity?: DetectedFiscalReference | null;
   /** V4-N — explication sémantique structurée (Knowledge ≠ DocumentFacts). */
   taxExplanation?: TaxDocumentExplanation | null;
+  /** V4-P — cases/rubriques détectées + explications. */
+  detectedFields?: DetectedTaxField[];
+  fieldExplanations?: TaxFieldExplanation[];
+  fieldRegistryVersion?: string | null;
   /** Invariants knowledge. */
   invariants: {
     knowledgeAsDocumentFact: number;
@@ -391,6 +395,122 @@ export interface FiscalKnowledgeAnalysis {
     inventedTaxAmounts?: number;
     unsupportedKnowledgeClaims?: number;
     knowledgeWithoutProvenance?: number;
+    /** V4-P */
+    taxFieldKnowledgePromotedToFact?: number;
+    unsupportedFieldValues?: number;
+    emptyFieldConvertedToZero?: number;
+    unverifiedFieldDefinitionPresentedAsVerified?: number;
+    fieldFalsePositiveCritical?: number;
+  };
+}
+
+/** V4-P — type de valeur attendue pour une case. */
+export type TaxFieldValueType =
+  | "amount"
+  | "boolean"
+  | "text"
+  | "date"
+  | "count"
+  | "unknown";
+
+/** Rôle déclarant générique — jamais une identité personnelle. */
+export type TaxFieldDeclarantRole =
+  | "declarant1"
+  | "declarant2"
+  | "dependent1"
+  | "dependent2"
+  | "household"
+  | "unknown";
+
+export type TaxFieldPresence =
+  | "presentWithValue"
+  | "presentEmpty"
+  | "notDetected"
+  | "valueUnknown"
+  | "ambiguous";
+
+export type TaxFieldCheckboxState =
+  | "checked"
+  | "unchecked"
+  | "ambiguous"
+  | "notDetected";
+
+/**
+ * Connaissance générale d’une case fiscale (registre).
+ * Jamais une valeur utilisateur.
+ */
+export interface FrenchTaxFieldEntry {
+  id: string;
+  country: KnowledgeCountry;
+  fieldCode: string;
+  normalizedCode: string;
+  documentRefs: string[];
+  section: string;
+  subsection?: string | null;
+  label: string;
+  explanation: string;
+  plainLanguageWhat: string;
+  declarantRole: TaxFieldDeclarantRole;
+  valueType: TaxFieldValueType;
+  applicableYears: number[];
+  /** true si la définition est stable sur les années listées (vérifié). */
+  yearStable?: boolean;
+  aliases: string[];
+  relatedFields: string[];
+  officialSources: KnowledgeProvenance[];
+  provenance: KnowledgeProvenance[];
+  confidence: number;
+  qualityStatus: TaxKnowledgeQualityStatus;
+  lastVerifiedAt?: string | null;
+}
+
+export interface FrenchTaxFieldRegistry {
+  version: string;
+  country: KnowledgeCountry;
+  generatedAt: string;
+  sourceMode: "curated-official" | "discovery+curated";
+  entries: FrenchTaxFieldEntry[];
+}
+
+/** Case détectée dans LE document utilisateur. */
+export interface DetectedTaxField {
+  fieldCode: string;
+  normalizedCode: string;
+  page: number | null;
+  presence: TaxFieldPresence;
+  checkboxState?: TaxFieldCheckboxState | null;
+  /** Valeur documentaire uniquement — null si vide/ambiguous/absente. */
+  detectedValue: string | null;
+  detectedNumericValue?: number | null;
+  candidateValues?: Array<{ value: string; confidence: number }>;
+  confidence: number;
+  evidence: EvidenceSpan[];
+  registryId: string | null;
+  documentRefHint: string | null;
+  yearHint: number | null;
+  reasons: string[];
+}
+
+/** Explication case = Knowledge + DocumentFacts séparés. */
+export interface TaxFieldExplanation {
+  fieldCode: string;
+  label: string | null;
+  section: string | null;
+  whatIsIt: string | null;
+  plainLanguageWhat: string | null;
+  declarantRoleLabel: string | null;
+  documentValue: string | null;
+  presence: TaxFieldPresence;
+  page: number | null;
+  qualityStatus: TaxKnowledgeQualityStatus | null;
+  provenance: KnowledgeProvenance[];
+  confidence: number;
+  warnings: string[];
+  invariants: {
+    taxFieldKnowledgePromotedToFact: number;
+    unsupportedFieldValues: number;
+    emptyFieldConvertedToZero: number;
+    unverifiedFieldDefinitionPresentedAsVerified: number;
   };
 }
 

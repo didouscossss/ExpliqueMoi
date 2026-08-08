@@ -1553,6 +1553,31 @@
       opacity: 0.85;
     }
 
+    .fiscal-field-item summary {
+      cursor: pointer;
+      font-weight: 800;
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      align-items: baseline;
+    }
+
+    .fiscal-field-item summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .fiscal-field-code {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+    }
+
+    .fiscal-field-item .fiscal-field-body {
+      margin-top: 8px;
+      display: grid;
+      gap: 6px;
+    }
+
     body.dark .fiscal-card {
       background:
         linear-gradient(
@@ -2606,6 +2631,7 @@
         <div id="fiscalPurpose" class="fiscal-block"></div>
         <div id="fiscalDocumentFacts" class="fiscal-block"></div>
         <div id="fiscalActions" class="fiscal-block"></div>
+        <div id="fiscalFields" class="fiscal-block"></div>
         <div id="fiscalUncertainties" class="fiscal-block"></div>
         <div id="fiscalRelated" class="fiscal-block"></div>
 
@@ -4831,6 +4857,7 @@
         "fiscalPurpose",
         "fiscalDocumentFacts",
         "fiscalActions",
+        "fiscalFields",
         "fiscalUncertainties",
         "fiscalRelated",
         "fiscalSourcesList",
@@ -6384,6 +6411,81 @@
           <h3>Ce que vous devez faire</h3>
           ${body}
         `;
+      }
+
+      const fieldsEl = $("fiscalFields");
+      if (fieldsEl) {
+        const fields = Array.isArray(fiscal.tax_fields)
+          ? fiscal.tax_fields
+          : [];
+        if (fields.length) {
+          fieldsEl.innerHTML = `
+            <h3>Les cases importantes</h3>
+            <ul class="fiscal-list">
+              ${fields
+                .map((f, index) => {
+                  const open = index < 2 || f.document_value ? " open" : "";
+                  const valueLine = f.document_value
+                    ? `<p><strong>Dans votre document :</strong> ${escapeHtml(
+                        f.document_value
+                      )}</p>`
+                    : `<p><strong>Dans votre document :</strong> ${escapeHtml(
+                        f.presence_label || "Aucune valeur certaine"
+                      )}</p>`;
+                  const pageLine =
+                    f.page != null
+                      ? `<p style="color:var(--muted);font-size:0.88rem">Page ${escapeHtml(
+                          String(f.page)
+                        )}</p>`
+                      : "";
+                  const roleLine = f.declarant_role_label
+                    ? `<p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                        f.declarant_role_label
+                      )}</p>`
+                    : "";
+                  const warnLine =
+                    Array.isArray(f.warnings) && f.warnings.length
+                      ? `<p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                          f.warnings[0]
+                        )}</p>`
+                      : "";
+                  return `
+                    <li class="fiscal-field-item">
+                      <details${open}>
+                        <summary>
+                          <span class="fiscal-field-code">${escapeHtml(
+                            f.field_code || ""
+                          )}</span>
+                          <span>${escapeHtml(f.label || "Case fiscale")}</span>
+                        </summary>
+                        <div class="fiscal-field-body">
+                          ${
+                            f.section
+                              ? `<p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                                  f.section
+                                )}</p>`
+                              : ""
+                          }
+                          ${
+                            f.explanation
+                              ? `<p>${escapeHtml(f.explanation)}</p>`
+                              : "<p>Aucune définition vérifiée n’est disponible pour cette case.</p>"
+                          }
+                          ${roleLine}
+                          ${valueLine}
+                          ${pageLine}
+                          ${warnLine}
+                        </div>
+                      </details>
+                    </li>
+                  `;
+                })
+                .join("")}
+            </ul>
+          `;
+        } else {
+          fieldsEl.innerHTML = "";
+        }
       }
 
       if (uncertain) {

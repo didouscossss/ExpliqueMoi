@@ -12,7 +12,7 @@
  * V4-I : Pipeline end-to-end + diagnostics
  * V4-J : Stress / robustesse
  * V4-K : Intégration Preview contrôlée (feature flag, adaptateur, mapper)
- * V4-L/M/N/O : Knowledge fiscale + view model Preview (opt-in / Preview branché)
+ * V4-L/M/N/O/P : Knowledge fiscale + cases/rubriques + view model Preview
  * V3 inchangée par défaut (USE_V4_ENGINE=false).
  */
 

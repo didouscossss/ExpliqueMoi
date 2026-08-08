@@ -144,5 +144,13 @@ export type {
   TaxKnowledgeSection,
   TaxCerfaInfo,
   TaxDocumentSemanticKnowledge,
-  TaxDocumentExplanation
+  TaxDocumentExplanation,
+  TaxFieldValueType,
+  TaxFieldDeclarantRole,
+  TaxFieldPresence,
+  TaxFieldCheckboxState,
+  FrenchTaxFieldEntry,
+  FrenchTaxFieldRegistry,
+  DetectedTaxField,
+  TaxFieldExplanation
 } from "./knowledge.js";

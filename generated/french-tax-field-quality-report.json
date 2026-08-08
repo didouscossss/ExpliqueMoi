@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-08-08T20:25:53.957Z",
+  "totalEntries": 26,
+  "verified": 24,
+  "partiallyVerified": 2,
+  "needsReview": 0,
+  "discovered": 0,
+  "missingProvenance": [],
+  "missingDocumentRef": [],
+  "missingLabel": [],
+  "emptyDefinition": [],
+  "invalidCode": [],
+  "duplicateKeys": [],
+  "invalidRelatedFields": [],
+  "verifiedWithoutProof": [],
+  "genericSuspect": [],
+  "ok": true
+}

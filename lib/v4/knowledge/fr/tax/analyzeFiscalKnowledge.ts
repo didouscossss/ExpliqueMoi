@@ -21,6 +21,9 @@ import {
   loadFrenchTaxRegistry,
   lookupById
 } from "./registry/loadRegistry.js";
+import { detectFrenchTaxFields } from "./fields/detectFields.js";
+import { explainDetectedTaxFields } from "./fields/explainTaxField.js";
+import { loadFrenchTaxFieldRegistry } from "./fields/loadRegistry.js";
 
 const FAMILY_TO_TYPE: Partial<Record<FrenchTaxFamily, DocumentTypeId>> = {
   incomeTaxReturn: "incomeTaxReturn",
@@ -133,7 +136,8 @@ export function analyzeFiscalKnowledge(
     }
   }
 
-  return {
+  // V4-P — détection cases (après identité pour contextualiser)
+  const preliminary: FiscalKnowledgeAnalysis = {
     enabled: true,
     registryVersion: registry.version,
     detectedReferences,
@@ -147,6 +151,43 @@ export function analyzeFiscalKnowledge(
       knowledgeAsDocumentFact: 0,
       personalIdAsFormReference,
       mentionedAsIdentity
+    }
+  };
+  const detectedFields = detectFrenchTaxFields(blocks, preliminary);
+  const fieldExplanations = explainDetectedTaxFields(detectedFields);
+  const fieldRegistry = loadFrenchTaxFieldRegistry();
+
+  let taxFieldKnowledgePromotedToFact = 0;
+  let unsupportedFieldValues = 0;
+  let emptyFieldConvertedToZero = 0;
+  let unverifiedFieldDefinitionPresentedAsVerified = 0;
+  let fieldFalsePositiveCritical = 0;
+  for (const fe of fieldExplanations) {
+    taxFieldKnowledgePromotedToFact += fe.invariants.taxFieldKnowledgePromotedToFact;
+    unsupportedFieldValues += fe.invariants.unsupportedFieldValues;
+    emptyFieldConvertedToZero += fe.invariants.emptyFieldConvertedToZero;
+    unverifiedFieldDefinitionPresentedAsVerified +=
+      fe.invariants.unverifiedFieldDefinitionPresentedAsVerified;
+  }
+  // Faux positif critique : case « certaine » hors contexte fiscal
+  for (const df of detectedFields) {
+    if (df.confidence >= 0.75 && !df.registryId && !primaryIdentity) {
+      fieldFalsePositiveCritical += 1;
+    }
+  }
+
+  return {
+    ...preliminary,
+    detectedFields,
+    fieldExplanations,
+    fieldRegistryVersion: fieldRegistry.version,
+    invariants: {
+      ...preliminary.invariants,
+      taxFieldKnowledgePromotedToFact,
+      unsupportedFieldValues,
+      emptyFieldConvertedToZero,
+      unverifiedFieldDefinitionPresentedAsVerified,
+      fieldFalsePositiveCritical
     }
   };
 }

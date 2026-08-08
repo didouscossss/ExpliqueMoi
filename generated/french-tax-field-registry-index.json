@@ -1,0 +1,94 @@
+{
+  "version": "2026.08.08-v4p1",
+  "generatedAt": "2026-08-08T20:25:53.957Z",
+  "byCode": {
+    "1AJ": "fr-tax-field-1aj",
+    "1BJ": "fr-tax-field-1bj",
+    "1CJ": "fr-tax-field-1cj",
+    "1DJ": "fr-tax-field-1dj",
+    "1AS": "fr-tax-field-1as",
+    "1BS": "fr-tax-field-1bs",
+    "1CS": "fr-tax-field-1cs",
+    "1DS": "fr-tax-field-1ds",
+    "1AP": "fr-tax-field-1ap",
+    "1BP": "fr-tax-field-1bp",
+    "1AK": "fr-tax-field-1ak",
+    "1BK": "fr-tax-field-1bk",
+    "2TR": "fr-tax-field-2tr",
+    "3VG": "fr-tax-field-3vg",
+    "3VH": "fr-tax-field-3vh",
+    "4BA": "fr-tax-field-4ba",
+    "4BB": "fr-tax-field-4bb",
+    "4BC": "fr-tax-field-4bc",
+    "4BD": "fr-tax-field-4bd",
+    "4BE": "fr-tax-field-4be",
+    "4BZ": "fr-tax-field-4bz",
+    "7DB": "fr-tax-field-7db",
+    "7DR": "fr-tax-field-7dr",
+    "7GA": "fr-tax-field-7ga",
+    "8UU": "fr-tax-field-8uu",
+    "1AF": "fr-tax-field-1af"
+  },
+  "byDocumentRef": {
+    "2042": [
+      "1AJ",
+      "1BJ",
+      "1CJ",
+      "1DJ",
+      "1AS",
+      "1BS",
+      "1CS",
+      "1DS",
+      "1AP",
+      "1BP",
+      "1AK",
+      "1BK",
+      "2TR",
+      "3VG",
+      "3VH",
+      "4BA",
+      "4BB",
+      "4BC",
+      "4BD",
+      "4BE",
+      "4BZ",
+      "7DB",
+      "7DR",
+      "7GA",
+      "8UU",
+      "1AF"
+    ],
+    "2044": [
+      "4BA",
+      "4BB",
+      "4BC",
+      "4BD",
+      "4BZ"
+    ],
+    "2047": [
+      "1AF"
+    ],
+    "2074": [
+      "3VG",
+      "3VH"
+    ],
+    "3916": [
+      "8UU"
+    ],
+    "2042-C": [
+      "3VG",
+      "3VH"
+    ],
+    "2042-RICI": [
+      "7DB",
+      "7DR",
+      "7GA"
+    ]
+  },
+  "counts": {
+    "entries": 26,
+    "verified": 24,
+    "partiallyVerified": 2,
+    "needsReview": 0
+  }
+}
