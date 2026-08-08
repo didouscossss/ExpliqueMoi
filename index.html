@@ -1446,6 +1446,122 @@
       padding: 21px;
     }
 
+    /* V4-O — blocs fiscaux mobile-first */
+    .fiscal-card {
+      display: grid;
+      gap: 16px;
+      padding: 18px;
+      border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+      background:
+        linear-gradient(
+          160deg,
+          var(--solid),
+          color-mix(in srgb, var(--blue) 8%, var(--solid))
+        );
+    }
+
+    .fiscal-card.hidden {
+      display: none;
+    }
+
+    .fiscal-block {
+      display: grid;
+      gap: 8px;
+    }
+
+    .fiscal-block h3 {
+      margin: 0;
+      font-size: 1.02rem;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+    }
+
+    .fiscal-block p,
+    .fiscal-block li {
+      margin: 0;
+      color: var(--text);
+      line-height: 1.45;
+      font-size: 0.95rem;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .fiscal-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .fiscal-chip {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--blue) 14%, var(--solid));
+      color: var(--text);
+      font-size: 0.82rem;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .fiscal-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .fiscal-list li {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--solid);
+      border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+    }
+
+    .fiscal-list .fiscal-fact-label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 2px;
+    }
+
+    .fiscal-sources summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .fiscal-sources[open] summary {
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .fiscal-premium {
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px dashed color-mix(in srgb, var(--text) 18%, transparent);
+      background: color-mix(in srgb, var(--text) 3%, var(--solid));
+    }
+
+    .fiscal-premium .fiscal-list li {
+      opacity: 0.85;
+    }
+
+    body.dark .fiscal-card {
+      background:
+        linear-gradient(
+          160deg,
+          var(--solid),
+          color-mix(in srgb, var(--blue) 16%, var(--solid))
+        );
+    }
+
     .actions-card {
       background:
         linear-gradient(
@@ -2470,6 +2586,37 @@
 
         <div class="summary-illustration">
           💡
+        </div>
+      </section>
+
+      <section
+        id="fiscalCard"
+        class="card result-card fiscal-card hidden"
+        aria-label="Explication fiscale"
+      >
+        <div class="heading">
+          <div class="heading-icon">🧾</div>
+          <div>
+            <span class="kicker">Document fiscal</span>
+            <h2 id="fiscalHeadline">Explication du document</h2>
+          </div>
+        </div>
+
+        <div id="fiscalIdentity" class="fiscal-block"></div>
+        <div id="fiscalPurpose" class="fiscal-block"></div>
+        <div id="fiscalDocumentFacts" class="fiscal-block"></div>
+        <div id="fiscalActions" class="fiscal-block"></div>
+        <div id="fiscalUncertainties" class="fiscal-block"></div>
+        <div id="fiscalRelated" class="fiscal-block"></div>
+
+        <details id="fiscalSources" class="fiscal-sources fiscal-block">
+          <summary>Sources de cette explication</summary>
+          <ul id="fiscalSourcesList" class="fiscal-list"></ul>
+        </details>
+
+        <div id="fiscalPremium" class="fiscal-premium fiscal-block">
+          <h3>Bientôt — aide approfondie</h3>
+          <ul id="fiscalPremiumList" class="fiscal-list"></ul>
         </div>
       </section>
 
@@ -4676,6 +4823,22 @@
         $("proofList").innerHTML = "";
       }
 
+      if ($("fiscalCard")) {
+        $("fiscalCard").classList.add("hidden");
+      }
+      [
+        "fiscalIdentity",
+        "fiscalPurpose",
+        "fiscalDocumentFacts",
+        "fiscalActions",
+        "fiscalUncertainties",
+        "fiscalRelated",
+        "fiscalSourcesList",
+        "fiscalPremiumList"
+      ].forEach((id) => {
+        if ($(id)) $(id).innerHTML = "";
+      });
+
       if ($("tablesList")) {
         $("tablesList").innerHTML = "";
       }
@@ -5670,6 +5833,19 @@
             ? data.v4_debug
             : null,
 
+        actionRequired:
+          data?.action_required === true
+            ? true
+            : data?.action_required === false
+              ? false
+              : null,
+
+        fiscalDocument:
+          data?.fiscal_document &&
+          typeof data.fiscal_document === "object"
+            ? data.fiscal_document
+            : null,
+
         actions:
           normalizeActions(data?.actions),
 
@@ -6004,15 +6180,20 @@
       const hasWarnings =
         Array.isArray(analysis.warnings) &&
         analysis.warnings.length > 0;
+      const fiscal = analysis.fiscalDocument;
 
       setTextIfPresent(
         "successBannerMessage",
-        hasWarnings
-          ? "Votre document a été compris. Quelques détails secondaires restent à vérifier."
-          : "Votre document a été compris."
+        fiscal
+          ? fiscal.confidence_message ||
+            "Voici ce que je peux expliquer sur ce document fiscal."
+          : hasWarnings
+            ? "Votre document a été compris. Quelques détails secondaires restent à vérifier."
+            : "Votre document a été compris."
       );
 
       $("documentType").textContent =
+        fiscal?.identity?.public_title ||
         analysis.documentType;
 
       $("issuer").textContent =
@@ -6021,14 +6202,14 @@
           : "";
 
       $("documentCategoryTag").textContent =
-        getCategory(
-          analysis.documentType
-        );
+        fiscal
+          ? "Fiscal / administratif"
+          : getCategory(analysis.documentType);
 
       let summaryText = analysis.summary;
 
       // Avertissement discret uniquement si l’analyse est réellement exploitable
-      if (hasWarnings) {
+      if (hasWarnings && !fiscal) {
         summaryText =
           `${analysis.summary}\n\n⚠️ ${analysis.warnings[0]}`;
       }
@@ -6039,7 +6220,9 @@
       prepareSummary();
 
       $("requestTitle").textContent =
-        analysis.request;
+        fiscal
+          ? (analysis.request || "Aucune action certaine détectée.")
+          : analysis.request;
 
       renderActions(
         analysis.actions,
@@ -6070,6 +6253,8 @@
         analysis.evidence
       );
 
+      renderFiscalDocument(fiscal);
+
       renderTables(analysis.tables);
 
       beginDocumentConversation(analysis);
@@ -6082,9 +6267,227 @@
       if (analysis.engine === "v4" || analysis.v4Debug) {
         console.info("[ExpliqueMoi V4 Preview]", {
           engine: analysis.engine || "v4",
+          fiscalAttached: Boolean(fiscal),
           ...(analysis.v4Debug || {})
         });
       }
+    }
+
+    function renderFiscalDocument(fiscal) {
+      const card = $("fiscalCard");
+      if (!card) return;
+
+      if (!fiscal || typeof fiscal !== "object") {
+        card.classList.add("hidden");
+        return;
+      }
+
+      card.classList.remove("hidden");
+
+      setTextIfPresent(
+        "fiscalHeadline",
+        fiscal.confidence_headline || "Explication du document"
+      );
+
+      const identity = $("fiscalIdentity");
+      const purpose = $("fiscalPurpose");
+      const facts = $("fiscalDocumentFacts");
+      const actions = $("fiscalActions");
+      const uncertain = $("fiscalUncertainties");
+      const related = $("fiscalRelated");
+      const sourcesList = $("fiscalSourcesList");
+      const premiumList = $("fiscalPremiumList");
+
+      if (identity) {
+        const chips = [];
+        if (fiscal.identity?.show_reference && fiscal.identity?.reference) {
+          chips.push(
+            `<span class="fiscal-chip">Formulaire ${escapeHtml(fiscal.identity.reference)}</span>`
+          );
+        }
+        if (fiscal.identity?.cerfa) {
+          chips.push(
+            `<span class="fiscal-chip">Cerfa ${escapeHtml(fiscal.identity.cerfa)}</span>`
+          );
+        }
+        if (fiscal.identity?.family_label) {
+          chips.push(
+            `<span class="fiscal-chip">${escapeHtml(fiscal.identity.family_label)}</span>`
+          );
+        }
+        identity.innerHTML = `
+          <h3>Ce document est</h3>
+          <p><strong>${escapeHtml(fiscal.identity?.public_title || "Document fiscal")}</strong></p>
+          ${chips.length ? `<div class="fiscal-meta">${chips.join("")}</div>` : ""}
+        `;
+      }
+
+      if (purpose) {
+        const what = fiscal.understanding?.what_is_it;
+        const why = fiscal.understanding?.purpose;
+        const who = fiscal.understanding?.who_is_concerned;
+        if (what || why) {
+          purpose.innerHTML = `
+            <h3>À quoi sert ce document ?</h3>
+            ${what ? `<p>${escapeHtml(what)}</p>` : ""}
+            ${why && why !== what ? `<p>${escapeHtml(why)}</p>` : ""}
+            ${who ? `<p>${escapeHtml(who)}</p>` : ""}
+          `;
+        } else {
+          purpose.innerHTML = `
+            <h3>À quoi sert ce document ?</h3>
+            <p>Je ne peux pas encore expliquer précisément le rôle de ce document.</p>
+          `;
+        }
+      }
+
+      if (facts) {
+        const items = Array.isArray(fiscal.document_facts)
+          ? fiscal.document_facts
+          : [];
+        if (items.length) {
+          facts.innerHTML = `
+            <h3>Ce que votre document indique</h3>
+            <ul class="fiscal-list">
+              ${items
+                .map(
+                  (item) => `
+                    <li>
+                      <span class="fiscal-fact-label">${escapeHtml(item.label)}</span>
+                      <strong>${escapeHtml(item.value)}</strong>
+                    </li>
+                  `
+                )
+                .join("")}
+            </ul>
+          `;
+        } else {
+          facts.innerHTML = `
+            <h3>Ce que votre document indique</h3>
+            <p>Aucune information chiffrée ou datée n’a pu être relevée de façon fiable dans ce document.</p>
+          `;
+        }
+      }
+
+      if (actions) {
+        const items = Array.isArray(fiscal.possible_actions)
+          ? fiscal.possible_actions
+          : [];
+        const supported = items.filter((a) => a.certainty === "supported");
+        const body = supported.length
+          ? `<ul class="fiscal-list">${supported
+              .map((a) => `<li>${escapeHtml(a.text)}</li>`)
+              .join("")}</ul>`
+          : `<p>Aucune action certaine détectée.</p>
+             <p>Consultez le document pour vérifier les modalités qui vous concernent.</p>`;
+        actions.innerHTML = `
+          <h3>Ce que vous devez faire</h3>
+          ${body}
+        `;
+      }
+
+      if (uncertain) {
+        const points = Array.isArray(fiscal.important_points)
+          ? fiscal.important_points
+          : Array.isArray(fiscal.uncertainties)
+            ? fiscal.uncertainties
+            : [];
+        if (points.length) {
+          uncertain.innerHTML = `
+            <h3>Certaines informations restent à vérifier</h3>
+            <ul class="fiscal-list">
+              ${points.map((p) => `<li>${escapeHtml(p)}</li>`).join("")}
+            </ul>
+          `;
+        } else {
+          uncertain.innerHTML = "";
+        }
+      }
+
+      if (related) {
+        const docs = Array.isArray(fiscal.related_documents)
+          ? fiscal.related_documents
+          : [];
+        if (docs.length) {
+          related.innerHTML = `
+            <h3>Documents qui peuvent être associés</h3>
+            <ul class="fiscal-list">
+              ${docs
+                .map(
+                  (d) => `
+                    <li>
+                      <strong>${escapeHtml(d.reference || "")}</strong>
+                      ${d.title ? ` — ${escapeHtml(d.title)}` : ""}
+                      <br><span style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                        d.note || "Document associé"
+                      )}</span>
+                    </li>
+                  `
+                )
+                .join("")}
+            </ul>
+          `;
+        } else {
+          related.innerHTML = "";
+        }
+      }
+
+      if (sourcesList) {
+        const sources = Array.isArray(fiscal.provenance)
+          ? fiscal.provenance
+          : [];
+        const quality = fiscal.quality_status_label
+          ? `<li><span class="fiscal-fact-label">Fiabilité</span>${escapeHtml(
+              fiscal.quality_status_label
+            )}</li>`
+          : "";
+        sourcesList.innerHTML =
+          quality +
+          sources
+            .map(
+              (s) => `
+                <li>
+                  <span class="fiscal-fact-label">${escapeHtml(
+                    s.authority || "Source"
+                  )}</span>
+                  <a href="${escapeAttr(s.url || "#")}" target="_blank" rel="noopener noreferrer">
+                    ${escapeHtml(s.title || s.url || "Source officielle")}
+                  </a>
+                </li>
+              `
+            )
+            .join("");
+      }
+
+      if (premiumList) {
+        const placeholders = Array.isArray(fiscal.premium_placeholders)
+          ? fiscal.premium_placeholders
+          : [];
+        premiumList.innerHTML = placeholders
+          .map(
+            (p) => `
+              <li>
+                <strong>${escapeHtml(p.label || "")}</strong>
+                <br><span style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                  p.description || ""
+                )}</span>
+              </li>
+            `
+          )
+          .join("");
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/'/g, "&#39;");
     }
 
     function getCategory(documentType) {
@@ -6110,6 +6513,14 @@
         )
       ) {
         return "Contrat";
+      }
+
+      if (
+        /impôt|fiscal|déclaration de revenus|taxe foncière|avis d/i.test(
+          documentType
+        )
+      ) {
+        return "Fiscal / administratif";
       }
 
       if (
@@ -6242,6 +6653,64 @@
     function updateUnderstandingDisplay(
       analysis
     ) {
+      const fiscal = analysis.fiscalDocument;
+      if (fiscal && fiscal.confidence_headline) {
+        const levelMap = {
+          certain: "excellent",
+          probable: "good",
+          partial: "medium",
+          insufficient: "low"
+        };
+        const level =
+          levelMap[fiscal.recognition_level] || "good";
+        const dots =
+          level === "excellent"
+            ? 4
+            : level === "good"
+              ? 3
+              : level === "medium"
+                ? 2
+                : 1;
+        const face =
+          level === "excellent"
+            ? "😊"
+            : level === "good"
+              ? "😌"
+              : level === "medium"
+                ? "🤔"
+                : "😕";
+        const status = {
+          level,
+          face,
+          title: fiscal.confidence_headline,
+          message:
+            fiscal.confidence_message ||
+            "Je m’appuie uniquement sur les informations fiables.",
+          dots
+        };
+
+        $("understandingCard").dataset.level =
+          status.level;
+        $("understandingFace").textContent =
+          status.face;
+        $("understandingTitle").textContent =
+          status.title;
+        $("understandingMessage").textContent =
+          status.message;
+        $("speechBubble").textContent =
+          status.title;
+        $("understandingDots").innerHTML = [1, 2, 3, 4]
+          .map(
+            (number) => `
+              <span class="understanding-dot ${
+                number <= status.dots ? "active" : ""
+              }"></span>
+            `
+          )
+          .join("");
+        return;
+      }
+
       const score =
         calculateUnderstandingScore(
           analysis
@@ -6255,7 +6724,8 @@
         analysis.warnings.some((w) =>
           /pas certaines|ambigu|incert/i.test(String(w))
         );
-      const actionRequired = analysis?.action_required;
+      const actionRequired =
+        analysis?.actionRequired ?? analysis?.action_required;
 
       let status;
 
@@ -6263,7 +6733,7 @@
         status = {
           level: "excellent",
           face: "😊",
-          title: "J’ai tout compris !",
+          title: "Document bien identifié",
           message: hasActions
             ? "Le document est clair. J’ai retrouvé les informations principales et les actions à réaliser."
             : actionRequired === false
@@ -6275,7 +6745,7 @@
         status = {
           level: "good",
           face: "😌",
-          title: "J’ai compris l’essentiel",
+          title: "Document identifié — certains détails restent à vérifier",
           message:
             "Je peux bien vous expliquer le document. Quelques détails secondaires peuvent rester à confirmer.",
           dots: 3
@@ -6284,8 +6754,7 @@
         status = {
           level: "medium",
           face: "🤔",
-          title:
-            "Quelques points sont à vérifier",
+          title: "Document probablement identifié",
           message:
             "J’ai compris le sujet général, mais certaines informations sont absentes ou difficiles à lire.",
           dots: 2
@@ -6295,7 +6764,7 @@
           level: "low",
           face: "😕",
           title:
-            "J’ai besoin d’un document plus lisible",
+            "Je ne peux pas identifier ce document avec certitude",
           message:
             "Je n’ai pas retrouvé assez d’informations certaines. Essayez une photo plus nette ou le PDF d’origine.",
           dots: 1

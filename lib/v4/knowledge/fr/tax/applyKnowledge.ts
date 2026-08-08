@@ -87,13 +87,12 @@ export function mergeFiscalKnowledgeIntoClassification(
     !hasMentionOnly &&
     (scores[knowledge.suggestedDocumentType] || 0) >= 0.45
   ) {
-    // Ne pas écraser une classification non-fiscale forte (facture, banque…)
+    // Ne jamais écraser une classification non-fiscale forte (facture, banque…)
     const nonFiscalStrong = ["invoice", "bankStatement", "contract", "payslip"].includes(
       classification.primary
     );
-    const currentScore = scores[classification.primary] || 0;
     const suggestedScore = scores[knowledge.suggestedDocumentType] || 0;
-    if (!nonFiscalStrong || suggestedScore > currentScore + 0.15) {
+    if (!nonFiscalStrong) {
       primary = knowledge.suggestedDocumentType;
       confidence = toConfidence(Math.min(0.95, Math.max(suggestedScore, 0.55)));
       status = suggestedScore >= 0.55 ? "resolved" : "ambiguous";

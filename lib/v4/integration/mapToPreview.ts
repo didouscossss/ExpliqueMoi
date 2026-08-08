@@ -1,11 +1,17 @@
 /**
  * Mapper UserPresentation → modèle Preview (snake_case Gemini-compatible).
  * Ne crée AUCUN fait nouveau — sélection / ordre / format uniquement.
+ * V4-O : attache fiscal_document (view model) sans contaminer Knowledge → DocumentFacts.
  */
 
 import type { AnalyzeDocumentV4Result } from "../pipeline/analyzeDocumentV4.js";
 import type { PresentationItem } from "../types/userPresentation.js";
 import { formatDateFR, formatMoneyFR } from "../presentation/format.js";
+import {
+  buildFiscalDocumentViewModel,
+  fiscalViewModelToPreviewJson,
+  humanEvidenceSupport
+} from "./fiscalViewModel.js";
 
 export interface PreviewAnalysisMapped {
   engine: "v4";
@@ -27,6 +33,8 @@ export interface PreviewAnalysisMapped {
   reading_quality: "full" | "partial" | "failed";
   tables: unknown[];
   amounts_detail: Array<{ label: string; value: string; kind: string; page: string }>;
+  /** V4-O — view model fiscal (null pour factures / non fiscal). */
+  fiscal_document: Record<string, unknown> | null;
   /** Debug Preview — jamais inventé. */
   v4_debug: Record<string, unknown>;
   /** Invariants UI d’intégration. */
@@ -41,6 +49,10 @@ export interface PreviewAnalysisMapped {
     uiInventedDeadlines: number;
     uiInventedAmounts: number;
     uiInventedReasons: number;
+    knowledgePromotedToDocumentFact: number;
+    uncertainRenderedAsCertain: number;
+    technicalLabelsExposed: number;
+    unsupportedUserActions: number;
   };
 }
 
@@ -225,7 +237,7 @@ export function mapV4ResultToPreviewAnalysis(
       page: p.page ? `Page ${p.page}` : "Document",
       quote: p.excerpt,
       explanation: p.supportedFacts?.length
-        ? `Éléments liés : ${p.supportedFacts.join(", ")}`
+        ? `Ce passage permet d’identifier ${humanEvidenceSupport(p.supportedFacts)}.`
         : ""
     }));
 
@@ -287,25 +299,76 @@ export function mapV4ResultToPreviewAnalysis(
           ? "partial"
           : "full";
 
+  // V4-O — view model fiscal (null si non applicable / facture)
+  const fiscalVm = buildFiscalDocumentViewModel(result);
+  const fiscal_document = fiscalVm
+    ? fiscalViewModelToPreviewJson(fiscalVm)
+    : null;
+
+  // Enrichir l’identité / résumé Preview pour docs fiscaux reconnus (sans inventer)
+  let document_type = identity.text || identity.label || "Document";
+  let summaryOut = plain_summary;
+  let whyOut = why_received;
+  let actionsOut = actions;
+  let requestOut = request;
+  let actionRequiredOut = action_required;
+
+  if (fiscalVm) {
+    document_type = fiscalVm.identity.publicTitle;
+    if (fiscalVm.understanding.whatIsIt) {
+      summaryOut = fiscalVm.understanding.whatIsIt;
+      if (
+        fiscalVm.understanding.purpose &&
+        fiscalVm.understanding.purpose !== fiscalVm.understanding.whatIsIt
+      ) {
+        summaryOut = `${fiscalVm.understanding.whatIsIt} ${fiscalVm.understanding.purpose}`;
+      }
+    } else if (!fiscalVm.recognized) {
+      summaryOut =
+        "Ce document semble être fiscal ou administratif, mais je ne peux pas encore identifier précisément son type.";
+    }
+    if (fiscalVm.understanding.purpose) {
+      whyOut = fiscalVm.understanding.purpose;
+    }
+    // Actions UI : uniquement celles supportées (pas les phrases knowledge générales)
+    const supported = fiscalVm.possibleActions.filter((a) => a.certainty === "supported");
+    if (supported.length) {
+      actionsOut = supported.map((a) => ({ action: a.text, how: "Selon le document" }));
+      actionRequiredOut = true;
+      requestOut = supported[0]!.text;
+    } else {
+      actionsOut = [];
+      actionRequiredOut = false;
+      requestOut = "Aucune action certaine détectée.";
+    }
+  }
+
   return {
     engine: "v4",
-    document_type: identity.text || identity.label || "Document",
+    document_type,
     issuer: "",
-    plain_summary,
-    request,
-    why_received,
-    actions,
-    action_required,
+    plain_summary: summaryOut,
+    request: requestOut,
+    why_received: whyOut,
+    actions: actionsOut,
+    action_required: actionRequiredOut,
     dates,
     enriched_dates: dates,
     amount,
     urgency: { level: urgencyLevel, message: urgencyMessage },
-    evidence,
+    evidence: fiscalVm?.evidence?.length
+      ? fiscalVm.evidence.map((e) => ({
+          page: e.page,
+          quote: e.quote,
+          explanation: e.supports
+        }))
+      : evidence,
     warnings,
     confidence,
     reading_quality,
     tables: [],
     amounts_detail,
+    fiscal_document,
     v4_debug: {
       engine: "v4",
       primaryDocumentType: diagnostics.primaryDocumentType,
@@ -328,8 +391,11 @@ export function mapV4ResultToPreviewAnalysis(
       extractionQuality: options.extractionQuality || null,
       fallbackReason: options.fallbackReason || null,
       presentationActionsCount: diagnostics.presentationActionsCount,
-      actionRequired: action_required,
-      explanationDocumentType: explanation.documentType?.primary || null
+      actionRequired: actionRequiredOut,
+      explanationDocumentType: explanation.documentType?.primary || null,
+      fiscalAttached: Boolean(fiscal_document),
+      fiscalRecognition: fiscalVm?.recognitionLevel || null,
+      fiscalReference: fiscalVm?.identity.reference || null
     },
     v4_invariants: {
       unsupportedPresentationFacts: presentation.unsupportedPresentationFacts,
@@ -338,7 +404,13 @@ export function mapV4ResultToPreviewAnalysis(
       inventedDeadlines: presentation.inventedDeadlines,
       inventedAmounts: presentation.inventedAmounts,
       inventedReasons: presentation.inventedReasons,
-      ...inventedUi
+      ...inventedUi,
+      knowledgePromotedToDocumentFact:
+        fiscalVm?.invariants.knowledgePromotedToDocumentFact ?? 0,
+      uncertainRenderedAsCertain:
+        fiscalVm?.invariants.uncertainRenderedAsCertain ?? 0,
+      technicalLabelsExposed: fiscalVm?.invariants.technicalLabelsExposed ?? 0,
+      unsupportedUserActions: fiscalVm?.invariants.unsupportedUserActions ?? 0
     }
   };
 }

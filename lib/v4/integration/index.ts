@@ -1,5 +1,5 @@
 /**
- * V4-K — Intégration Preview contrôlée.
+ * V4-K/O — Intégration Preview contrôlée + view model fiscal.
  */
 
 export { isV4EngineEnabled, type V4FlagRequest } from "./featureFlag.js";
@@ -22,3 +22,16 @@ export {
   type V4PreviewRunInput,
   type V4PreviewRunResult
 } from "./runPreview.js";
+export {
+  buildFiscalDocumentViewModel,
+  fiscalViewModelToPreviewJson,
+  shouldAttachFiscalViewModel,
+  familyLabelFr,
+  qualityStatusLabelFr,
+  humanFieldLabel,
+  humanEvidenceSupport,
+  type FiscalDocumentViewModel,
+  type FiscalRecognitionLevel,
+  type FiscalViewFact,
+  type FiscalViewAction
+} from "./fiscalViewModel.js";

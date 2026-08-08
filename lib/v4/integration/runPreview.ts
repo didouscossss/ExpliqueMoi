@@ -86,10 +86,12 @@ export function runV4PreviewAnalysis(
       source: adapted.source
     });
 
+    // V4-O — active la knowledge fiscale offline (0 fetch / 0 LLM).
+    // Les factures restent protégées (non écrasées) ; fiscal_document=null si non fiscal.
     const v4 = analyzeDocumentV4(
       adapted.blocks.length > 0
-        ? { blocks: adapted.blocks }
-        : { text: adapted.text || "" }
+        ? { blocks: adapted.blocks, fiscalKnowledge: true }
+        : { text: adapted.text || "", fiscalKnowledge: true }
     );
 
     const analysis = mapV4ResultToPreviewAnalysis(v4, {
@@ -105,7 +107,9 @@ export function runV4PreviewAnalysis(
       inv.inventedActions !== 0 ||
       inv.inventedDeadlines !== 0 ||
       inv.inventedAmounts !== 0 ||
-      inv.inventedReasons !== 0
+      inv.inventedReasons !== 0 ||
+      (inv.knowledgePromotedToDocumentFact || 0) !== 0 ||
+      (inv.unsupportedUserActions || 0) !== 0
     ) {
       return {
         ok: false,

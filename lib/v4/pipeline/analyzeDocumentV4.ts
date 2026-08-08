@@ -5,9 +5,8 @@
  * TextBlocks → candidats → relations → classification → profile/fields
  * → understanding → explanation → presentation
  *
- * V4-L/N : fiscalKnowledge opt-in (défaut false) — pas de changement Preview.
- * V4-N expose taxExplanation sur fiscalKnowledge (structures prêtes).
- * Branchement UI Preview reporté à V4-O (pas de refonte visuelle ici).
+ * V4-L/N : fiscalKnowledge opt-in (défaut false hors Preview).
+ * V4-O : Preview active fiscalKnowledge et expose fiscal_document (view model).
  */
 
 import type { DocumentClassification } from "../types/documentClassification.js";
