@@ -325,11 +325,31 @@ function scoreDateRole(
     labelHit(
       reasons,
       L,
-      /echeance|a\s+payer\s+avant|au\s+plus\s+tard|avant\s+le|dans\s+un\s+delai/,
+      /echeance|a\s+payer\s+avant|au\s+plus\s+tard|avant\s+le|dans\s+un\s+delai|merci\s+de/,
       "deadline"
     );
   } else if (role === "documentDate") {
     labelHit(reasons, L, /\bdate\b/, "date");
+  }
+  return { role, score: sumScore(reasons), reasons };
+}
+
+function scoreActionRole(
+  candidate: EntityCandidate,
+  role: string
+): RoleHypothesis {
+  const reasons: ScoreReason[] = [];
+  const ctx = candidate.context;
+  pushReason(reasons, "base:action", 0.25);
+  if (!ctx) return { role, score: sumScore(reasons), reasons };
+  const L = lex(ctx);
+  if (role === "requestedAction") {
+    if (/merci\s+de|veuillez|vous\s+devez|nous\s+vous\s+prions/.test(L.same)) {
+      pushReason(reasons, "sameLineLabel:imperative", 0.45);
+    }
+    if (/avant\s+le|au\s+plus\s+tard|dans\s+un\s+delai/.test(L.same)) {
+      pushReason(reasons, "nearDeadlineCue", 0.2);
+    }
   }
   return { role, score: sumScore(reasons), reasons };
 }
@@ -365,6 +385,8 @@ export function scoreRole(
       return scoreOrganizationRole(candidate, role);
     case "date":
       return scoreDateRole(candidate, role);
+    case "action":
+      return scoreActionRole(candidate, role);
     case "iban":
       return scoreGeneric(candidate, role, "base:iban", SCORE_WEIGHTS.baseIban);
     case "bic":

@@ -34,7 +34,16 @@ export type {
   MoneyRole
 } from "./entityCandidate.js";
 
-export type { RelationKind, Relation } from "./relation.js";
+export type {
+  RelationType,
+  RelationKind,
+  Relation,
+  Contradiction,
+  ConsistencyStatus,
+  FieldAssignment,
+  ConsistencySolution,
+  ConsistencyResult
+} from "./relation.js";
 
 export type {
   DocumentTypeId,

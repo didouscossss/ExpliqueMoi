@@ -8,12 +8,14 @@ import type { EvidenceSpan } from "../../types/evidence.js";
 import type { TextBlock } from "../../types/textBlock.js";
 import { buildContext } from "../context.js";
 import { nextCandidateId } from "../ids.js";
+import { extractActionHits } from "./action.js";
 import { extractAddressHits } from "./address.js";
 import { extractBicHits, extractIbanHits } from "./banking.js";
 import { extractSirenHits, extractSiretHits } from "./companyIds.js";
 import { extractEmailHits, extractPhoneHits } from "./contact.js";
 import { extractDateHits } from "./date.js";
 import { extractOrganizationHits, extractPersonHits } from "./identity.js";
+import { extractLabeledEntityHits } from "./labeledEntities.js";
 import { extractMoneyHits } from "./money.js";
 import { extractPercentageHits } from "./percentage.js";
 import { extractReferenceHits } from "./reference.js";
@@ -30,9 +32,11 @@ const EXTRACTORS = [
   extractBicHits,
   extractSiretHits,
   extractSirenHits,
+  extractLabeledEntityHits,
   extractPersonHits,
   extractOrganizationHits,
-  extractAddressHits
+  extractAddressHits,
+  extractActionHits
 ] as const;
 
 function hitKey(hit: ExtractionHit): string {

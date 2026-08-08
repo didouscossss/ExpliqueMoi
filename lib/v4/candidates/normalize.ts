@@ -53,21 +53,52 @@ export function parseFrenchPercentage(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Date FR → ISO YYYY-MM-DD si fiable. */
-export function parseFrenchDate(raw: string): string | null {
-  const m = String(raw || "").match(
-    /\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\b/
-  );
-  if (!m) return null;
-  let dd = Number(m[1]);
-  let mm = Number(m[2]);
-  let yyyy = Number(m[3]);
-  if (yyyy < 100) yyyy += 2000;
+const MONTHS_FR: Record<string, number> = {
+  janvier: 1,
+  fevrier: 2,
+  mars: 3,
+  avril: 4,
+  mai: 5,
+  juin: 6,
+  juillet: 7,
+  aout: 8,
+  septembre: 9,
+  octobre: 10,
+  novembre: 11,
+  decembre: 12
+};
+
+function toIso(yyyy: number, mm: number, dd: number): string | null {
   if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
   const iso = `${String(yyyy).padStart(4, "0")}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
   const d = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return null;
   return iso;
+}
+
+/** Date FR → ISO YYYY-MM-DD si fiable (numérique ou « 15 septembre 2026 »). */
+export function parseFrenchDate(raw: string): string | null {
+  const text = String(raw || "");
+  const num = text.match(/\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\b/);
+  if (num) {
+    let dd = Number(num[1]);
+    let mm = Number(num[2]);
+    let yyyy = Number(num[3]);
+    if (yyyy < 100) yyyy += 2000;
+    return toIso(yyyy, mm, dd);
+  }
+  const lex = normalizeLex(text);
+  const named = lex.match(
+    /\b(\d{1,2})\s+(janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre)\s+(\d{4})\b/
+  );
+  if (named) {
+    const dd = Number(named[1]);
+    const mm = MONTHS_FR[named[2]];
+    const yyyy = Number(named[3]);
+    if (!mm) return null;
+    return toIso(yyyy, mm, dd);
+  }
+  return null;
 }
 
 export function stripCurrency(raw: string): string {

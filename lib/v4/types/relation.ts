@@ -1,34 +1,88 @@
 /**
- * Relations entre entités / champs.
- * Ex. HT → vatRate → TTC ; sender → recipient ; action → deadline.
- * Participent au score final des hypothèses.
+ * Relations entre EntityCandidate (V4-C).
+ * Traçables jusqu’aux TextBlock via evidence.
  */
 
+import type { ScoreReason } from "./entityCandidate.js";
 import type { EvidenceSpan } from "./evidence.js";
 
-export type RelationKind =
-  | "ht_vat_ttc"
-  | "ht_rate_ttc"
-  | "sender_recipient"
-  | "documentDate_deadline"
-  | "reference_organization"
-  | "action_deadline"
-  | "table_totals"
-  | "party_party"
-  | "other";
+/** Types de relations du moteur générique V4-C. */
+export type RelationType =
+  | "arithmetic"
+  | "spatial"
+  | "semantic"
+  | "temporal"
+  | "ownership"
+  | "actionDeadline"
+  | "tableMembership"
+  | "sameSection"
+  | "sender"
+  | "recipient"
+  | "issuer"
+  | "organizationPerson";
+
+/** @deprecated alias V4-A — préférer RelationType. */
+export type RelationKind = RelationType | "ht_vat_ttc" | "ht_rate_ttc" | "other";
 
 export interface Relation {
   id: string;
-  kind: RelationKind | string;
-  /** Id de candidat / champ source. */
-  from: string;
-  /** Id de candidat / champ cible. */
-  to: string;
-  /** Ids intermédiaires (ex. vatRate entre HT et TTC). */
+  sourceCandidateId: string;
+  targetCandidateId: string;
+  type: RelationType | string;
+  /** Score 0..1. */
+  score: number;
+  reasons: ScoreReason[];
+  evidence: EvidenceSpan[];
+  /** Candidats intermédiaires (ex. vatRate / vatAmount). */
   via?: string[];
-  /** Score de renforcement 0..100. */
-  score?: number;
-  evidence?: EvidenceSpan[];
-  /** Libellé court pour debug. */
   label?: string;
+}
+
+export interface Contradiction {
+  id: string;
+  /** Combinaison / relation concernée. */
+  subjectIds: string[];
+  kind: string;
+  message: string;
+  /** Pénalité appliquée au score global (négatif). */
+  penalty: number;
+  reasons: ScoreReason[];
+  evidence: EvidenceSpan[];
+}
+
+export type ConsistencyStatus =
+  | "resolved"
+  | "ambiguous"
+  | "contradictory"
+  | "partial";
+
+export interface FieldAssignment {
+  role: string;
+  candidateId: string;
+  value: unknown;
+  localScore: number;
+}
+
+/**
+ * Une solution globale = combinaison de rôles + relations + score explicable.
+ */
+export interface ConsistencySolution {
+  id: string;
+  status: ConsistencyStatus;
+  assignments: FieldAssignment[];
+  score: number;
+  reasons: ScoreReason[];
+  relations: Relation[];
+  contradictions: Contradiction[];
+  /** Alternatives proches si status === "ambiguous". */
+  alternatives?: ConsistencySolution[];
+}
+
+export interface ConsistencyResult {
+  status: ConsistencyStatus;
+  /** Meilleure solution (ou première des ambiguës). */
+  best: ConsistencySolution | null;
+  solutions: ConsistencySolution[];
+  relations: Relation[];
+  contradictions: Contradiction[];
 }

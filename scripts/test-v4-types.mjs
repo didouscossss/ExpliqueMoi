@@ -202,11 +202,14 @@ function testDocumentSessionLifecycle() {
   session.setRelations([
     {
       id: "rel1",
-      kind: "ht_vat_ttc",
-      from: "ht1",
-      to: "ttc1",
+      sourceCandidateId: "ht1",
+      targetCandidateId: "ttc1",
+      type: "arithmetic",
+      score: 0.9,
+      reasons: [{ signal: "arithmetic:HT+TVA≈TTC", delta: 0.55 }],
+      evidence: [],
       via: ["vat1"],
-      score: 90
+      label: "HT + TVA ≈ TTC"
     }
   ]);
   assert.equal(session.relations.length, 1);
