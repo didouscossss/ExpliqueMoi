@@ -393,52 +393,54 @@ Total TTC : 60,00 €
       console.log("  ambiguousFields=", r.diagnostics.ambiguousFields, amb?.value);
     });
 
-    wrap("O — Facture énergie complexe multi-sections (V4-K.1)", () => {
+    wrap("O — Facture énergie clôture / remboursement (V4-K.2)", () => {
       const r = run(`
-Facture Energie Electricité
-Période de consommation : 01/12/2025 au 31/12/2025
-Votre consommation
-Abonnement : 15,40 € HTVA
-Consommation : 286,20 € HTVA
-Acheminement : 48,50 € HTVA
+Facture de clôture Energie Electricité
+Energie : 631,85 € HTVA
 Services : 21,83 € HTVA
-Sous-total énergie : 350,10 € HTVA
-TVA 6 % sur énergie : 21,01 €
-Sous-total énergie TTC : 371,11 €
-Services complémentaires
-Services + 21,83 € HTVA
-TVA 21 % sur services : 4,58 €
-Sous-total services TTC : 26,41 €
-Total général
-Total HTVA : 371,93 €
-Total TVA : 25,70 €
-Total TTC : 397,63 €
-Le montant de 397,63 € sera prélevé automatiquement le 18 janvier 2026.
+Total HTVA : 653,68 € HTVA
+TVA : 123,69 €
+Total TTC : 777,37 € TTC
+Mensualités facturées : -1 175,00 € TTC
+Nous vous rembourserons 397,63 € TTC
+Le tarif d'utilisation des réseaux publics représente 222,51 € TTC (188,68 € HT) sur cette facture.
+Votre facture arrive à échéance le 18/01/2026.
+Vous êtes en prélèvement automatique, votre facture sera remboursée le 18/01/2026, vous n'avez rien à faire.
 Mandat SEPA actif
 Des questions sur votre facture Energie Electricité 631,85 € HTVA
 Sur les réseaux sociaux : = 397,63 € TTC
-Support client : 0 800 00 00 00
 `.trim());
       Eq(r.diagnostics.primaryDocumentType, "invoice");
-      const ttc =
-        amountVal(r, "amountTTC") ??
-        r.explanation.amounts.find((a) => a.field === "amountTTC")?.value;
-      Eq(ttc, 397.63);
+      Eq(amountVal(r, "amountTTC"), 777.37);
+      Eq(amountVal(r, "refundAmount"), 397.63);
+      A(amountVal(r, "amountDue") !== 397.63, "refund ≠ amountDue");
       A(!r.diagnostics.hasArithmeticInconsistency, "pas de faux arithmeticInconsistency");
-      A(!r.presentation.warnings.some((w) => w.kind === "arithmeticInconsistency"));
       Eq(r.diagnostics.presentationActionsCount, 0);
+      Eq(r.presentation.actionRequired, false);
       A(
-        r.presentation.secondaryInformation.some(
-          (s) =>
-            s.kind === "paymentInformation" && /pr[eé]l[eè]vement/i.test(s.text)
+        r.presentation.importantAmounts.some(
+          (a) => a.value === 397.63 && /rembours/i.test(a.label)
+        )
+      );
+      A(
+        !r.presentation.importantAmounts.some(
+          (a) => a.value === 222.51 && /total ht/i.test(`${a.label}`)
         ),
-        "paymentInformation prélèvement"
+        "222.51 ≠ Total HT"
+      );
+      A(
+        r.presentation.importantDates.some(
+          (d) =>
+            /rembours/i.test(`${d.label}`) &&
+            String(d.value).includes("2026-01-18")
+        ),
+        "refundDate"
       );
       A(
         !r.presentation.importantDates.some((d) =>
           /actionDeadline/i.test(`${d.kind} ${d.sourceFacts?.join(" ")}`)
         ),
-        "paymentDate ≠ actionDeadline"
+        "pas actionDeadline"
       );
       A(
         !r.presentation.evidencePassages.some((p) =>
@@ -447,20 +449,95 @@ Support client : 0 800 00 00 00
         "evidence sans bruit footer/support"
       );
       A(
+        r.presentation.evidencePassages.some((p) =>
+          /rembourserons|rembours/i.test(p.excerpt)
+        )
+      );
+      A(
         !r.presentation.reason ||
           !/demande de paiement/i.test(r.presentation.reason.text || "")
       );
       assertInvariants(r, "O");
-      assertions += 12;
+      assertions += 16;
       console.log(
         "  ttc=",
-        ttc,
-        "arith=",
-        r.diagnostics.hasArithmeticInconsistency,
-        "actions=",
-        r.diagnostics.presentationActionsCount,
-        "evidence=",
-        r.presentation.evidencePassages.map((p) => p.excerpt).slice(0, 3)
+        amountVal(r, "amountTTC"),
+        "refund=",
+        amountVal(r, "refundAmount"),
+        "actionRequired=",
+        r.presentation.actionRequired
+      );
+    });
+
+    wrap("O2 — Direction financière due vs refund", () => {
+      const a = run(`
+Facture
+Total HT : 331,36 €
+TVA 20 % : 66,27 €
+Total TTC : 400,00 €
+Vous devez régler 397,63 €.
+`.trim());
+      Eq(amountVal(a, "amountDue"), 397.63);
+      A(amountVal(a, "refundAmount") == null || field(a, "refundAmount")?.status === "missing");
+
+      const b = run(`
+Facture
+Total HT : 331,36 €
+TVA 20 % : 66,27 €
+Total TTC : 400,00 €
+Nous vous rembourserons 397,63 €.
+`.trim());
+      Eq(amountVal(b, "refundAmount"), 397.63);
+      A(amountVal(b, "amountDue") !== 397.63);
+
+      const c = run(`
+Facture
+Total HT : 331,36 €
+TVA 20 % : 66,27 €
+Total TTC : 400,00 €
+Vous êtes en prélèvement automatique.
+Nous vous rembourserons 397,63 €.
+Vous n'avez rien à faire.
+`.trim());
+      Eq(amountVal(c, "refundAmount"), 397.63);
+      Eq(c.diagnostics.presentationActionsCount, 0);
+      Eq(c.presentation.actionRequired, false);
+      A(
+        c.presentation.secondaryInformation.some((s) =>
+          /pr[eé]l[eè]vement|rembours/i.test(s.text)
+        )
+      );
+
+      const d = run(`
+Facture de clôture
+Total HTVA : 653,68 € HTVA
+TVA : 123,69 €
+Total TTC : 777,37 € TTC
+Mensualités facturées : -1 175,00 € TTC
+Nous vous rembourserons 397,63 € TTC
+Le tarif d'utilisation des réseaux publics représente 222,51 € TTC (188,68 € HT) sur cette facture.
+`.trim());
+      Eq(amountVal(d, "refundAmount"), 397.63);
+      Eq(amountVal(d, "amountTTC"), 777.37);
+      A(
+        !d.presentation.importantAmounts.some(
+          (x) => x.value === 222.51 && /total ht/i.test(x.label)
+        )
+      );
+      assertInvariants(a, "O2-A");
+      assertInvariants(b, "O2-B");
+      assertInvariants(c, "O2-C");
+      assertInvariants(d, "O2-D");
+      assertions += 14;
+      console.log(
+        "  A due=",
+        amountVal(a, "amountDue"),
+        "B refund=",
+        amountVal(b, "refundAmount"),
+        "C ar=",
+        c.presentation.actionRequired,
+        "D refund=",
+        amountVal(d, "refundAmount")
       );
     });
 

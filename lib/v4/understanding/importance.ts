@@ -11,6 +11,8 @@ const FINANCIAL_KINDS = new Set([
   "vatRate",
   "amountTTC",
   "amountDue",
+  "refundAmount",
+  "amountPaid",
   "taxAmount",
   "grossSalary",
   "netSalary",
@@ -25,6 +27,7 @@ const DATE_KINDS = new Set([
   "documentDate",
   "invoiceDate",
   "dueDate",
+  "refundDate",
   "paymentDate",
   "paymentDeadline",
   "effectiveDate",
@@ -59,11 +62,14 @@ const PROFILE_BOOST: Partial<
   invoice: {
     amountTTC: "critical",
     amountDue: "critical",
+    refundAmount: "critical",
     amountHT: "high",
     vatAmount: "high",
     invoiceDate: "high",
     issuer: "high",
-    dueDate: "medium"
+    refundDate: "high",
+    dueDate: "medium",
+    amountPaid: "medium"
   },
   administrativeLetter: {
     requestedActions: "critical",

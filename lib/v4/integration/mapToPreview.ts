@@ -15,6 +15,8 @@ export interface PreviewAnalysisMapped {
   request: string;
   why_received: string;
   actions: Array<{ action: string; how: string }>;
+  /** false = non-action explicite ; true = actions ; null = indéterminé. */
+  action_required: boolean | null;
   dates: Array<{ date: string; label: string; meaning: string }>;
   enriched_dates: Array<{ date: string; label: string; meaning: string }>;
   amount: { value: string; meaning: string };
@@ -51,8 +53,15 @@ function pickPrimaryAmount(items: PresentationItem[]): PresentationItem | null {
   const usable = items.filter((i) => !isAmbiguous(i) && i.value != null);
   if (!usable.length) return null;
 
-  // Suivre les faits Presentation (sourceFacts) — pas de recalcul métier.
-  // amountDue prioritaire lorsqu’il est réellement exposé par UserPresentation.
+  // Hiérarchie sémantique Presentation — jamais un HT / sous-composante en principal.
+  const refund = usable.find(
+    (i) =>
+      i.sourceFacts?.includes("refundAmount") ||
+      i.kind === "refundAmount" ||
+      /^remboursement$/i.test(i.label || "")
+  );
+  if (refund) return refund;
+
   const due = usable.find(
     (i) =>
       i.sourceFacts?.includes("amountDue") ||
@@ -62,18 +71,35 @@ function pickPrimaryAmount(items: PresentationItem[]): PresentationItem | null {
   if (due) return due;
 
   const ttc = usable.find(
-    (i) => i.sourceFacts?.includes("amountTTC") || /ttc/i.test(i.label || "")
+    (i) =>
+      (i.sourceFacts?.includes("amountTTC") || /ttc/i.test(i.label || "")) &&
+      !/total ht/i.test(i.label || "")
   );
   if (ttc) return ttc;
 
-  const primaryTier = usable.find((i) => i.tier === "primary");
-  return primaryTier || usable[0];
+  const primaryTier = usable.find(
+    (i) => i.tier === "primary" && !/total ht/i.test(i.label || "")
+  );
+  if (primaryTier) return primaryTier;
+
+  // Ne jamais retomber sur amountHT comme montant principal Preview
+  return (
+    usable.find((i) => !/total ht|ht$/i.test(i.label || "")) || null
+  );
 }
 
 function pickPrimaryDate(items: PresentationItem[]): PresentationItem | null {
   if (!items.length) return null;
-  // Ne pas prendre première/dernière date du document brut —
-  // uniquement les dates déjà sélectionnées par UserPresentation.
+  // Préférer remboursement / échéance supportés — pas une date secondaire.
+  const preferred = items.find(
+    (i) =>
+      !isAmbiguous(i) &&
+      i.value != null &&
+      /refundDate|remboursement|dueDate|échéance|actionDeadline/i.test(
+        `${i.kind} ${i.label} ${i.sourceFacts?.join(" ") || ""}`
+      )
+  );
+  if (preferred) return preferred;
   const usable = items.find((i) => !isAmbiguous(i) && i.value != null);
   return usable || null;
 }
@@ -115,7 +141,12 @@ export function mapV4ResultToPreviewAnalysis(
     how: a.label || ""
   }));
 
-  const request = actions[0]?.action || "Aucune demande certaine.";
+  const action_required = presentation.actionRequired;
+  const request =
+    actions[0]?.action ||
+    (action_required === false
+      ? "Aucune action requise."
+      : "Aucune demande certaine.");
 
   // Nature du document ≠ raison de réception
   const why_received = presentation.reason?.text || "";
@@ -210,13 +241,22 @@ export function mapV4ResultToPreviewAnalysis(
         `${d.kind} ${d.label} ${d.sourceFacts?.join(" ") || ""}`
       )
   );
-  const hasRealWarning = presentation.warnings.some(
-    (w) => w.kind !== "missing" && w.status !== "missing"
+  const hasCriticalWarning = presentation.warnings.some(
+    (w) =>
+      w.kind === "arithmeticInconsistency" ||
+      (w.kind !== "missing" &&
+        w.kind !== "ambiguousField" &&
+        w.status !== "missing" &&
+        w.status !== "ambiguous")
   );
   if (userActions.length && actionDeadlineDate) {
     urgencyLevel = "soon";
     urgencyMessage = actionDeadlineDate.text || "Une échéance est indiquée.";
-  } else if (userActions.length === 0 && !hasRealWarning) {
+  } else if (action_required === false && userActions.length === 0) {
+    urgencyLevel = "none";
+    urgencyMessage =
+      "Aucune action à effectuer — information financière à noter.";
+  } else if (userActions.length === 0 && !hasCriticalWarning) {
     urgencyLevel = "none";
     urgencyMessage = "Aucune urgence particulière n’a été identifiée.";
   } else if (presentation.warnings.some((w) => w.kind === "arithmeticInconsistency")) {
@@ -255,6 +295,7 @@ export function mapV4ResultToPreviewAnalysis(
     request,
     why_received,
     actions,
+    action_required,
     dates,
     enriched_dates: dates,
     amount,
@@ -287,6 +328,7 @@ export function mapV4ResultToPreviewAnalysis(
       extractionQuality: options.extractionQuality || null,
       fallbackReason: options.fallbackReason || null,
       presentationActionsCount: diagnostics.presentationActionsCount,
+      actionRequired: action_required,
       explanationDocumentType: explanation.documentType?.primary || null
     },
     v4_invariants: {

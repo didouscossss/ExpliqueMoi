@@ -55,7 +55,7 @@ function contentSignals(
   push("taxObligation", /imp[oô]t|montant\s+[aà]\s+payer|date\s+limite/i, 0.3, "content:taxCue");
   push("explanation", /guide|mode\s+d['’]?emploi|comment\s+faire|\b[eé]tape/i, 0.35, "content:guideCue");
   push("information", /nous\s+vous\s+informons|pour\s+information|mis\s+[aà]\s+jour/i, 0.25, "content:infoCue");
-  // Facture + prélèvement auto = information de facturation, pas obligation manuelle
+  // Facture + prélèvement auto / remboursement = information, pas obligation manuelle
   push(
     "billingNotice",
     /pr[eé]l[eè]vement\s+automatique|sera\s+pr[eé]lev|mandat\s+sepa/i,
@@ -64,7 +64,13 @@ function contentSignals(
   );
   push(
     "billingNotice",
-    /\bfacture\b|total\s+ttc|consommation|electricit|energie/i,
+    /rembourser|remboursement|rien\s+[aà]\s+faire|solde\s+cr[eé]diteur/i,
+    0.5,
+    "content:refundCue"
+  );
+  push(
+    "billingNotice",
+    /\bfacture\b|total\s+ttc|consommation|electricit|energie|cl[oô]ture/i,
     0.3,
     "content:invoiceCue"
   );

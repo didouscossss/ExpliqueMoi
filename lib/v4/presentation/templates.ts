@@ -48,12 +48,31 @@ export function buildIdentityText(explanation: DocumentExplanation): {
   const sources: ExplanationFact[] = [];
 
   if (type === "invoice") {
+    const refund = findAny(explanation, "refundAmount");
     const ttc = findAny(explanation, "amountTTC", "amountDue");
-    const date = findAny(explanation, "invoiceDate", "documentDate");
-    if (ttc) sources.push(ttc);
+    const date =
+      findAny(explanation, "refundDate") ||
+      findAny(explanation, "invoiceDate", "documentDate");
+    if (refund) sources.push(refund);
+    else if (ttc) sources.push(ttc);
     if (date) sources.push(date);
+    const refundMoney = refund ? formatMoneyFR(refund.value) : null;
     const money = ttc ? formatMoneyFR(ttc.value) : null;
     const d = date ? formatDateFR(date.value) : null;
+    if (refundMoney && d) {
+      return {
+        label,
+        text: `Facture avec remboursement de ${refundMoney}, prévu le ${d}.`,
+        sources
+      };
+    }
+    if (refundMoney) {
+      return {
+        label,
+        text: `Facture avec remboursement de ${refundMoney}.`,
+        sources
+      };
+    }
     if (money && d) {
       return {
         label,
@@ -197,6 +216,8 @@ export function amountLabel(field: string): string {
     vatRate: "Taux de TVA",
     amountTTC: "Total TTC",
     amountDue: "Montant dû",
+    refundAmount: "Remboursement",
+    amountPaid: "Mensualités déjà facturées",
     taxAmount: "Montant fiscal",
     openingBalance: "Solde d'ouverture",
     closingBalance: "Solde de clôture",
@@ -215,6 +236,7 @@ export function dateLabel(field: string): string {
     invoiceDate: "Date de facture",
     documentDate: "Date du document",
     dueDate: "Date d'échéance",
+    refundDate: "Date de remboursement",
     paymentDate: "Date de prélèvement",
     paymentDeadline: "Date limite de paiement",
     actionDeadline: "Échéance d'action",

@@ -330,34 +330,36 @@ Total TTC : 150,00 €
       console.log("  mapper OK reason=", JSON.stringify(mapped.why_received));
     }
 
-    section("K.1 — Facture énergie complexe Preview");
+    section("K.2 — Facture énergie remboursement Preview");
     {
       const run = runV4PreviewAnalysis({
         resetIds: true,
         pastedText: `
-Facture Energie Electricité
-Abonnement : 15,40 € HTVA
-Consommation : 286,20 € HTVA
-Acheminement : 48,50 € HTVA
-Services + 21,83 € HTVA
-TVA 6 % sur énergie : 21,01 €
-Sous-total énergie TTC : 371,11 €
-TVA 21 % sur services : 4,58 €
-Sous-total services TTC : 26,41 €
-Total HTVA : 371,93 €
-Total TVA : 25,70 €
-Total TTC : 397,63 €
-Le montant de 397,63 € sera prélevé automatiquement le 18 janvier 2026.
+Facture de clôture Energie Electricité
+Energie : 631,85 € HTVA
+Services : 21,83 € HTVA
+Total HTVA : 653,68 € HTVA
+TVA : 123,69 €
+Total TTC : 777,37 € TTC
+Mensualités facturées : -1 175,00 € TTC
+Nous vous rembourserons 397,63 € TTC
+Le tarif d'utilisation des réseaux publics représente 222,51 € TTC (188,68 € HT) sur cette facture.
+Votre facture arrive à échéance le 18/01/2026.
+Vous êtes en prélèvement automatique, votre facture sera remboursée le 18/01/2026, vous n'avez rien à faire.
 Mandat SEPA actif
 Des questions sur votre facture Energie Electricité 631,85 € HTVA
 Sur les réseaux sociaux : = 397,63 € TTC
 `.trim()
       });
       Eq(run.ok, true);
-      assertUiInvariants(run.analysis, "energyK1");
+      assertUiInvariants(run.analysis, "energyK2");
       Eq(run.analysis.v4_debug.primaryDocumentType, "invoice");
-      A(/397/.test(run.analysis.amount.value), "montant principal 397,63");
-      Eq(run.analysis.actions.length, 0, "prélèvement ≠ action");
+      A(/397/.test(run.analysis.amount.value), "montant principal = remboursement");
+      A(/rembours/i.test(run.analysis.amount.meaning), "label remboursement");
+      A(!/222/.test(run.analysis.amount.value), "pas 222,51");
+      Eq(run.analysis.actions.length, 0, "aucune action");
+      Eq(run.analysis.action_required, false);
+      A(/aucune action requise/i.test(run.analysis.request));
       A(!run.analysis.warnings.some((w) => /incoh[eé]rent/i.test(w)));
       Eq(run.analysis.v4_debug.hasArithmeticInconsistency, false);
       Eq(run.analysis.urgency.level, "none", "pas À faire prochainement");
@@ -367,16 +369,19 @@ Sur les réseaux sociaux : = 397,63 € TTC
           /r[eé]seaux?\s+sociaux|des questions sur/i.test(e.quote)
         )
       );
-      assertions += 10;
+      A(
+        run.analysis.evidence.some((e) => /rembours/i.test(e.quote)),
+        "evidence remboursement"
+      );
+      assertions += 14;
       console.log(
         "  amount=",
         run.analysis.amount.value,
+        run.analysis.amount.meaning,
         "urgency=",
         run.analysis.urgency.level,
-        "actions=",
-        run.analysis.actions.length,
-        "why=",
-        run.analysis.why_received
+        "action_required=",
+        run.analysis.action_required
       );
     }
 

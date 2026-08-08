@@ -48,9 +48,27 @@ function hasStrongAmountDueCandidate(
     if (cand.type !== "money") return false;
     if (roleScore(cand, "amountDue") < 0.55) return false;
     const line = normalizeLex(cand.context?.sameLine || "");
-    return /reste\s+a\s+payer|montant\s+restant|net\s*a\s*payer|somme\s*a\s*payer|(?<!deja\s+)a\s*payer/.test(
+    if (/rembours|rien\s+a\s+faire/.test(line)) return false;
+    return /reste\s+a\s+payer|montant\s+restant|net\s*a\s*payer|somme\s*a\s*payer|devez\s+regler|(?<!deja\s+)a\s*payer/.test(
       line
     );
+  });
+}
+
+function hasStrongRefundCandidate(ctx: DocumentProfileContext): boolean {
+  return (ctx.candidates || []).some((cand) => {
+    if (cand.type !== "money") return false;
+    if (roleScore(cand, "refundAmount") < 0.5) return false;
+    const blob = normalizeLex(
+      [
+        cand.context?.previousLine,
+        cand.context?.sameLine,
+        cand.context?.nextLine
+      ]
+        .filter(Boolean)
+        .join(" ")
+    );
+    return /rembours|solde\s+crediteur|a\s+votre\s+credit/.test(blob);
   });
 }
 
@@ -70,6 +88,7 @@ function scoreCandidateForField(
 
   const strongDueExists =
     exp.field === "amountDue" && hasStrongAmountDueCandidate(ctx);
+  const strongRefundExists = hasStrongRefundCandidate(ctx);
 
   let best = 0;
   for (const role of roles) {
@@ -77,6 +96,19 @@ function scoreCandidateForField(
     // Repli TTC pour amountDue : valide seulement s’il n’y a pas de dû explicite
     if (exp.field === "amountDue" && role === "amountTTC" && strongDueExists) {
       rs *= 0.25;
+    }
+    // Remboursement explicite ≠ amountDue
+    if (exp.field === "amountDue" && strongRefundExists) {
+      rs *= role === "refundAmount" ? 0 : 0.15;
+    }
+    // Sous-composante explicative ne doit pas gagner amountHT / amountTTC
+    if (
+      (exp.field === "amountHT" || exp.field === "amountTTC") &&
+      /represente|sur\s+cette\s+facture|tarif\s+d['']?utilisation|reseaux?\s+publics|acheminement/.test(
+        candidateContextBlob(c)
+      )
+    ) {
+      rs *= 0.1;
     }
     if (rs > best) best = rs;
     if (rs > 0) reasons.push({ signal: `role:${role}`, delta: rs * 0.7 });

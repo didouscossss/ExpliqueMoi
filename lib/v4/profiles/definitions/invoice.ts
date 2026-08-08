@@ -22,7 +22,10 @@ export const invoiceProfile = createDocumentProfile({
       importance: "critical",
       confidenceThreshold: 0.55,
       expectedRelations: ["arithmetic"],
-      negativeSignals: [/capital\s+social/i]
+      negativeSignals: [
+        /capital\s+social/i,
+        /represente|sur\s+cette\s+facture|tarif\s+d['’]?utilisation|reseaux?\s+publics|acheminement/i
+      ]
     }),
     required({
       field: "amountHT",
@@ -30,7 +33,10 @@ export const invoiceProfile = createDocumentProfile({
       preferredRoles: ["amountHT"],
       importance: "high",
       confidenceThreshold: 0.5,
-      expectedRelations: ["arithmetic"]
+      expectedRelations: ["arithmetic"],
+      negativeSignals: [
+        /represente|sur\s+cette\s+facture|tarif\s+d['’]?utilisation|reseaux?\s+publics|acheminement/i
+      ]
     }),
     required({
       field: "vatAmount",
@@ -42,6 +48,26 @@ export const invoiceProfile = createDocumentProfile({
     })
   ],
   optionalFields: [
+    field({
+      field: "refundAmount",
+      candidateTypes: ["money"],
+      preferredRoles: ["refundAmount"],
+      importance: "critical",
+      confidenceThreshold: 0.5,
+      positiveContext: [
+        /rembourser|remboursement|solde\s+cr[eé]diteur|a\s+votre\s+cr[eé]dit/i
+      ]
+    }),
+    field({
+      field: "amountPaid",
+      candidateTypes: ["money"],
+      preferredRoles: ["amountPaid"],
+      importance: "medium",
+      confidenceThreshold: 0.45,
+      positiveContext: [
+        /mensualit|d[eé]j[aà]\s+(pay[eé]|pr[eé]lev|factur)|paiements?\s+(ant[eé]rieurs|factur)/i
+      ]
+    }),
     field({
       field: "legalIssuer",
       candidateTypes: ["organization"],
@@ -81,9 +107,21 @@ export const invoiceProfile = createDocumentProfile({
       preferredRoles: ["dueDate", "deadline"],
       importance: "medium",
       confidenceThreshold: 0.55,
-      positiveContext: [/[eé]ch[eé]ance|payable|avant\s+le/i],
+      positiveContext: [
+        /[eé]ch[eé]ance|arrive\s+[aà]\s+[eé]ch[eé]ance|payable|avant\s+le/i
+      ],
       negativeSignals: [
-        /pr[eé]l[eè]vement\s+automatique|sera\s+pr[eé]lev|date\s+de\s+pr[eé]l[eè]vement/i
+        /pr[eé]l[eè]vement\s+automatique|sera\s+pr[eé]lev|date\s+de\s+pr[eé]l[eè]vement|rembourserons?\s+(au|le)|sera\s+rembours/i
+      ]
+    }),
+    field({
+      field: "refundDate",
+      candidateTypes: ["date", "deadline"],
+      preferredRoles: ["refundDate", "paymentDate"],
+      importance: "high",
+      confidenceThreshold: 0.5,
+      positiveContext: [
+        /rembourser|remboursement|sera\s+rembours/i
       ]
     }),
     field({
@@ -94,7 +132,8 @@ export const invoiceProfile = createDocumentProfile({
       confidenceThreshold: 0.5,
       positiveContext: [
         /pr[eé]l[eè]vement|sera\s+pr[eé]lev|date\s+de\s+pr[eé]l[eè]vement|paiement\s+le/i
-      ]
+      ],
+      negativeSignals: [/rembourser|remboursement|sera\s+rembours/i]
     }),
     field({
       field: "servicePeriod",
@@ -115,16 +154,16 @@ export const invoiceProfile = createDocumentProfile({
       field: "amountDue",
       candidateTypes: ["money"],
       // amountTTC = repli faible si aucun « reste à payer » / « à payer » explicite.
-      // Le resolver démotive ce repli dès qu’un candidat amountDue est fort.
+      // Le resolver démotive ce repli dès qu’un candidat amountDue / refund est fort.
       preferredRoles: ["amountDue", "netToPay", "amountTTC"],
       importance: "high",
       // Ne force PAS égalité avec amountTTC
       confidenceThreshold: 0.5,
       positiveContext: [
-        /reste\s+[aà]\s+payer|montant\s+restant|montant\s+(total\s+)?([aà]\s+payer|d[uû])|net\s+[aà]\s+payer|somme\s+[aà]\s+payer/i
+        /reste\s+[aà]\s+payer|montant\s+restant|montant\s+(total\s+)?([aà]\s+payer|d[uû])|net\s+[aà]\s+payer|somme\s+[aà]\s+payer|devez\s+r[eé]gler/i
       ],
       negativeSignals: [
-        /deja\s+(pay[eé]|pr[eé]lev)|sous[-\s]?total|remise\b|capital\s+social/i
+        /deja\s+(pay[eé]|pr[eé]lev)|sous[-\s]?total|remise\b|capital\s+social|rembourser|remboursement|rien\s+[aà]\s+faire|mensualit/i
       ]
     }),
     field({

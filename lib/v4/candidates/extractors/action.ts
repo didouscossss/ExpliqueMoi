@@ -56,6 +56,15 @@ function isNonObligatoryLine(line: string): boolean {
   ) {
     return true;
   }
+  // Non-action explicite / remboursement informatif
+  if (
+    /rien\s+a\s+faire|n['’]avez\s+rien\s+a\s+faire|sera\s+rembourse|nous\s+vous\s+rembourser/.test(
+      lex
+    ) &&
+    !/\breglez\b|\beffectuez\b|\bretournez\b|\btransmettez\b/.test(lex)
+  ) {
+    return true;
+  }
   return false;
 }
 

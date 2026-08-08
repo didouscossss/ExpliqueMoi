@@ -169,16 +169,25 @@ function main() {
       console.log("  due=", amountVal(r, "amountDue"), "secondary=", kinds);
     });
 
-    wrap("4b — Facture énergie multi-taux (V4-K.1)", () => {
+    wrap("4b — Facture énergie clôture / remboursement (V4-K.2)", () => {
       const r = run(F.complexEnergyInvoiceK1);
       Eq(r.diagnostics.primaryDocumentType, "invoice");
       report.classificationsOk += 1;
-      Eq(amountVal(r, "amountTTC"), 397.63);
+      Eq(amountVal(r, "amountTTC"), 777.37);
+      Eq(amountVal(r, "refundAmount"), 397.63);
+      Eq(amountVal(r, "amountHT"), 653.68);
+      A(amountVal(r, "amountPaid") === 1175 || amountVal(r, "amountPaid") == null);
       A(!r.diagnostics.hasArithmeticInconsistency);
       Eq(r.diagnostics.presentationActionsCount, 0);
+      Eq(r.presentation.actionRequired, false);
       A(
-        r.presentation.secondaryInformation.some((s) =>
-          /pr[eé]l[eè]vement/i.test(s.text)
+        r.presentation.importantAmounts.some(
+          (a) => a.value === 397.63 && /rembours/i.test(a.label)
+        )
+      );
+      A(
+        !r.presentation.importantAmounts.some(
+          (a) => a.value === 222.51 && /total ht/i.test(a.label)
         )
       );
       A(
@@ -187,14 +196,16 @@ function main() {
         )
       );
       assertInvariants(r, "energyK1", report);
-      assertions += 8;
+      assertions += 12;
       console.log(
         "  ttc=",
         amountVal(r, "amountTTC"),
-        "arith=",
-        r.diagnostics.hasArithmeticInconsistency,
+        "refund=",
+        amountVal(r, "refundAmount"),
         "actions=",
-        r.diagnostics.presentationActionsCount
+        r.diagnostics.presentationActionsCount,
+        "actionRequired=",
+        r.presentation.actionRequired
       );
     });
 

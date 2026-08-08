@@ -76,20 +76,56 @@ function buildEssential(explanation: DocumentExplanation): PresentationItem[] {
 
   // Priorités par type — uniquement faits supportés
   if (type === "invoice") {
-    for (const field of ["amountTTC", "amountDue", "invoiceDate", "dueDate"]) {
+    const refund = explanation.amounts.find(
+      (x) =>
+        x.field === "refundAmount" &&
+        isUsableFactStatus(x.status) &&
+        !Array.isArray(x.value)
+    );
+    // Hiérarchie : remboursement / dû / total TTC — pas un sous-total HT
+    for (const field of [
+      "refundAmount",
+      "amountDue",
+      "amountTTC",
+      "amountPaid",
+      "refundDate",
+      "invoiceDate",
+      "dueDate"
+    ]) {
       const f = [...explanation.amounts, ...explanation.deadlines].find(
         (x) => x.field === field && isUsableFactStatus(x.status) && !Array.isArray(x.value)
       );
       if (!f) continue;
-      if (field.startsWith("amount") || field === "amountDue" || field === "amountTTC") {
+      // Si remboursement explicite, ne pas promouvoir amountDue = même valeur
+      if (
+        refund &&
+        field === "amountDue" &&
+        Number(f.value) === Number(refund.value)
+      ) {
+        continue;
+      }
+      if (
+        field.startsWith("amount") ||
+        field === "amountDue" ||
+        field === "amountTTC" ||
+        field === "refundAmount" ||
+        field === "amountPaid"
+      ) {
         const money = formatMoneyFR(f.value);
         if (!money) continue;
+        const isPrimary =
+          field === "refundAmount" ||
+          field === "amountDue" ||
+          (field === "amountTTC" && !refund);
         items.push(
           itemFromFact(f, {
             kind: "essentialAmount",
             label: amountLabel(f.field),
-            text: `${amountLabel(f.field)} : ${money}.`,
-            tier: "important"
+            text:
+              field === "refundAmount"
+                ? `Remboursement de ${money}.`
+                : `${amountLabel(f.field)} : ${money}.`,
+            tier: isPrimary ? "primary" : "important"
           })
         );
       } else {
@@ -99,11 +135,32 @@ function buildEssential(explanation: DocumentExplanation): PresentationItem[] {
           itemFromFact(f, {
             kind: "essentialDate",
             label: dateLabel(f.field),
-            text: `${dateLabel(f.field)} : ${d}.`,
-            tier: "important"
+            text:
+              field === "refundDate"
+                ? `Remboursement prévu le ${d}.`
+                : `${dateLabel(f.field)} : ${d}.`,
+            tier: field === "refundDate" ? "primary" : "important"
           })
         );
       }
+    }
+    const noAction = explanation.importantFacts.find(
+      (x) =>
+        x.field === "actionRequired" &&
+        x.value === false &&
+        isUsableFactStatus(x.status)
+    );
+    if (noAction) {
+      items.push({
+        kind: "noActionRequired",
+        label: "Aucune action",
+        text: "Aucune action à effectuer.",
+        value: false,
+        status: "info",
+        tier: "primary",
+        sourceFacts: [sourceKey(noAction)],
+        evidence: [...noAction.evidence]
+      });
     }
   } else if (type === "administrativeLetter") {
     const acts = explanation.actions.filter(
@@ -230,20 +287,78 @@ function buildPaymentInfoItems(
   explanation: DocumentExplanation
 ): PresentationItem[] {
   const out: PresentationItem[] = [];
+  const refundFact = explanation.amounts.find(
+    (x) =>
+      x.field === "refundAmount" &&
+      isUsableFactStatus(x.status) &&
+      !Array.isArray(x.value)
+  );
   const moneyFact = explanation.amounts.find(
     (x) =>
       (x.field === "amountDue" || x.field === "amountTTC") &&
       isUsableFactStatus(x.status) &&
       !Array.isArray(x.value)
   );
-  const money = moneyFact ? formatMoneyFR(moneyFact.value) : null;
+  const money = !refundFact && moneyFact ? formatMoneyFR(moneyFact.value) : null;
   const paymentDate = explanation.deadlines.find(
     (d) =>
       (d.field === "paymentDate" || d.kind === "paymentDate") &&
       isUsableFactStatus(d.status) &&
       !Array.isArray(d.value)
   );
+  const refundDate = explanation.deadlines.find(
+    (d) =>
+      (d.field === "refundDate" || d.kind === "refundDate") &&
+      isUsableFactStatus(d.status) &&
+      !Array.isArray(d.value)
+  );
   const d = paymentDate ? formatDateFR(paymentDate.value) : null;
+  const refundDateText = refundDate ? formatDateFR(refundDate.value) : null;
+
+  // Mode prélèvement + remboursement : méthode ≠ transaction sortante
+  if (refundFact) {
+    const refundMoney = formatMoneyFR(refundFact.value);
+    const paySec = explanation.secondaryInformation.find(
+      (s) => s.sectionKind === "paymentInformation"
+    );
+    const hasDebitMethod =
+      paySec?.signals.some((s) => /prelevement|sepa|payment/i.test(s)) ||
+      paySec?.evidence.some((e) =>
+        /pr[eé]l[eè]vement|mandat\s+sepa/i.test(e.text)
+      ) ||
+      explanation.importantFacts.some((f) =>
+        /pr[eé]l[eè]vement/i.test(
+          f.evidence.map((e) => e.text).join(" ")
+        )
+      );
+    let text = refundMoney
+      ? `Remboursement de ${refundMoney} indiqué.`
+      : "Un remboursement est indiqué.";
+    if (refundMoney && refundDateText) {
+      text = `Remboursement de ${refundMoney} prévu le ${refundDateText}.`;
+    }
+    if (hasDebitMethod) {
+      text = `${text} Mode de paiement habituel : prélèvement automatique (aucun débit sur cette facture).`;
+    }
+    out.push({
+      kind: "paymentInformation",
+      label: "Informations de paiement",
+      text,
+      status: "info",
+      tier: "important",
+      sourceFacts: [
+        sourceKey(refundFact),
+        ...(refundDate ? [sourceKey(refundDate)] : []),
+        ...(paySec ? ["secondary:paymentInformation"] : [])
+      ],
+      evidence: [
+        ...refundFact.evidence,
+        ...(refundDate?.evidence || []),
+        ...(paySec?.evidence || [])
+      ]
+    });
+    return out;
+  }
 
   for (const a of explanation.actions) {
     if (a.status === "noExplicitActionDetected" || !a.description) continue;
@@ -453,13 +568,20 @@ function buildAmounts(explanation: DocumentExplanation): PresentationItem[] {
     if (!money) continue;
     out.push(
       itemFromFact(a, {
-        kind: "amount",
+        kind: a.field === "refundAmount" ? "refundAmount" : "amount",
         label: amountLabel(a.field),
-        text: `${amountLabel(a.field)} : ${money}.`,
+        text:
+          a.field === "refundAmount"
+            ? `Remboursement : ${money}.`
+            : `${amountLabel(a.field)} : ${money}.`,
         tier:
-          a.field === "amountTTC" || a.field === "amountDue"
+          a.field === "refundAmount" ||
+          a.field === "amountDue" ||
+          a.field === "amountTTC"
             ? "primary"
-            : "important"
+            : a.field === "amountHT" || a.field === "vatAmount"
+              ? "important"
+              : "secondary"
       })
     );
   }
@@ -515,12 +637,15 @@ const NOISE_EVIDENCE_RE =
 
 function evidenceFactPriority(fact: string): number {
   if (/^warning:arithmeticInconsistency/.test(fact)) return 100;
+  if (/refundAmount|actionRequired|noActionRequired/.test(fact)) return 98;
   if (/^action:/.test(fact)) return 95;
-  if (/amountTTC|amountDue|netToPay/.test(fact)) return 90;
-  if (/paymentDate|actionDeadline|dueDate|paymentDeadline/.test(fact)) return 85;
-  if (/documentType|invoiceDate|issuer/.test(fact)) return 80;
-  if (/amountHT|vatAmount|vatRate/.test(fact)) return 55;
+  if (/amountDue|netToPay/.test(fact)) return 92;
+  if (/amountTTC/.test(fact)) return 88;
+  if (/refundDate|paymentDate|actionDeadline|dueDate|paymentDeadline/.test(fact))
+    return 85;
+  if (/documentType|invoiceDate|issuer|amountPaid/.test(fact)) return 80;
   if (/secondary:paymentInformation|paymentInformation/.test(fact)) return 70;
+  if (/amountHT|vatAmount|vatRate/.test(fact)) return 55;
   if (/warning:/.test(fact)) return 60;
   return 20;
 }
@@ -573,10 +698,15 @@ function buildEvidencePassages(
       const baseScore =
         Math.max(...relevant.map(evidenceFactPriority)) +
         (NOISE_EVIDENCE_RE.test(e.text) ? -80 : 0) +
-        (/total\s+ttc|montant|facture|pr[eé]l[eè]vement|avant\s+le|r[eé]glez|retournez/i.test(
+        (/total\s+ttc|rembourser|remboursement|rien\s+[aà]\s+faire|mensualit|montant|facture|pr[eé]l[eè]vement|avant\s+le|r[eé]glez|retournez|arriv[eé]\s+[aà]\s+[eé]ch[eé]ance/i.test(
           e.text
         )
           ? 15
+          : 0) -
+        (/tarif\s+d['’]?utilisation|reseaux?\s+publics|acheminement|represente/i.test(
+          e.text
+        )
+          ? 25
           : 0) -
         (e.text.length > 160 ? 10 : 0);
       const existing = map.get(key);
@@ -647,6 +777,19 @@ export function buildUserPresentation(
   const warnings = buildWarnings(explanation);
   const secondaryInformation = buildSecondary(explanation);
   const essential = buildEssential(explanation);
+
+  const noActionFact = explanation.importantFacts.find(
+    (x) =>
+      x.field === "actionRequired" &&
+      x.value === false &&
+      isUsableFactStatus(x.status)
+  );
+  const actionRequired: boolean | null = actions.length
+    ? true
+    : noActionFact
+      ? false
+      : null;
+
   const evidencePassages = buildEvidencePassages(explanation, [
     {
       kind: "documentIdentity",
@@ -670,6 +813,7 @@ export function buildUserPresentation(
     documentIdentity,
     essential,
     actions,
+    actionRequired,
     reason,
     importantDates,
     importantAmounts,

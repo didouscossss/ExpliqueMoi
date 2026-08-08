@@ -42,6 +42,12 @@ export interface UserPresentation {
   essential: PresentationItem[];
   /** Ce que vous devez faire — vide si aucune action supportée. */
   actions: PresentationItem[];
+  /**
+   * true = action(s) utilisateur ; false = non-action explicite supportée ;
+   * null = indéterminé (pas d’action détectée sans preuve « rien à faire »).
+   * Ne compte jamais dans actions.length.
+   */
+  actionRequired: boolean | null;
   /** Pourquoi vous l’avez reçu — null si non supporté. */
   reason: PresentationItem | null;
   importantDates: PresentationItem[];

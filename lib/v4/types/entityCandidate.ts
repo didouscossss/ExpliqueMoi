@@ -99,6 +99,8 @@ export type TableCandidate = EntityCandidate<unknown>;
 export type MoneyRole =
   | "invoiceTotal"
   | "amountDue"
+  | "refundAmount"
+  | "amountPaid"
   | "amountHT"
   | "amountTTC"
   | "vatAmount"

@@ -16,6 +16,7 @@ import type {
   UnderstandingItem
 } from "../types/documentUnderstanding.js";
 import { buildActions } from "./actions.js";
+import { detectExplicitNoAction } from "./noAction.js";
 import {
   computeEvidenceCoverage,
   dropUnsupportedFacts
@@ -185,6 +186,14 @@ export function buildDocumentUnderstanding(
   const keyFacts = dropUnsupportedFacts(buckets.keyFacts);
   const financialFacts = dropUnsupportedFacts(buckets.financialFacts);
   const importantDates = dropUnsupportedFacts(buckets.importantDates);
+
+  const explicitNoAction = detectExplicitNoAction(blocks);
+  if (
+    explicitNoAction &&
+    !keyFacts.some((k) => k.kind === "actionRequired")
+  ) {
+    keyFacts.push(explicitNoAction);
+  }
 
   const actions = buildActions(
     type,

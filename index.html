@@ -6220,7 +6220,16 @@
       }
 
       // Analyse complète backend → ne pas sous-noter artificiellement
-      if (analysis.readingQuality === "full") {
+      // sauf si des faits principaux restent incertains / warnings
+      const hasAmbiguity =
+        Array.isArray(analysis.warnings) &&
+        analysis.warnings.some((w) =>
+          /pas certaines|ambigu|incert/i.test(String(w))
+        );
+      if (
+        analysis.readingQuality === "full" &&
+        !hasAmbiguity
+      ) {
         score = Math.max(score, 84);
       }
 
@@ -6238,15 +6247,28 @@
           analysis
         );
 
+      const hasActions =
+        Array.isArray(analysis.actions) &&
+        analysis.actions.length > 0;
+      const hasAmbiguity =
+        Array.isArray(analysis.warnings) &&
+        analysis.warnings.some((w) =>
+          /pas certaines|ambigu|incert/i.test(String(w))
+        );
+      const actionRequired = analysis?.action_required;
+
       let status;
 
-      if (score >= 82) {
+      if (score >= 82 && !hasAmbiguity) {
         status = {
           level: "excellent",
           face: "😊",
           title: "J’ai tout compris !",
-          message:
-            "Le document est clair. J’ai retrouvé les informations principales et les actions à réaliser.",
+          message: hasActions
+            ? "Le document est clair. J’ai retrouvé les informations principales et les actions à réaliser."
+            : actionRequired === false
+              ? "Le document est clair. J’ai retrouvé les informations principales — aucune action n’est requise."
+              : "Le document est clair. J’ai retrouvé les informations principales.",
           dots: 4
         };
       } else if (score >= 62) {
@@ -6352,14 +6374,26 @@
       list.innerHTML = "";
 
       const isV4 = analysis?.engine === "v4";
+      const realCount = Array.isArray(actions)
+        ? actions.length
+        : 0;
+      const actionRequired = analysis?.action_required;
+
+      // Compter uniquement les actions réelles — jamais un placeholder.
+      $("actionCount").textContent =
+        `${realCount} action${
+          realCount > 1 ? "s" : ""
+        }`;
 
       const values =
-        actions.length
+        realCount
           ? actions
           : isV4
             ? [{
                 action:
-                  "Aucune action explicite n’a été détectée dans ce document.",
+                  actionRequired === false
+                    ? "Aucune action requise."
+                    : "Aucune action explicite n’a été détectée dans ce document.",
                 how: ""
               }]
             : [{
@@ -6370,12 +6404,15 @@
                 "Demandez confirmation à l’organisme."
             }];
 
-      $("actionCount").textContent =
-        `${values.length} action${
-          values.length > 1
-            ? "s"
-            : ""
-        }`;
+      const requestTitle = $("requestTitle");
+      if (requestTitle && isV4) {
+        requestTitle.textContent =
+          realCount > 0
+            ? "Les prochaines étapes"
+            : actionRequired === false
+              ? "Aucune action requise"
+              : "Aucune étape détectée";
+      }
 
       values.forEach((item) => {
         const listItem =
@@ -6395,10 +6432,14 @@
 
         explanation.textContent =
           item.how ||
-          "Consultez le document pour vérifier les modalités.";
+          (realCount
+            ? "Consultez le document pour vérifier les modalités."
+            : "");
 
         listItem.appendChild(title);
-        listItem.appendChild(explanation);
+        if (explanation.textContent) {
+          listItem.appendChild(explanation);
+        }
 
         list.appendChild(listItem);
       });

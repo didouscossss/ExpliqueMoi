@@ -7,10 +7,12 @@ import type { EntityType } from "../../types/entityCandidate.js";
 
 export const ROLES_BY_TYPE: Record<EntityType, readonly string[]> = {
   money: [
-    "amountHT",
-    "amountTTC",
+    "refundAmount",
     "amountDue",
+    "amountTTC",
+    "amountHT",
     "vatAmount",
+    "amountPaid",
     "linePrice",
     "offerPrice",
     "capitalSocial",
@@ -22,6 +24,7 @@ export const ROLES_BY_TYPE: Record<EntityType, readonly string[]> = {
   date: [
     "invoiceDate",
     "dueDate",
+    "refundDate",
     "paymentDate",
     "documentDate",
     "deadline",

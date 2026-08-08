@@ -69,6 +69,11 @@ function labelHit(
   return hit;
 }
 
+/** Zone locale autour du montant (évite qu’un HT distant vole un TTC). */
+function localTaxZone(L: ReturnType<typeof lex>): string {
+  return `${L.before.slice(-40)} ${L.after.slice(0, 40)}`;
+}
+
 function applyNegativeMoneyContext(
   reasons: ScoreReason[],
   L: ReturnType<typeof lex>,
@@ -78,6 +83,7 @@ function applyNegativeMoneyContext(
     "amountHT",
     "amountTTC",
     "amountDue",
+    "refundAmount",
     "vatAmount",
     "netToPay",
     "linePrice",
@@ -125,9 +131,46 @@ function applyNegativeMoneyContext(
   }
   if (
     (role === "amountDue" || role === "amountTTC" || role === "netToPay") &&
-    /deja\s+(paye|prelev)|acompte|sous[-\s]?total|remise\b/.test(L.same)
+    /deja\s+(paye|prelev)|acompte|sous[-\s]?total|remise\b|mensualit/.test(L.same)
   ) {
     pushReason(reasons, "negative:alreadyPaidOrPartial", SCORE_WEIGHTS.alreadyPaidPenalty);
+  }
+
+  // Phrase explicative / sous-composante (« représente X sur cette facture », réseau…)
+  // ≠ total / dû / remboursement principal
+  const explanatoryComponent =
+    /represente|sur\s+cette\s+facture|tarif\s+d['’]?utilisation|reseaux?\s+publics|acheminement|contribution\s+au\s+service/.test(
+      L.same
+    );
+  if (explanatoryComponent) {
+    if (
+      role === "amountHT" ||
+      role === "amountTTC" ||
+      role === "amountDue" ||
+      role === "netToPay" ||
+      role === "refundAmount" ||
+      role === "amountPaid"
+    ) {
+      pushReason(
+        reasons,
+        "negative:explanatoryComponent",
+        SCORE_WEIGHTS.explanatoryComponentPenalty
+      );
+    } else if (role === "linePrice") {
+      pushReason(reasons, "positive:componentLine", 0.35);
+    }
+  }
+
+  // Remboursement ≠ montant dû / prélèvement sortant
+  if (
+    (role === "amountDue" || role === "netToPay") &&
+    /rembours|solde\s+crediteur|a\s+votre\s+credit|rien\s+a\s+faire/.test(L.blob)
+  ) {
+    pushReason(
+      reasons,
+      "negative:refundNotDue",
+      SCORE_WEIGHTS.refundNotDuePenalty
+    );
   }
 }
 
@@ -152,21 +195,92 @@ function scoreMoneyRole(
   }
 
   if (role === "amountHT") {
-    labelHit(reasons, L, /\bht\b|hors\s*taxes?|net\s+ht/, "HT");
-    // Sous-total / remise : moins crédible comme HT final
-    if (/sous[-\s]?total|remise\b/.test(L.same)) {
+    const zone = localTaxZone(L);
+    const htLocal = /\bhtva\b|\bht\b|hors\s*taxes?/.test(zone);
+    const ttcLocal = /\bttc\b|toutes\s*taxes/.test(zone);
+    if (htLocal && !ttcLocal) {
+      pushReason(reasons, "localLabel:HT", SCORE_WEIGHTS.sameLineLabel);
+    } else if (htLocal && ttcLocal) {
+      // Préférer le marqueur adjacent au montant
+      if (/^\s*(€|eur)?\s*(htva|\bht\b)/i.test(L.after) || /(htva|\bht\b)\s*$/i.test(L.before)) {
+        pushReason(reasons, "localLabel:HT:adjacent", SCORE_WEIGHTS.sameLineLabel);
+      } else if (/^\s*(€|eur)?\s*ttc/i.test(L.after)) {
+        pushReason(reasons, "negative:localTTCnotHT", -0.55);
+      } else {
+        labelHit(reasons, L, /\bhtva\b|\bht\b|hors\s*taxes?|net\s+ht/, "HT", 0.25, 0.2, 0.1);
+      }
+    } else {
+      labelHit(reasons, L, /\bhtva\b|\bht\b|hors\s*taxes?|net\s+ht/, "HT");
+    }
+    // Sous-total / remise / composante : moins crédible comme HT final
+    if (/sous[-\s]?total|remise\b|acheminement|services?\b|abonnement/.test(L.same)) {
       pushReason(reasons, "negative:partialHt", -0.45);
     }
-    if (/net\s+ht/.test(L.same)) {
+    if (/net\s+ht|total\s+htva|total\s+ht\b/.test(L.same)) {
       pushReason(reasons, "lexical:netHT", 0.2);
     }
-    if (/\btva\b/.test(L.next) || /\btva\b/.test(L.same)) {
+    // Proximité TVA utile pour un HT de bundle — pas pour la ligne « TVA : X € »
+    if (
+      (/\btva\b/.test(L.next) || /\btva\b/.test(L.prev)) &&
+      !/^\s*tva\b/.test(L.same) &&
+      /\bhtva\b|\bht\b|hors\s*taxes?|total\s+ht/.test(L.same)
+    ) {
       pushReason(reasons, "nearVATBlock", SCORE_WEIGHTS.nearLabelProximity);
     }
   } else if (role === "amountTTC") {
-    labelHit(reasons, L, /\bttc\b|toutes\s*taxes/, "TTC");
-    if (/\btotal\b/.test(L.same) || /\btotal\b/.test(L.before)) {
+    const zone = localTaxZone(L);
+    const htLocal = /\bhtva\b|\bht\b|hors\s*taxes?/.test(zone);
+    const ttcLocal = /\bttc\b|toutes\s*taxes/.test(zone);
+    if (ttcLocal && !htLocal) {
+      pushReason(reasons, "localLabel:TTC", SCORE_WEIGHTS.sameLineLabel);
+    } else if (ttcLocal && htLocal) {
+      if (/^\s*(€|eur)?\s*ttc/i.test(L.after) || /\bttc\s*$/i.test(L.before)) {
+        pushReason(reasons, "localLabel:TTC:adjacent", SCORE_WEIGHTS.sameLineLabel);
+      } else if (/^\s*(€|eur)?\s*(htva|\bht\b)/i.test(L.after)) {
+        pushReason(reasons, "negative:localHTnotTTC", -0.55);
+      } else {
+        labelHit(reasons, L, /\bttc\b|toutes\s*taxes/, "TTC", 0.25, 0.2, 0.1);
+      }
+    } else {
+      labelHit(reasons, L, /\bttc\b|toutes\s*taxes/, "TTC");
+    }
+    if (
+      (/\btotal\b/.test(L.same) || /\btotal\b/.test(L.before)) &&
+      !/represente|sur\s+cette\s+facture|acheminement|reseaux?\s+publics/.test(L.blob)
+    ) {
       pushReason(reasons, "lexical:total", SCORE_WEIGHTS.totalKeyword);
+    }
+  } else if (role === "refundAmount") {
+    // Même ligne (ou précédente) uniquement — la ligne suivante
+    // « nous rembourserons » ne doit pas transformer les mensualités précédentes.
+    labelHit(
+      reasons,
+      L,
+      /rembourser|remboursement|nous\s+vous\s+rembourser|solde\s+crediteur|a\s+votre\s+credit|montant\s+rembourse|sera\s+rembourse/,
+      "refund",
+      SCORE_WEIGHTS.sameLineLabel,
+      SCORE_WEIGHTS.previousLineLabel * 0.5,
+      0
+    );
+    if (
+      /nous\s+vous\s+rembourser|rembourserons|remboursement\b|sera\s+rembourse/.test(
+        L.same
+      )
+    ) {
+      pushReason(reasons, "lexical:refund", SCORE_WEIGHTS.refundKeyword);
+    }
+    if (/mensualit|deja\s+(paye|prelev|facture)|paiements?\s+anterieurs/.test(L.same)) {
+      pushReason(reasons, "negative:mensualitesNotRefund", -0.85);
+    }
+  } else if (role === "amountPaid") {
+    labelHit(
+      reasons,
+      L,
+      /mensualit|deja\s+(paye|prelev|facture)|paiements?\s+(anterieurs|factures)|acomptes?\s+factures/,
+      "paid"
+    );
+    if (/mensualit/.test(L.same)) {
+      pushReason(reasons, "lexical:mensualites", 0.35);
     }
   } else if (role === "amountDue") {
     // « à payer » / reste dû : même ligne ou précédente — PAS la ligne suivante
@@ -174,7 +288,7 @@ function scoreMoneyRole(
     labelHit(
       reasons,
       L,
-      /reste\s+a\s+payer|montant\s+restant|net\s*a\s*payer|somme\s*a\s*payer|(?<!deja\s+)a\s*payer/,
+      /reste\s+a\s+payer|montant\s+restant|net\s*a\s*payer|somme\s*a\s*payer|devez\s+regler|(?<!deja\s+)a\s*payer/,
       "payable",
       SCORE_WEIGHTS.sameLineLabel,
       SCORE_WEIGHTS.previousLineLabel,
@@ -182,20 +296,25 @@ function scoreMoneyRole(
     );
     if (/reste\s+a\s+payer|montant\s+restant\s+du/.test(L.same)) {
       pushReason(reasons, "lexical:resteAPayer", SCORE_WEIGHTS.resteAPayerBoost);
-    } else if (/(?<!deja\s+)a\s*payer/.test(L.same)) {
+    } else if (/(?<!deja\s+)a\s*payer|devez\s+regler/.test(L.same)) {
       pushReason(reasons, "lexical:aPayer", SCORE_WEIGHTS.payableKeyword);
     }
-    // Prélèvement prévu (pas « déjà prélevé »)
+    // Prélèvement prévu sortant (pas « déjà prélevé », pas remboursement)
     if (
-      /montant\s+(du\s+)?prelevement|prelevement\s+de|prelevement\s+automatique/.test(
-        L.same
-      ) &&
-      !/deja\s+prelev/.test(L.same)
+      /montant\s+(du\s+)?prelevement|prelevement\s+de/.test(L.same) &&
+      !/deja\s+prelev|rembours/.test(L.blob)
     ) {
       pushReason(reasons, "lexical:prelevementDue", SCORE_WEIGHTS.payableKeyword);
     }
+    // Mode prélèvement + remboursement ≠ dû sortant
+    if (
+      /prelevement\s+automatique/.test(L.blob) &&
+      /rembours|rien\s+a\s+faire/.test(L.blob)
+    ) {
+      pushReason(reasons, "negative:directDebitMethodNotOutgoing", -0.55);
+    }
     // Total TTC sans libellé payable : faible candidat « dû » seulement
-    if (/\bttc\b/.test(L.same) && !/a\s*payer|restant|du\b/.test(L.same)) {
+    if (/\bttc\b/.test(L.same) && !/a\s*payer|restant|du\b|regler/.test(L.same)) {
       pushReason(reasons, "lexical:totalTtcAsDue", SCORE_WEIGHTS.totalKeyword * 0.35);
     }
   } else if (role === "vatAmount") {
@@ -207,14 +326,38 @@ function scoreMoneyRole(
         SCORE_WEIGHTS.percentAsMoneyPenalty
       );
     } else {
-      labelHit(reasons, L, /\btva\b|\bvat\b|montant\s+tva/, "TVA");
+      // Exiger un libellé TVA proche du montant (tolère OCR « TVA2O% »)
+      const vatCue = /\btva\b|\btva\d|\bvat\b|montant\s+tva/;
+      const vatLocal = vatCue.test(
+        `${L.before.slice(-30)} ${L.after.slice(0, 30)} ${L.same}`
+      );
+      if (vatLocal && vatCue.test(L.same)) {
+        pushReason(reasons, "sameLineLabel:TVA", SCORE_WEIGHTS.sameLineLabel);
+      } else if (
+        vatCue.test(L.prev) &&
+        !/\btotal\b|\bttc\b|\bhtva\b|\bht\b|rembours|mensualit/.test(L.same)
+      ) {
+        pushReason(
+          reasons,
+          "previousLineLabel:TVA",
+          SCORE_WEIGHTS.previousLineLabel * 0.5
+        );
+      }
+      // Ligne HT explicite ≠ montant TVA
+      if (/\bht\b|\bhtva\b|hors\s*taxes?/.test(L.same) && !vatCue.test(L.same)) {
+        pushReason(reasons, "negative:htLineNotVat", -0.6);
+      }
       // « TVA 20 % : 4,33 » — le % voisin ne doit pas voler le rôle montant
       if (/%/.test(L.same) && /\btva\b/.test(L.same)) {
         pushReason(reasons, "nearVATRate", SCORE_WEIGHTS.nearLabelProximity);
       }
-      // Net HT / sous-total / déjà payé ne sont pas des montants de TVA
-      if (/net\s+ht|sous[-\s]?total|remise\b|deja\s+(paye|prelev)/.test(L.same)) {
-        pushReason(reasons, "negative:nonVatLine", -0.4);
+      // Totaux / HT / remboursement / mensualités ≠ montant de TVA
+      if (
+        /\btotal\b|\bttc\b|\bhtva\b|net\s+ht|sous[-\s]?total|remise\b|deja\s+(paye|prelev)|rembours|mensualit|represente/.test(
+          L.same
+        )
+      ) {
+        pushReason(reasons, "negative:nonVatLine", -0.55);
       }
     }
   } else if (role === "linePrice") {
@@ -365,6 +508,16 @@ function scoreDateRole(
   const L = lex(ctx);
   if (role === "invoiceDate") {
     labelHit(reasons, L, /date\s+(de\s+)?facture|date\s+d['’]?emission|emise\s+le/, "invoiceDate");
+  } else if (role === "refundDate") {
+    labelHit(
+      reasons,
+      L,
+      /rembourser|remboursement|sera\s+rembourse|rembourse\s+le|au\s+\d{1,2}/,
+      "refundDate"
+    );
+    if (/rembourserons?\s+(au|le)|sera\s+rembourse/.test(L.blob)) {
+      pushReason(reasons, "lexical:refundDate", 0.35);
+    }
   } else if (role === "paymentDate") {
     labelHit(
       reasons,
@@ -372,21 +525,30 @@ function scoreDateRole(
       /prelevement|sera\s+prelev|preleve\s+le|date\s+de\s+prelevement|paiement\s+le/,
       "paymentDate"
     );
+    // Date de remboursement ≠ date de prélèvement sortant
+    if (/rembours/.test(L.blob) && !/sera\s+prelev|preleve\s+automatiquement/.test(L.blob)) {
+      pushReason(reasons, "negative:refundNotPaymentDate", -0.5);
+    }
   } else if (role === "dueDate" || role === "deadline") {
     labelHit(
       reasons,
       L,
-      /echeance|a\s+payer\s+avant|au\s+plus\s+tard|avant\s+le|dans\s+un\s+delai|merci\s+de|date\s+limite|limite\s+de\s+paiement|reglez|effectuez\s+le\s+virement/,
+      /echeance|arrive\s+a\s+echeance|a\s+payer\s+avant|au\s+plus\s+tard|avant\s+le|dans\s+un\s+delai|merci\s+de|date\s+limite|limite\s+de\s+paiement|reglez|effectuez\s+le\s+virement/,
       "deadline"
     );
-    // Date de prélèvement automatique ≠ deadline utilisateur
+    // Date de prélèvement automatique / remboursement ≠ deadline d'action
     if (
-      /prelevement\s+automatique|sera\s+prelev|preleve\s+automatiquement|date\s+de\s+prelevement/.test(
+      (/prelevement\s+automatique|sera\s+prelev|preleve\s+automatiquement|date\s+de\s+prelevement/.test(
         L.blob
-      ) &&
+      ) ||
+        (/rembours/.test(L.blob) && /rien\s+a\s+faire/.test(L.blob))) &&
       !/avant\s+le|a\s+payer\s+avant|reglez|merci\s+de/.test(L.blob)
     ) {
       pushReason(reasons, "negative:autoDebitNotDeadline", -0.6);
+    }
+    // « arrive à échéance » = dueDate informative, pas actionDeadline
+    if (/arrive\s+a\s+echeance/.test(L.blob) && role === "deadline") {
+      pushReason(reasons, "negative:dueDateNotActionDeadline", -0.35);
     }
   } else if (role === "documentDate") {
     labelHit(reasons, L, /\bdate\b/, "date");
