@@ -128,9 +128,11 @@ export function buildIdentityText(explanation: DocumentExplanation): {
     return { label, text: "Il s'agit d'un document fiscal.", sources };
   }
 
+  const noun = documentTypeLabel(type);
+  const article = /^(attestation|facture|notice)/i.test(noun) ? "d'une" : "d'un";
   return {
     label,
-    text: `Il s'agit d'un ${documentTypeLabel(type)}.`,
+    text: `Il s'agit ${article} ${noun}.`,
     sources
   };
 }

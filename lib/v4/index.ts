@@ -9,6 +9,7 @@
  * V4-F : DocumentUnderstanding + synthèse structurée evidence-first
  * V4-G : DocumentExplanation déterministe et traçable
  * V4-H : UserPresentation — formulation utilisateur déterministe
+ * V4-I : Pipeline end-to-end + diagnostics
  * V3 / V2 inchangées. Aucun branchement UI. Aucun provider IA.
  */
 
@@ -20,3 +21,4 @@ export * from "./profiles/index.js";
 export * from "./understanding/index.js";
 export * from "./explanation/index.js";
 export * from "./presentation/index.js";
+export * from "./pipeline/index.js";
