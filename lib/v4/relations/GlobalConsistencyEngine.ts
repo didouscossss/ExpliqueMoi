@@ -190,9 +190,8 @@ export class GlobalConsistencyEngine {
     const rates = candidates.filter((c) => c.type === "percentage");
 
     for (const ttc of money) {
-      if (roleScore(ttc, "amountTTC") < 0.35 && roleScore(ttc, "amountDue") < 0.45) {
-        continue;
-      }
+      const top = bestRole(ttc);
+      if (top !== "amountTTC" && top !== "amountDue") continue;
       // Déjà couvert par un bundle gagnant ?
       const covered = solutions.some(
         (s) =>
@@ -380,7 +379,9 @@ export class GlobalConsistencyEngine {
       solutions.some((s) => s.contradictions.length > 0);
 
     let status: ConsistencyStatus = best?.status || "partial";
+    // Une contradiction arithmétique documentaire prime sur une ambiguïté faible
     if (hasResolved) status = "resolved";
+    else if (relResult.contradictions.length > 0) status = "contradictory";
     else if (hasAmbiguous) status = "ambiguous";
     else if (hasContra) status = "contradictory";
 
