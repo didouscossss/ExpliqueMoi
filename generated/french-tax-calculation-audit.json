@@ -1,0 +1,116 @@
+{
+  "generatedAt": "2026-08-08T21:23:08.905Z",
+  "caseId": "case-d0c6268f2747eabb",
+  "formulaIds": [],
+  "formulasCount": 0,
+  "nonModeledNotes": [
+    "1AJ/1BJ : montants directement lus — DocumentFact, pas formule identity.",
+    "4BA/4BB/4BC : report / déficit décrits, mais pas de formule arithmétique 2044 complète sourcée dans le repo.",
+    "7DB/7DR : crédit d’impôt — taux/plafonds/éligibilité non modélisés ; pas de calcul d’avantage.",
+    "Somme multi-documents : interdite sans TaxFormula explicite (refuseUnsafeAggregation)."
+  ],
+  "calculationResults": [
+    {
+      "fieldCode": "1AJ",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "1BJ",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "4BA",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "4BB",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "4BC",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "7DB",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "7DR",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    }
+  ],
+  "metrics": {
+    "formulasEvaluated": 7,
+    "inputsResolved": 0,
+    "calculationsProduced": 0,
+    "calculationsBlocked": 7,
+    "conflicts": 0,
+    "durationMs": 1
+  },
+  "suggestedDeclaredAmount": null,
+  "eligibilityDecision": null,
+  "boundaries": {
+    "derivedValuePromotedToDeclaredAmount": 0,
+    "calculationPromotedToEligibility": 0,
+    "packIsEmptyByDesign": true
+  },
+  "ok": true,
+  "violations": [],
+  "invariants": {
+    "implicitAmountAggregation": 0,
+    "calculationWithoutVerifiedFormula": 0,
+    "calculationWithoutFormulaProvenance": 0,
+    "calculationWithMissingInput": 0,
+    "calculationWithConflictedInput": 0,
+    "calculationWithUnknownApplicability": 0,
+    "calculationWithNeedsInformationApplicability": 0,
+    "crossYearCalculation": 0,
+    "crossRoleCalculation": 0,
+    "incompatibleUnitsCalculated": 0,
+    "duplicateAmountDoubleCount": 0,
+    "versionAmountAutoSelected": 0,
+    "unsupportedRounding": 0,
+    "derivedValuePromotedToDeclaredAmount": 0,
+    "calculationPromotedToEligibility": 0,
+    "calculationPromotedToObligation": 0,
+    "uploadOrderChangesCalculation": 0,
+    "automaticUnsafeAggregation": 0
+  },
+  "calculatedCount": 0,
+  "unsupportedCount": 7
+}

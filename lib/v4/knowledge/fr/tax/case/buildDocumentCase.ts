@@ -35,6 +35,9 @@ import { buildDocumentRelations } from "./relations.js";
 import {
   evaluateDocumentCaseApplicability
 } from "../applicability/evaluateApplicability.js";
+import {
+  evaluateDocumentCaseCalculations
+} from "../calculation/calculateDerivedValue.js";
 
 export interface DocumentCaseInput {
   text: string;
@@ -588,17 +591,29 @@ export function buildDocumentCase(
 
   // V4-T — applicabilité déterministe (après faits / avant exposition)
   const app = evaluateDocumentCaseApplicability(draft);
+  const draftWithApp: DocumentCase = {
+    ...draft,
+    applicabilityEvaluations: app.evaluations,
+    applicabilityInvariants: app.invariants
+  };
+
+  // V4-U — calculs déterministes (gate applicabilité ; pack formules production vide)
+  const calc = evaluateDocumentCaseCalculations(draftWithApp);
+
   caseCentricViews = caseCentricViews.map((v) => ({
     ...v,
     applicability:
-      app.evaluations.find((e) => e.fieldCode === v.fieldCode) || null
+      app.evaluations.find((e) => e.fieldCode === v.fieldCode) || null,
+    calculation: calc.results.find((r) => r.fieldCode === v.fieldCode) || null
   }));
 
   return {
-    ...draft,
+    ...draftWithApp,
     caseCentricViews,
-    applicabilityEvaluations: app.evaluations,
-    applicabilityInvariants: app.invariants
+    calculationResults: calc.results,
+    calculationInvariants: calc.invariants,
+    calculationMetrics: calc.metrics,
+    suggestedDeclaredAmount: null
   };
 }
 
@@ -828,7 +843,14 @@ export function buildCaseTaxAssistanceContext(
     ),
     unresolvedApplicabilityQuestions: (docCase.applicabilityEvaluations || [])
       .filter((e) => e.status === "needsInformation")
-      .flatMap((e) => e.missingInformation)
+      .flatMap((e) => e.missingInformation),
+    calculationResults: docCase.calculationResults || [],
+    derivedValues: (docCase.calculationResults || [])
+      .map((r) => r.derivedValue)
+      .filter((d): d is NonNullable<typeof d> => Boolean(d)),
+    unresolvedCalculationInputs: (docCase.calculationResults || []).flatMap(
+      (r) => r.missingInputs
+    )
   };
 }
 

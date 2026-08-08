@@ -97,6 +97,26 @@ export function documentCaseToPreviewJson(
             limits: v.applicability.limits
           }
         : null,
+      calculation: v.calculation
+        ? {
+            status: v.calculation.status,
+            value: v.calculation.value,
+            unit: v.calculation.unit,
+            formula_id: v.calculation.formulaId,
+            inputs: v.calculation.inputs.map((i) => ({
+              input_id: i.inputId,
+              value: i.value,
+              unit: i.unit,
+              source_kind: i.sourceKind,
+              status: i.status,
+              provenance_note: i.provenanceNote
+            })),
+            missing_inputs: v.calculation.missingInputs,
+            conflicts: v.calculation.conflicts,
+            explanation: v.calculation.explanation,
+            sources: v.calculation.sources
+          }
+        : null,
       suggested_declared_amount: null
     })),
     metrics: {

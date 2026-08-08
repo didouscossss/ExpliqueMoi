@@ -209,5 +209,20 @@ export type {
   TaxApplicabilityMissingInformation,
   TaxApplicabilityEvaluation,
   TaxApplicabilityExplanation,
-  TaxApplicabilityInvariants
+  TaxApplicabilityInvariants,
+  TaxCalculationStatus,
+  TaxFormulaOperation,
+  TaxValueUnit,
+  TaxRoundingPolicy,
+  TaxFormulaYearPolicy,
+  TaxFormulaRolePolicy,
+  TaxFormulaInput,
+  TaxFormula,
+  ResolvedFormulaInput,
+  CalculationEvidence,
+  DerivedTaxValue,
+  CalculationResult,
+  CalculationExplanation,
+  TaxCalculationInvariants,
+  TaxCalculationMetrics
 } from "./knowledge.js";

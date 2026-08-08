@@ -772,6 +772,10 @@ export interface TaxAssistanceContext {
   applicabilityEvaluations?: TaxApplicabilityEvaluation[];
   applicabilityEvidence?: TaxApplicabilityEvidence[];
   unresolvedApplicabilityQuestions?: TaxApplicabilityMissingInformation[];
+  /** V4-U — résultats de calcul déterministes. */
+  calculationResults?: CalculationResult[];
+  derivedValues?: DerivedTaxValue[];
+  unresolvedCalculationInputs?: string[];
   provenance: KnowledgeProvenance[];
   informationStatus: FieldInformationStatus;
   questions: TaxFieldQuestion[];
@@ -1187,6 +1191,170 @@ export interface TaxApplicabilityInvariants {
   missingApplicabilityProvenance: number;
 }
 
+/* ─── V4-U — Valeurs fiscales dérivées / calcul déterministe ─── */
+
+export type TaxCalculationStatus =
+  | "calculated"
+  | "needsInformation"
+  | "conflicted"
+  | "notApplicable"
+  | "unsupported";
+
+export type TaxFormulaOperation =
+  | "identity"
+  | "sum"
+  | "subtract"
+  | "multiply"
+  | "divide"
+  | "min"
+  | "max"
+  | "percentage";
+
+export type TaxValueUnit = "EUR" | "percentage" | "count" | "boolean";
+
+export type TaxRoundingPolicy =
+  | "none"
+  | "nearestEuro"
+  | "floor"
+  | "ceil"
+  | "sourceDefined";
+
+export type TaxFormulaYearPolicy = "exact" | "verifiedStable";
+
+export type TaxFormulaRolePolicy =
+  | "declarant1"
+  | "declarant2"
+  | "dependent"
+  | "household"
+  | "any"
+  | "unknown";
+
+export interface TaxFormulaInput {
+  inputId: string;
+  label: string;
+  fieldCode?: string | null;
+  unit: TaxValueUnit;
+  required: boolean;
+  role?: TaxFieldDeclarantRole | null;
+  /** Autorise UserProvidedFact pour cet input. */
+  allowUserFact?: boolean;
+  /** Autorise DerivedTaxValue comme input. */
+  allowDerivedValue?: boolean;
+}
+
+export interface TaxFormula {
+  formulaId: string;
+  targetFieldCode: string;
+  documentRef?: string | null;
+  taxYears: number[];
+  yearPolicy: TaxFormulaYearPolicy;
+  rolePolicy: TaxFormulaRolePolicy;
+  operation: TaxFormulaOperation;
+  inputs: TaxFormulaInput[];
+  unit: TaxValueUnit;
+  roundingPolicy: TaxRoundingPolicy;
+  /** Conditions d’applicabilité optionnelles (fieldCode gate V4-T). */
+  requiresApplicabilityField?: string | null;
+  provenance: KnowledgeProvenance[];
+  sourceExcerpt: string;
+  verificationStatus: "verified" | "partial" | "unverified";
+}
+
+export interface ResolvedFormulaInput {
+  inputId: string;
+  value: number | boolean | null;
+  unit: TaxValueUnit;
+  taxYear: number | null;
+  role: TaxFieldDeclarantRole | null;
+  sourceKind: "document" | "user" | "derived";
+  sourceId: string;
+  status: "resolved" | "missing" | "conflicted" | "incompatible";
+  provenanceNote: string;
+  documentId?: string | null;
+}
+
+export interface CalculationEvidence {
+  evidenceId: string;
+  label: string;
+  detail: string;
+  sourceKind: "document" | "user" | "derived" | "formula";
+  sourceId?: string | null;
+}
+
+export interface DerivedTaxValue {
+  derivedId: string;
+  kind: "derived";
+  fieldCode: string;
+  value: number | boolean | null;
+  unit: TaxValueUnit;
+  formulaId: string;
+  taxYear: number | null;
+  role: TaxFieldDeclarantRole | null;
+  inputs: ResolvedFormulaInput[];
+  provenance: KnowledgeProvenance[];
+}
+
+export interface CalculationResult {
+  fieldCode: string;
+  status: TaxCalculationStatus;
+  value: number | boolean | null;
+  unit: TaxValueUnit | null;
+  formulaId: string | null;
+  inputs: ResolvedFormulaInput[];
+  missingInputs: string[];
+  conflicts: string[];
+  evidence: CalculationEvidence[];
+  explanation: string;
+  sources: Array<{ title: string; url: string }>;
+  limits: string[];
+  derivedValue?: DerivedTaxValue | null;
+}
+
+export interface CalculationExplanation {
+  status: TaxCalculationStatus;
+  headline: string;
+  formulaId: string | null;
+  operation: TaxFormulaOperation | null;
+  inputs: string[];
+  result: string | null;
+  unit: TaxValueUnit | null;
+  year: number | null;
+  role: string | null;
+  sources: Array<{ title: string; url: string }>;
+  rounding: TaxRoundingPolicy | null;
+  limits: string[];
+}
+
+export interface TaxCalculationInvariants {
+  implicitAmountAggregation: number;
+  calculationWithoutVerifiedFormula: number;
+  calculationWithoutFormulaProvenance: number;
+  calculationWithMissingInput: number;
+  calculationWithConflictedInput: number;
+  calculationWithUnknownApplicability: number;
+  calculationWithNeedsInformationApplicability: number;
+  crossYearCalculation: number;
+  crossRoleCalculation: number;
+  incompatibleUnitsCalculated: number;
+  duplicateAmountDoubleCount: number;
+  versionAmountAutoSelected: number;
+  unsupportedRounding: number;
+  derivedValuePromotedToDeclaredAmount: number;
+  calculationPromotedToEligibility: number;
+  calculationPromotedToObligation: number;
+  uploadOrderChangesCalculation: number;
+  automaticUnsafeAggregation: number;
+}
+
+export interface TaxCalculationMetrics {
+  formulasEvaluated: number;
+  inputsResolved: number;
+  calculationsProduced: number;
+  calculationsBlocked: number;
+  conflicts: number;
+  durationMs: number;
+}
+
 export interface MatchScoreBreakdown {
   documentTypeMatch: number;
   yearMatch: number;
@@ -1235,6 +1403,8 @@ export interface CaseCentricFieldView {
   priorityQuestions: TaxFieldQuestion[];
   /** V4-T — pertinence / applicabilité (≠ obligation, ≠ éligibilité). */
   applicability?: TaxApplicabilityEvaluation | null;
+  /** V4-U — calcul déterministe (≠ montant à déclarer). */
+  calculation?: CalculationResult | null;
   suggestedDeclaredAmount: null;
 }
 
@@ -1308,6 +1478,10 @@ export interface DocumentCase {
   /** V4-T — évaluations d’applicabilité par case. */
   applicabilityEvaluations?: TaxApplicabilityEvaluation[];
   applicabilityInvariants?: TaxApplicabilityInvariants;
+  /** V4-U — calculs déterministes par case. */
+  calculationResults?: CalculationResult[];
+  calculationInvariants?: TaxCalculationInvariants;
+  calculationMetrics?: TaxCalculationMetrics;
   metrics: DocumentCaseMetrics;
   taxContext: {
     primaryReferences: string[];

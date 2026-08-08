@@ -249,3 +249,20 @@ export {
   auditTaxApplicability,
   type ApplicabilityAuditReport
 } from "./fr/tax/applicability/index.js";
+export {
+  TAX_FORMULAS,
+  NON_MODELED_FORMULA_NOTES,
+  getFormulasForField,
+  listFormulaIds,
+  evaluateTypedOperation,
+  resolveFormulaInputs,
+  detectImplicitAggregation,
+  calculateDerivedValue,
+  evaluateDocumentCaseCalculations,
+  assertCalculationOrderStable,
+  emptyCalculationInvariants,
+  resetDerivedIdsForTests,
+  explainTaxCalculation,
+  auditTaxCalculation,
+  type CalculationAuditReport
+} from "./fr/tax/calculation/index.js";

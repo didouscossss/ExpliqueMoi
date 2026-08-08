@@ -30,6 +30,7 @@ import {
   evaluateDocumentCaseApplicability,
   mergeApplicabilityQuestionsIntoSession
 } from "../applicability/index.js";
+import { evaluateDocumentCaseCalculations } from "../calculation/index.js";
 
 export interface ApplyClarificationResult {
   state: ClarificationState;
@@ -454,17 +455,26 @@ function finalizeWithRecalc(
     app.invariants
   );
 
-  const documentCase: DocumentCase = {
+  const withApp: DocumentCase = {
     ...rebuilt,
     conflicts: mergedConflicts,
     clarificationSession: nextSession,
     userAnswers: nextSession.activeUserFacts,
     applicabilityEvaluations: app.evaluations,
-    applicabilityInvariants: app.invariants,
+    applicabilityInvariants: app.invariants
+  };
+  const calc = evaluateDocumentCaseCalculations(withApp);
+
+  const documentCase: DocumentCase = {
+    ...withApp,
+    calculationResults: calc.results,
+    calculationInvariants: calc.invariants,
+    calculationMetrics: calc.metrics,
     caseCentricViews: rebuilt.caseCentricViews.map((v) => ({
       ...v,
       applicability:
-        app.evaluations.find((e) => e.fieldCode === v.fieldCode) || null
+        app.evaluations.find((e) => e.fieldCode === v.fieldCode) || null,
+      calculation: calc.results.find((r) => r.fieldCode === v.fieldCode) || null
     })),
     suggestedDeclaredAmount: null,
     eligibilityDecision: null
