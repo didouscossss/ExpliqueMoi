@@ -96,28 +96,34 @@ export class LocalAnalysisEngine {
     });
 
     if (
-      !fields.amountTTC &&
-      !fields.amountToPay &&
-      !fields.amountHT &&
-      !fields.netToPay
+      fields.amountTTC == null &&
+      fields.amountToPay == null &&
+      fields.amountHT == null &&
+      fields.netToPay == null
     ) {
       warnings.push("Aucun montant clairement détecté.");
     }
 
-    // Incohérence arithmétique : HT + montant TVA (€) ≈ TTC — jamais le taux %.
-    if (
-      fields.amountHT != null &&
-      fields.amountTVA != null &&
-      (fields.amountTTC != null || fields.amountToPay != null)
-    ) {
-      const ttc = fields.amountToPay ?? fields.amountTTC ?? 0;
+    // Incohérence arithmétique uniquement si HT, montant TVA (€) et TTC
+    // sont tous présents et fiables. null / champ absent ≠ incohérence.
+    // Ne jamais utiliser le taux TVA (%) à la place du montant.
+    {
+      const ht = fields.amountHT;
       const vatAmount = fields.amountTVA;
-      // Garde-fou : si amountTVA == vatRate et HT+rate ≠ TTC mais HT+autre candidat oui, ne pas alerter à tort
-      const sum = Math.round((fields.amountHT + vatAmount) * 100) / 100;
-      if (Math.abs(sum - ttc) > 0.05) {
-        warnings.push(
-          `Incohérence possible des montants : HT (${fields.amountHT}) + TVA (${vatAmount}) ≠ TTC/à payer (${ttc}).`
-        );
+      const ttc = fields.amountToPay ?? fields.amountTTC;
+      const present = (v: unknown): v is number =>
+        v != null && typeof v === "number" && Number.isFinite(v);
+      if (present(ht) && present(vatAmount) && present(ttc)) {
+        // Montant TVA ≥ TTC : typage douteux, pas une contradiction arithmétique
+        const vatPlausible = vatAmount < ttc - 0.001 && vatAmount / ttc <= 0.35;
+        if (vatPlausible) {
+          const sum = Math.round((ht + vatAmount) * 100) / 100;
+          if (Math.abs(sum - ttc) > 0.05) {
+            warnings.push(
+              `Incohérence possible des montants : HT (${ht}) + TVA (${vatAmount}) ≠ TTC/à payer (${ttc}).`
+            );
+          }
+        }
       }
     }
 

@@ -897,57 +897,144 @@ function hasMoneyDecimals(cand: RankedAmountCandidate): boolean {
  * N’élimine PAS un montant monétaire pour incertitude de classification :
  * le tag capital n’exclut que s’il n’y a aucun autre signal facture.
  */
+function isCapitalOnly(c: RankedAmountCandidate): boolean {
+  return (
+    c.tags.includes("capital") &&
+    !c.tags.includes("payable") &&
+    !c.tags.includes("ttc") &&
+    !c.tags.includes("ht") &&
+    !c.tags.includes("tva") &&
+    !c.tags.includes("net")
+  );
+}
+
+function tagPurity(c: RankedAmountCandidate, tag: string): number {
+  if (tag === "ht") {
+    return Number(
+      !c.tags.includes("tva") &&
+        !c.tags.includes("ttc") &&
+        !c.tags.includes("payable")
+    );
+  }
+  if (tag === "tva") {
+    return Number(
+      !c.tags.includes("ht") &&
+        !c.tags.includes("ttc") &&
+        !c.tags.includes("payable")
+    );
+  }
+  if (tag === "ttc" || tag === "payable") {
+    return Number(
+      !c.tags.includes("ht") || c.tags.includes("payable") || c.tags.includes("ttc")
+    );
+  }
+  return 0;
+}
+
+function compareByTag(
+  a: RankedAmountCandidate,
+  b: RankedAmountCandidate,
+  tag: string
+): number {
+  // Préfère total HT / total TTC quand le tag le demande
+  if (tag === "ht") {
+    const totalDiff =
+      Number(b.tags.includes("total")) - Number(a.tags.includes("total"));
+    if (totalDiff) return totalDiff;
+    const partialDiff =
+      Number(a.tags.includes("partial") || a.tags.includes("offer")) -
+      Number(b.tags.includes("partial") || b.tags.includes("offer"));
+    if (partialDiff) return partialDiff;
+  }
+  const purityDiff = tagPurity(b, tag) - tagPurity(a, tag);
+  if (purityDiff) return purityDiff;
+  if (b.score !== a.score) return b.score - a.score;
+  return Number(hasMoneyDecimals(b)) - Number(hasMoneyDecimals(a));
+}
+
+function candidatesByTag(
+  candidates: RankedAmountCandidate[],
+  tag: string,
+  minScore = -Infinity
+): RankedAmountCandidate[] {
+  return candidates
+    .filter((c) => c.tags.includes(tag) && c.score >= minScore && !isCapitalOnly(c))
+    .sort((a, b) => compareByTag(a, b, tag));
+}
+
 function bestByTag(
   candidates: RankedAmountCandidate[],
   tag: string,
   minScore = -Infinity
 ): RankedAmountCandidate | null {
-  const list = candidates.filter((c) => {
-    if (!c.tags.includes(tag) || c.score < minScore) return false;
-    // Capital pur (sans autre tag utile) → jamais choisi comme HT/TTC/payable
+  return candidatesByTag(candidates, tag, minScore)[0] || null;
+}
+
+/**
+ * HT fiable pour les champs / contrôles arithmétiques.
+ * - 0,00 n’est accepté que s’il s’agit d’un total HT explicite (pas une ligne
+ *   « Abonnement HT 0,00 » ni une 1ʳᵉ colonne vide).
+ * - sinon → null (absent), distinct d’un vrai zéro.
+ */
+function selectReliableHt(
+  candidates: RankedAmountCandidate[]
+): RankedAmountCandidate | null {
+  const list = candidatesByTag(candidates, "ht", -50);
+  for (const c of list) {
+    if (c.tags.includes("partial") || c.tags.includes("offer")) continue;
+    // 0,00 : seulement un vrai « Total HT 0,00 », jamais une ligne / colonne isolée.
+    if (Math.abs(c.value) < 0.001 && !c.tags.includes("total")) continue;
+    return c;
+  }
+  return null;
+}
+
+/**
+ * Montant TVA (€) plausible face à un TTC / HT connus.
+ * Un montant ≥ TTC ou > ~35 % du TTC n’est pas un montant de TVA
+ * (taux FR max 20 % ⇒ TVA ≤ ~16,7 % du TTC) — souvent un HT mal typé.
+ */
+function isPlausibleVatAmount(
+  vat: number,
+  ttc: number | null,
+  ht: number | null
+): boolean {
+  if (!Number.isFinite(vat) || vat < 0) return false;
+  if (ttc != null && Number.isFinite(ttc)) {
+    if (vat >= ttc - 0.001) return false;
+    if (ttc > 0 && vat / ttc > 0.35) return false;
+  }
+  if (ht != null && Number.isFinite(ht) && ht > 0.001) {
+    // Taux > 50 % du HT : hors barème FR / typage douteux
+    if (vat / ht > 0.5) return false;
+  }
+  return true;
+}
+
+function selectReliableTva(
+  candidates: RankedAmountCandidate[],
+  ht: RankedAmountCandidate | null,
+  vatRate: number | null,
+  ttcHint: number | null
+): RankedAmountCandidate | null {
+  const tvaCandidates = candidates.filter((c) => {
+    if (!c.tags.includes("tva")) return false;
+    if (vatRate != null && Math.abs(c.value - vatRate) < 0.001 && !hasMoneyCurrency(c)) {
+      return false;
+    }
     if (
-      c.tags.includes("capital") &&
-      !c.tags.includes("payable") &&
-      !c.tags.includes("ttc") &&
-      !c.tags.includes("ht") &&
-      !c.tags.includes("tva") &&
-      !c.tags.includes("net")
+      ht &&
+      vatRate != null &&
+      Math.abs(c.value - expectedTtcFromHtRate(ht.value, vatRate)) <= 0.02
     ) {
       return false;
     }
+    if (c.tags.includes("ttc") || c.tags.includes("payable")) return false;
+    if (!(hasMoneyDecimals(c) || hasMoneyCurrency(c))) return false;
+    if (!isPlausibleVatAmount(c.value, ttcHint, ht?.value ?? null)) return false;
     return true;
   });
-  if (!list.length) return null;
-
-  // Préfère le candidat « pur » pour le tag demandé
-  // (HT sans TVA/TTC/payable ; TVA sans HT/TTC/payable).
-  list.sort((a, b) => {
-    const purity = (c: RankedAmountCandidate): number => {
-      if (tag === "ht") {
-        return Number(
-          !c.tags.includes("tva") &&
-            !c.tags.includes("ttc") &&
-            !c.tags.includes("payable")
-        );
-      }
-      if (tag === "tva") {
-        return Number(
-          !c.tags.includes("ht") &&
-            !c.tags.includes("ttc") &&
-            !c.tags.includes("payable")
-        );
-      }
-      if (tag === "ttc" || tag === "payable") {
-        return Number(!c.tags.includes("ht") || c.tags.includes("payable") || c.tags.includes("ttc"));
-      }
-      return 0;
-    };
-    const purityDiff = purity(b) - purity(a);
-    if (purityDiff) return purityDiff;
-    if (b.score !== a.score) return b.score - a.score;
-    return Number(hasMoneyDecimals(b)) - Number(hasMoneyDecimals(a));
-  });
-  return list[0];
+  return tvaCandidates.sort((a, b) => compareByTag(a, b, "tva"))[0] || null;
 }
 
 function toFinding(
@@ -978,9 +1065,13 @@ export function selectAmountFields(text: string): AmountFieldSelection {
   const vatRates = extractVatRates(text);
   const vatRate = vatRates[0] ?? null;
 
-  // Seuils bas (y compris scores légèrement négatifs dus à un taux % voisin) :
-  // un montant monétaire classé reste éligible ; le score départage.
-  const ht = bestByTag(candidates, "ht", -50);
+  // HT : 0 non fiable → null (absent), distinct d’un vrai « Total HT 0,00 ».
+  const ht = selectReliableHt(candidates);
+
+  const payable = bestByTag(candidates, "payable", -50);
+  let ttc = bestByTag(candidates, "ttc", -50);
+  const net = bestByTag(candidates, "net", -50);
+  const ttcHint = payable?.value ?? ttc?.value ?? null;
 
   const rateConsistentTtc =
     ht && vatRate != null
@@ -992,28 +1083,8 @@ export function selectAmountFields(text: string): AmountFieldSelection {
         ) || null
       : null;
 
-  // Montant TVA : jamais un taux % ; jamais un TTC cohérent avec HT×taux.
-  const tvaCandidates = candidates.filter((c) => {
-    if (!c.tags.includes("tva")) return false;
-    if (vatRate != null && Math.abs(c.value - vatRate) < 0.001 && !hasMoneyCurrency(c)) {
-      return false;
-    }
-    if (
-      ht &&
-      vatRate != null &&
-      Math.abs(c.value - expectedTtcFromHtRate(ht.value, vatRate)) <= 0.02
-    ) {
-      return false;
-    }
-    if (c.tags.includes("ttc") || c.tags.includes("payable")) return false;
-    return hasMoneyDecimals(c) || hasMoneyCurrency(c);
-  });
-  let tva: RankedAmountCandidate | null =
-    tvaCandidates.sort((a, b) => b.score - a.score)[0] || null;
-
-  const payable = bestByTag(candidates, "payable", -50);
-  let ttc = bestByTag(candidates, "ttc", -50);
-  const net = bestByTag(candidates, "net", -50);
+  // Montant TVA (€) : jamais un taux % ; jamais un HT/TTC mal typé.
+  let tva = selectReliableTva(candidates, ht, vatRate, ttcHint);
 
   // Si le meilleur « TTC » est en réalité le HT, préférer le candidat cohérent
   if (ht && ttc && ttc.value === ht.value && rateConsistentTtc) {

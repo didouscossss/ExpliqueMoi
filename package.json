@@ -25,8 +25,9 @@
     "test:v3-sosh-ht-ttc": "tsx scripts/test-v3-sosh-ht-ttc.mjs",
     "test:v3-sosh-real-pdf": "tsx scripts/test-v3-sosh-real-pdf.mjs",
     "test:v3-document-type": "tsx scripts/test-v3-document-type.mjs",
+    "test:v3-amount-coherence": "tsx scripts/test-v3-amount-coherence.mjs",
     "test:v3-audit-no-ai": "tsx scripts/audit-v3-no-ai.mjs",
-    "test:v3": "npm run test:v3-local && npm run test:v3-front-map && npm run test:v3-amount-ranking && npm run test:v3-pdfjs-pipeline && npm run test:v3-vat-rate-dates && npm run test:v3-evidence-quality && npm run test:v3-sosh-ht-ttc && npm run test:v3-sosh-real-pdf && npm run test:v3-document-type && npm run test:v3-degraded && npm run test:v3-audit-no-ai"
+    "test:v3": "npm run test:v3-local && npm run test:v3-front-map && npm run test:v3-amount-ranking && npm run test:v3-pdfjs-pipeline && npm run test:v3-vat-rate-dates && npm run test:v3-evidence-quality && npm run test:v3-sosh-ht-ttc && npm run test:v3-sosh-real-pdf && npm run test:v3-document-type && npm run test:v3-amount-coherence && npm run test:v3-degraded && npm run test:v3-audit-no-ai"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",
