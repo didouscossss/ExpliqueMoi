@@ -383,6 +383,9 @@ export interface FiscalKnowledgeAnalysis {
   detectedFields?: DetectedTaxField[];
   fieldExplanations?: TaxFieldExplanation[];
   fieldRegistryVersion?: string | null;
+  /** V4-Q — aide à la compréhension (requirements + gaps). */
+  fieldAssistance?: TaxFieldAssistance[];
+  requirementsRegistryVersion?: string | null;
   /** Invariants knowledge. */
   invariants: {
     knowledgeAsDocumentFact: number;
@@ -401,6 +404,14 @@ export interface FiscalKnowledgeAnalysis {
     emptyFieldConvertedToZero?: number;
     unverifiedFieldDefinitionPresentedAsVerified?: number;
     fieldFalsePositiveCritical?: number;
+    /** V4-Q */
+    knowledgePromotedToUserFact?: number;
+    requirementPromotedToObligation?: number;
+    candidateFactPromotedToCertain?: number;
+    unsupportedEligibilityDecision?: number;
+    unsupportedTaxAmount?: number;
+    automaticUnsafeAggregation?: number;
+    missingPresentedAsUserDoesNotHave?: number;
   };
 }
 
@@ -512,6 +523,243 @@ export interface TaxFieldExplanation {
     emptyFieldConvertedToZero: number;
     unverifiedFieldDefinitionPresentedAsVerified: number;
   };
+}
+
+/* ─── V4-Q — Field requirements (aide à la compréhension, pas au remplissage) ─── */
+
+/**
+ * Statut d’une information requise face aux éléments analysés.
+ * `missing` = non retrouvée dans les éléments analysés (≠ « l’utilisateur ne l’a pas »).
+ */
+export type RequirementStatus =
+  | "found"
+  | "missing"
+  | "ambiguous"
+  | "notChecked"
+  | "notApplicableKnown"
+  | "unknown";
+
+/** Indicateur NON normatif — qualité d’information, pas conformité fiscale. */
+export type FieldInformationStatus =
+  | "sufficientForExplanation"
+  | "missingInformation"
+  | "ambiguousInformation"
+  | "requiresVerification";
+
+export type RequirementPriority =
+  | "blocking"
+  | "ambiguity"
+  | "yearUnknown"
+  | "declarantUnknown"
+  | "supportingDocument"
+  | "secondary";
+
+export type InformationRequirementKind =
+  | "amount"
+  | "year"
+  | "declarantRole"
+  | "documentPresence"
+  | "boolean"
+  | "text"
+  | "conditionAwareness";
+
+export type RequirementAnswerType =
+  | "yesNo"
+  | "amount"
+  | "year"
+  | "declarant"
+  | "text"
+  | "document";
+
+export type RequirementEvidenceMatchStatus =
+  | "candidate"
+  | "strong"
+  | "ambiguous";
+
+/** Critères déterministes pour chercher des faits candidats (pas de similarité opaque). */
+export interface RequirementFactMatcher {
+  factTypes: string[];
+  documentTypeHints?: string[];
+  fieldCodeHints?: string[];
+  yearRequired?: boolean;
+  declarantRoleHints?: TaxFieldDeclarantRole[];
+  keywords?: string[];
+  rejectKeywords?: string[];
+  rejectDocumentTypes?: string[];
+}
+
+export interface InformationRequirement {
+  id: string;
+  kind: InformationRequirementKind;
+  label: string;
+  description: string;
+  priority: RequirementPriority;
+  expectedValueType: TaxFieldValueType;
+  blocking: boolean;
+  factMatchers: RequirementFactMatcher[];
+  provenance: KnowledgeProvenance[];
+  questionTemplate?: string;
+  expectedAnswerType?: RequirementAnswerType;
+}
+
+export interface SupportingDocumentHint {
+  id: string;
+  label: string;
+  description: string;
+  documentTypeHints: string[];
+  /** false = suggestion générique non normative, clairement distinguée. */
+  normative: boolean;
+  provenance: KnowledgeProvenance[];
+}
+
+export interface GeneralFieldCondition {
+  id: string;
+  statement: string;
+  provenance: KnowledgeProvenance[];
+}
+
+/**
+ * Couche Knowledge : informations généralement nécessaires pour comprendre une case.
+ * Jamais une obligation personnelle ni une éligibilité.
+ */
+export interface FrenchTaxFieldRequirements {
+  id: string;
+  documentRef: string;
+  documentRefs: string[];
+  fieldCode: string;
+  normalizedCode: string;
+  applicableYears: number[];
+  yearStable?: boolean;
+  expectedValueType: TaxFieldValueType;
+  informationRequirements: InformationRequirement[];
+  possibleSupportingDocuments: SupportingDocumentHint[];
+  generalConditions: GeneralFieldCondition[];
+  relatedFields: string[];
+  provenance: KnowledgeProvenance[];
+  qualityStatus: TaxKnowledgeQualityStatus;
+  lastVerifiedAt?: string | null;
+}
+
+export interface FrenchTaxFieldRequirementsRegistry {
+  version: string;
+  country: KnowledgeCountry;
+  generatedAt: string;
+  sourceMode: "curated-official";
+  entries: FrenchTaxFieldRequirements[];
+}
+
+/** Fait documentaire candidat pour un requirement (cross-document possible). */
+export interface CandidateDocumentFact {
+  factId: string;
+  sourceDocumentId: string | null;
+  sourceDocumentLabel: string | null;
+  documentType: string | null;
+  factType: string;
+  value: unknown;
+  displayValue: string | null;
+  year: number | null;
+  declarantRole: TaxFieldDeclarantRole | null;
+  fieldCode: string | null;
+  confidence: number;
+  evidence: EvidenceSpan[];
+  provenanceNote: string;
+}
+
+export interface RequirementEvidenceLink {
+  requirementId: string;
+  factId: string;
+  confidence: number;
+  evidence: EvidenceSpan[];
+  matchReason: string;
+  status: RequirementEvidenceMatchStatus;
+}
+
+export interface EvaluatedRequirement {
+  requirementId: string;
+  label: string;
+  description: string;
+  kind: InformationRequirementKind;
+  priority: RequirementPriority;
+  status: RequirementStatus;
+  /** Formulation prudente pour l’UI. */
+  statusLabel: string;
+  candidateFacts: CandidateDocumentFact[];
+  evidenceLinks: RequirementEvidenceLink[];
+  /** Toujours null en V4-Q — aucune agrégation automatique. */
+  aggregatedValue: null;
+  provenance: KnowledgeProvenance[];
+}
+
+export interface TaxFieldQuestion {
+  requirementId: string;
+  question: string;
+  expectedAnswerType: RequirementAnswerType;
+  reason: string;
+  priority: RequirementPriority;
+  provenance: KnowledgeProvenance[];
+}
+
+/**
+ * Aide à la compréhension d’une case = Knowledge + DocumentFacts + gaps.
+ * Ne conclut PAS l’applicabilité utilisateur (couche C).
+ */
+export interface TaxFieldAssistance {
+  fieldCode: string;
+  documentRef: string | null;
+  year: number | null;
+  yearMatch: "exact" | "stable" | "mismatch" | "unknown";
+  knowledge: {
+    label: string | null;
+    whatIsIt: string | null;
+    plainLanguageWhat: string | null;
+    expectedValueType: TaxFieldValueType | null;
+    qualityStatus: TaxKnowledgeQualityStatus | null;
+  };
+  documentFactsSummary: Array<{
+    label: string;
+    value: string;
+    status: string;
+  }>;
+  evaluatedRequirements: EvaluatedRequirement[];
+  supportingDocuments: SupportingDocumentHint[];
+  generalConditions: GeneralFieldCondition[];
+  missingRequirements: EvaluatedRequirement[];
+  ambiguousRequirements: EvaluatedRequirement[];
+  questions: TaxFieldQuestion[];
+  /** Max 3 pour UI initiale. */
+  priorityQuestions: TaxFieldQuestion[];
+  informationStatus: FieldInformationStatus;
+  candidateFacts: CandidateDocumentFact[];
+  relatedFields: string[];
+  provenance: KnowledgeProvenance[];
+  /** Toujours null — V4-Q n’invente pas de montant à déclarer. */
+  suggestedDeclaredAmount: null;
+  /** Toujours null — pas de décision d’éligibilité. */
+  eligibilityDecision: null;
+  invariants: {
+    knowledgePromotedToUserFact: number;
+    requirementPromotedToObligation: number;
+    candidateFactPromotedToCertain: number;
+    unsupportedEligibilityDecision: number;
+    unsupportedTaxAmount: number;
+    automaticUnsafeAggregation: number;
+    missingPresentedAsUserDoesNotHave: number;
+  };
+}
+
+/**
+ * Contexte futur Premium — structure seule, aucun appel LLM en V4-Q.
+ */
+export interface TaxAssistanceContext {
+  fieldKnowledge: FrenchTaxFieldEntry | null;
+  fieldRequirements: FrenchTaxFieldRequirements | null;
+  relevantDocumentFacts: CandidateDocumentFact[];
+  missingRequirements: EvaluatedRequirement[];
+  ambiguities: EvaluatedRequirement[];
+  userAnswers: Array<{ requirementId: string; answer: string }>;
+  provenance: KnowledgeProvenance[];
+  informationStatus: FieldInformationStatus;
+  questions: TaxFieldQuestion[];
 }
 
 export interface ExternalSourceRecord {

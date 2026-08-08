@@ -58,6 +58,13 @@ export interface PreviewAnalysisMapped {
     emptyFieldConvertedToZero: number;
     unverifiedFieldDefinitionPresentedAsVerified: number;
     fieldFalsePositiveCritical: number;
+    knowledgePromotedToUserFact: number;
+    requirementPromotedToObligation: number;
+    candidateFactPromotedToCertain: number;
+    unsupportedEligibilityDecision: number;
+    unsupportedTaxAmount: number;
+    automaticUnsafeAggregation: number;
+    missingPresentedAsUserDoesNotHave: number;
   };
 }
 
@@ -436,6 +443,34 @@ export function mapV4ResultToPreviewAnalysis(
       fieldFalsePositiveCritical:
         fiscalVm?.invariants.fieldFalsePositiveCritical ??
         result.fiscalKnowledge?.invariants.fieldFalsePositiveCritical ??
+        0,
+      knowledgePromotedToUserFact:
+        fiscalVm?.invariants.knowledgePromotedToUserFact ??
+        result.fiscalKnowledge?.invariants.knowledgePromotedToUserFact ??
+        0,
+      requirementPromotedToObligation:
+        fiscalVm?.invariants.requirementPromotedToObligation ??
+        result.fiscalKnowledge?.invariants.requirementPromotedToObligation ??
+        0,
+      candidateFactPromotedToCertain:
+        fiscalVm?.invariants.candidateFactPromotedToCertain ??
+        result.fiscalKnowledge?.invariants.candidateFactPromotedToCertain ??
+        0,
+      unsupportedEligibilityDecision:
+        fiscalVm?.invariants.unsupportedEligibilityDecision ??
+        result.fiscalKnowledge?.invariants.unsupportedEligibilityDecision ??
+        0,
+      unsupportedTaxAmount:
+        fiscalVm?.invariants.unsupportedTaxAmount ??
+        result.fiscalKnowledge?.invariants.unsupportedTaxAmount ??
+        0,
+      automaticUnsafeAggregation:
+        fiscalVm?.invariants.automaticUnsafeAggregation ??
+        result.fiscalKnowledge?.invariants.automaticUnsafeAggregation ??
+        0,
+      missingPresentedAsUserDoesNotHave:
+        fiscalVm?.invariants.missingPresentedAsUserDoesNotHave ??
+        result.fiscalKnowledge?.invariants.missingPresentedAsUserDoesNotHave ??
         0
     }
   };

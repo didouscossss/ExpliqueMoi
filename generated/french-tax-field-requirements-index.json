@@ -1,0 +1,22 @@
+{
+  "version": "2026.08.08-v4q1",
+  "generatedAt": "2026-08-08T20:36:31.892Z",
+  "byCode": {
+    "1AJ": "fr-tax-req-1aj",
+    "1BJ": "fr-tax-req-1bj",
+    "4BA": "fr-tax-req-4ba",
+    "4BB": "fr-tax-req-4bb",
+    "4BC": "fr-tax-req-4bc",
+    "7DB": "fr-tax-req-7db",
+    "7DR": "fr-tax-req-7dr"
+  },
+  "counts": {
+    "entries": 7,
+    "verified": 7,
+    "partiallyVerified": 0,
+    "needsReview": 0,
+    "requirements": 24,
+    "supportingDocuments": 15,
+    "generalConditions": 10
+  }
+}

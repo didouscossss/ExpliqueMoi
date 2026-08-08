@@ -147,3 +147,46 @@ export {
   getPriorityTaxField
 } from "./fr/tax/fields/priorityFields.js";
 export { auditTaxFieldRegistry } from "./fr/tax/fields/qualityAudit.js";
+export {
+  FRENCH_TAX_FIELD_REQUIREMENTS_VERSION,
+  buildSeedRequirementsRegistry,
+  loadFrenchTaxFieldRequirementsRegistry,
+  resetFrenchTaxFieldRequirementsCacheForTests,
+  lookupRequirementsByCode
+} from "./fr/tax/fields/requirements/loadRegistry.js";
+export {
+  lookupTaxFieldRequirements,
+  knownRequirementFieldCodes,
+  type TaxFieldRequirementsLookupQuery,
+  type TaxFieldRequirementsLookupResult
+} from "./fr/tax/fields/requirements/lookup.js";
+export {
+  PRIORITY_TAX_FIELD_REQUIREMENTS,
+  getPriorityTaxFieldRequirements
+} from "./fr/tax/fields/requirements/priorityRequirements.js";
+export { auditTaxFieldRequirementsRegistry } from "./fr/tax/fields/requirements/qualityAudit.js";
+export {
+  buildDocumentFactIndex,
+  resetRequirementFactIdsForTests,
+  type IndexedAnalyzedDocument
+} from "./fr/tax/fields/requirements/documentFactIndex.js";
+export {
+  findCandidateFactsForRequirement,
+  refuseUnsafeAggregation
+} from "./fr/tax/fields/requirements/matchRequirements.js";
+export {
+  buildTaxFieldQuestions,
+  selectPriorityQuestions,
+  MAX_PRIORITY_QUESTIONS
+} from "./fr/tax/fields/requirements/buildQuestions.js";
+export {
+  buildTaxFieldAssistance,
+  buildTaxAssistanceContext,
+  buildAssistanceForDetectedFields
+} from "./fr/tax/fields/requirements/buildFieldAssistance.js";
+export { checkTaxFieldAssistanceSafety } from "./fr/tax/fields/requirements/safety.js";
+export {
+  assistFieldWithLlm,
+  explainRequirementsWithContext,
+  decideFieldApplicability
+} from "./fr/tax/fields/requirements/premiumBoundary.js";

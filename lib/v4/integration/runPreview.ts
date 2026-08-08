@@ -112,7 +112,14 @@ export function runV4PreviewAnalysis(
       (inv.unsupportedUserActions || 0) !== 0 ||
       (inv.taxFieldKnowledgePromotedToFact || 0) !== 0 ||
       (inv.emptyFieldConvertedToZero || 0) !== 0 ||
-      (inv.fieldFalsePositiveCritical || 0) !== 0
+      (inv.fieldFalsePositiveCritical || 0) !== 0 ||
+      (inv.knowledgePromotedToUserFact || 0) !== 0 ||
+      (inv.requirementPromotedToObligation || 0) !== 0 ||
+      (inv.candidateFactPromotedToCertain || 0) !== 0 ||
+      (inv.unsupportedEligibilityDecision || 0) !== 0 ||
+      (inv.unsupportedTaxAmount || 0) !== 0 ||
+      (inv.automaticUnsafeAggregation || 0) !== 0 ||
+      (inv.missingPresentedAsUserDoesNotHave || 0) !== 0
     ) {
       return {
         ok: false,

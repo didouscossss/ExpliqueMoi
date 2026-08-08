@@ -6466,6 +6466,7 @@
                                 )}</p>`
                               : ""
                           }
+                          <p style="color:var(--muted);font-size:0.88rem;margin-top:0.35rem">À quoi sert cette case ?</p>
                           ${
                             f.explanation
                               ? `<p>${escapeHtml(f.explanation)}</p>`
@@ -6474,6 +6475,123 @@
                           ${roleLine}
                           ${valueLine}
                           ${pageLine}
+                          ${
+                            f.information_status_label
+                              ? `<p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                                  f.information_status_label
+                                )}</p>`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.missing_requirements) &&
+                            f.missing_requirements.length
+                              ? `<p style="margin-top:0.55rem"><strong>Pour mieux comprendre votre situation</strong></p>
+                                 <ul class="fiscal-list">${f.missing_requirements
+                                   .slice(0, 4)
+                                   .map(
+                                     (r) =>
+                                       `<li>${escapeHtml(r.label)} — ${escapeHtml(
+                                         r.status_label ||
+                                           "non retrouvée dans les éléments analysés"
+                                       )}</li>`
+                                   )
+                                   .join("")}</ul>`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.ambiguous_requirements) &&
+                            f.ambiguous_requirements.length
+                              ? `<p style="margin-top:0.55rem"><strong>Informations à vérifier</strong></p>
+                                 <ul class="fiscal-list">${f.ambiguous_requirements
+                                   .slice(0, 3)
+                                   .map(
+                                     (r) =>
+                                       `<li>${escapeHtml(r.label)} — ${escapeHtml(
+                                         r.status_label || "ambiguë"
+                                       )}</li>`
+                                   )
+                                   .join("")}</ul>`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.supporting_documents) &&
+                            f.supporting_documents.length
+                              ? `<p style="margin-top:0.55rem"><strong>Documents qui peuvent être utiles</strong></p>
+                                 <ul class="fiscal-list">${f.supporting_documents
+                                   .slice(0, 4)
+                                   .map(
+                                     (s) =>
+                                       `<li>${escapeHtml(s.label)}${
+                                         s.normative
+                                           ? ""
+                                           : ' <span style="color:var(--muted)">(suggestion générique)</span>'
+                                       }</li>`
+                                   )
+                                   .join("")}</ul>`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.general_conditions) &&
+                            f.general_conditions.length
+                              ? `<p style="margin-top:0.55rem"><strong>Conditions générales associées</strong></p>
+                                 <p style="color:var(--muted);font-size:0.88rem">Cette rubrique peut dépendre de certaines conditions.</p>
+                                 <ul class="fiscal-list">${f.general_conditions
+                                   .slice(0, 2)
+                                   .map((c) => `<li>${escapeHtml(c)}</li>`)
+                                   .join("")}</ul>`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.candidate_fact_notes) &&
+                            f.candidate_fact_notes.length
+                              ? `<ul class="fiscal-list">${f.candidate_fact_notes
+                                  .map((n) => `<li>${escapeHtml(n)}</li>`)
+                                  .join("")}</ul>`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.priority_questions) &&
+                            f.priority_questions.length
+                              ? `<p style="margin-top:0.55rem"><strong>Points que je peux vous demander de préciser</strong></p>
+                                 <ul class="fiscal-list">${f.priority_questions
+                                   .map(
+                                     (q) =>
+                                       `<li>${escapeHtml(q.question)}</li>`
+                                   )
+                                   .join("")}</ul>
+                                 ${
+                                   f.more_questions_count > 0
+                                     ? `<p style="color:var(--muted);font-size:0.88rem">Voir les autres informations à vérifier (${escapeHtml(
+                                         String(f.more_questions_count)
+                                       )})</p>`
+                                     : ""
+                                 }`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.official_sources) &&
+                            f.official_sources.length
+                              ? `<p style="margin-top:0.55rem"><strong>Sources officielles</strong></p>
+                                 <ul class="fiscal-list">${f.official_sources
+                                   .map(
+                                     (s) =>
+                                       `<li><a href="${escapeHtml(
+                                         s.url
+                                       )}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+                                         s.title
+                                       )}</a></li>`
+                                   )
+                                   .join("")}</ul>`
+                              : ""
+                          }
+                          <p style="margin-top:0.65rem">
+                            <button type="button" class="secondary-btn fiscal-premium-cta" disabled title="Bientôt disponible">
+                              ${escapeHtml(
+                                f.understand_cta_label ||
+                                  "M’aider à comprendre cette case"
+                              )}
+                            </button>
+                          </p>
                           ${warnLine}
                         </div>
                       </details>

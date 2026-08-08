@@ -24,6 +24,8 @@ import {
 import { detectFrenchTaxFields } from "./fields/detectFields.js";
 import { explainDetectedTaxFields } from "./fields/explainTaxField.js";
 import { loadFrenchTaxFieldRegistry } from "./fields/loadRegistry.js";
+import { buildAssistanceForDetectedFields } from "./fields/requirements/buildFieldAssistance.js";
+import { loadFrenchTaxFieldRequirementsRegistry } from "./fields/requirements/loadRegistry.js";
 
 const FAMILY_TO_TYPE: Partial<Record<FrenchTaxFamily, DocumentTypeId>> = {
   incomeTaxReturn: "incomeTaxReturn",
@@ -156,12 +158,51 @@ export function analyzeFiscalKnowledge(
   const detectedFields = detectFrenchTaxFields(blocks, preliminary);
   const fieldExplanations = explainDetectedTaxFields(detectedFields);
   const fieldRegistry = loadFrenchTaxFieldRegistry();
+  const requirementsRegistry = loadFrenchTaxFieldRequirementsRegistry();
+
+  const primaryRef =
+    primaryIdentity?.normalized ||
+    detectedFields.find((d) => d.documentRefHint)?.documentRefHint ||
+    null;
+  const yearHint =
+    detectedFields.find((d) => d.yearHint)?.yearHint ||
+    (() => {
+      const m = text.match(/\b(202[4-6])\b/);
+      return m ? Number(m[1]) : null;
+    })();
+
+  const fieldAssistance = buildAssistanceForDetectedFields(
+    detectedFields,
+    fieldExplanations,
+    {
+      documentRef: primaryRef,
+      year: yearHint,
+      documents: [
+        {
+          id: "primary",
+          label: "Document analysé",
+          documentType: suggestedDocumentType || "taxForm",
+          year: yearHint,
+          text: blocks.map((b) => b.text).join("\n"),
+          detectedFields
+        }
+      ]
+    }
+  );
 
   let taxFieldKnowledgePromotedToFact = 0;
   let unsupportedFieldValues = 0;
   let emptyFieldConvertedToZero = 0;
   let unverifiedFieldDefinitionPresentedAsVerified = 0;
   let fieldFalsePositiveCritical = 0;
+  let knowledgePromotedToUserFact = 0;
+  let requirementPromotedToObligation = 0;
+  let candidateFactPromotedToCertain = 0;
+  let unsupportedEligibilityDecision = 0;
+  let unsupportedTaxAmount = 0;
+  let automaticUnsafeAggregation = 0;
+  let missingPresentedAsUserDoesNotHave = 0;
+
   for (const fe of fieldExplanations) {
     taxFieldKnowledgePromotedToFact += fe.invariants.taxFieldKnowledgePromotedToFact;
     unsupportedFieldValues += fe.invariants.unsupportedFieldValues;
@@ -175,19 +216,41 @@ export function analyzeFiscalKnowledge(
       fieldFalsePositiveCritical += 1;
     }
   }
+  for (const fa of fieldAssistance) {
+    knowledgePromotedToUserFact += fa.invariants.knowledgePromotedToUserFact;
+    requirementPromotedToObligation +=
+      fa.invariants.requirementPromotedToObligation;
+    candidateFactPromotedToCertain +=
+      fa.invariants.candidateFactPromotedToCertain;
+    unsupportedEligibilityDecision +=
+      fa.invariants.unsupportedEligibilityDecision;
+    unsupportedTaxAmount += fa.invariants.unsupportedTaxAmount;
+    automaticUnsafeAggregation += fa.invariants.automaticUnsafeAggregation;
+    missingPresentedAsUserDoesNotHave +=
+      fa.invariants.missingPresentedAsUserDoesNotHave;
+  }
 
   return {
     ...preliminary,
     detectedFields,
     fieldExplanations,
     fieldRegistryVersion: fieldRegistry.version,
+    fieldAssistance,
+    requirementsRegistryVersion: requirementsRegistry.version,
     invariants: {
       ...preliminary.invariants,
       taxFieldKnowledgePromotedToFact,
       unsupportedFieldValues,
       emptyFieldConvertedToZero,
       unverifiedFieldDefinitionPresentedAsVerified,
-      fieldFalsePositiveCritical
+      fieldFalsePositiveCritical,
+      knowledgePromotedToUserFact,
+      requirementPromotedToObligation,
+      candidateFactPromotedToCertain,
+      unsupportedEligibilityDecision,
+      unsupportedTaxAmount,
+      automaticUnsafeAggregation,
+      missingPresentedAsUserDoesNotHave
     }
   };
 }

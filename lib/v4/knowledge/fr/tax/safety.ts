@@ -93,6 +93,35 @@ export function checkFiscalKnowledgeSafety(
   if ((analysis.invariants.fieldFalsePositiveCritical || 0) > 0) {
     violations.push("fieldFalsePositiveCritical");
   }
+  if ((analysis.invariants.knowledgePromotedToUserFact || 0) > 0) {
+    violations.push("knowledgePromotedToUserFact");
+  }
+  if ((analysis.invariants.requirementPromotedToObligation || 0) > 0) {
+    violations.push("requirementPromotedToObligation");
+  }
+  if ((analysis.invariants.candidateFactPromotedToCertain || 0) > 0) {
+    violations.push("candidateFactPromotedToCertain");
+  }
+  if ((analysis.invariants.unsupportedEligibilityDecision || 0) > 0) {
+    violations.push("unsupportedEligibilityDecision");
+  }
+  if ((analysis.invariants.unsupportedTaxAmount || 0) > 0) {
+    violations.push("unsupportedTaxAmount");
+  }
+  if ((analysis.invariants.automaticUnsafeAggregation || 0) > 0) {
+    violations.push("automaticUnsafeAggregation");
+  }
+  if ((analysis.invariants.missingPresentedAsUserDoesNotHave || 0) > 0) {
+    violations.push("missingPresentedAsUserDoesNotHave");
+  }
+  for (const fa of analysis.fieldAssistance || []) {
+    if (fa.suggestedDeclaredAmount != null) {
+      violations.push(`suggestedDeclaredAmount:${fa.fieldCode}`);
+    }
+    if (fa.eligibilityDecision != null) {
+      violations.push(`eligibilityDecision:${fa.fieldCode}`);
+    }
+  }
 
   return { ok: violations.length === 0, violations };
 }
