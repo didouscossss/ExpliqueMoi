@@ -805,27 +805,8 @@ export function selectAmountFields(text: string): AmountFieldSelection {
   pushF(toFinding(amountTTC, "TTC"));
   pushF(toFinding(amountToPay, "montant_a_payer"));
   pushF(toFinding(netToPay, "net_a_payer"));
-
-  // Conserve aussi les autres candidats monétaires pour EvidenceBuilder
-  for (const cand of candidates) {
-    if (!hasMoneyDecimals(cand)) continue;
-    if (amounts.some((a) => a.value === cand.value)) continue;
-    amounts.push({
-      raw: cand.raw,
-      value: cand.value,
-      currency: "EUR",
-      label: cand.tags.includes("ht")
-        ? "HT"
-        : cand.tags.includes("tva")
-          ? "TVA"
-          : cand.tags.includes("ttc") || cand.tags.includes("payable")
-            ? "TTC"
-            : "autre",
-      rank: cand.score,
-      page: null,
-      reasons: cand.reasons
-    });
-  }
+  // Ne PAS pousser les candidats orphelins (label « autre ») :
+  // ils polluaient EvidenceBuilder avec des nombres isolés (ex. « 16.79 »).
 
   return {
     amountHT: ht?.value ?? null,

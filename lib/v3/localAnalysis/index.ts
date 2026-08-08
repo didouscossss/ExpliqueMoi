@@ -5,7 +5,12 @@
 export { LocalAnalysisEngine } from "./LocalAnalysisEngine.js";
 export type { LocalAnalysisInput } from "./LocalAnalysisEngine.js";
 export { detectDocumentType } from "./documentType.js";
-export { buildLocalEvidence } from "./evidence.js";
+export {
+  buildLocalEvidence,
+  findBestSourceLine,
+  isIsolatedNumericQuote,
+  normalizeQuoteKey
+} from "./evidence.js";
 export { buildFactualSummary } from "./factualSummary.js";
 export {
   debugAmountPipeline,

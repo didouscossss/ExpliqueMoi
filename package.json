@@ -21,8 +21,9 @@
     "test:v3-amount-ranking": "tsx scripts/test-v3-amount-ranking.mjs",
     "test:v3-pdfjs-pipeline": "tsx scripts/test-v3-pdfjs-pipeline.mjs",
     "test:v3-vat-rate-dates": "tsx scripts/test-v3-vat-rate-dates.mjs",
+    "test:v3-evidence-quality": "tsx scripts/test-v3-evidence-quality.mjs",
     "test:v3-audit-no-ai": "tsx scripts/audit-v3-no-ai.mjs",
-    "test:v3": "npm run test:v3-local && npm run test:v3-front-map && npm run test:v3-amount-ranking && npm run test:v3-pdfjs-pipeline && npm run test:v3-vat-rate-dates && npm run test:v3-degraded && npm run test:v3-audit-no-ai"
+    "test:v3": "npm run test:v3-local && npm run test:v3-front-map && npm run test:v3-amount-ranking && npm run test:v3-pdfjs-pipeline && npm run test:v3-vat-rate-dates && npm run test:v3-evidence-quality && npm run test:v3-degraded && npm run test:v3-audit-no-ai"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",

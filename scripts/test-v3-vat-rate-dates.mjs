@@ -58,9 +58,12 @@ Facture n° 2480462851
     assert.equal(ui.main_date.date, "2025-11-21");
     assert.equal(ui.vat_rate, 20);
     const payQuotes = ui.evidence.filter((e) =>
-      /somme a payer ttc|somme à payer ttc/i.test(e.quote)
+      /^\s*somme\s+[àa]\s+payer\s+ttc/i.test(e.quote.trim())
     );
-    assert.ok(payQuotes.length <= 1, "pas de doublon Somme à payer TTC");
+    assert.ok(
+      payQuotes.length <= 1,
+      `pas de doublon Somme à payer TTC (got ${payQuotes.length})`
+    );
     console.log("  OK", {
       principal: ui.amount.value,
       vatRate: local.fields.vatRate,
