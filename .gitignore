@@ -6,3 +6,6 @@ node_modules/
 *.log
 .DS_Store
 /tmp/
+
+# Tesseract language data downloaded at runtime
+*.traineddata
