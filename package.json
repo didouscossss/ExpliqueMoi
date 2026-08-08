@@ -17,8 +17,9 @@
     "test:v4-consistency": "tsx scripts/test-v4-consistency.mjs",
     "test:v4-classification": "tsx scripts/test-v4-classification.mjs",
     "test:v4-profiles": "tsx scripts/test-v4-profiles.mjs",
+    "test:v4-understanding": "tsx scripts/test-v4-understanding.mjs",
     "test:v4-typecheck": "tsc -p tsconfig.v4.json --noEmit",
-    "test:v4": "npm run test:v4-typecheck && npm run test:v4-types && npm run test:v4-candidates && npm run test:v4-consistency && npm run test:v4-classification && npm run test:v4-profiles"
+    "test:v4": "npm run test:v4-typecheck && npm run test:v4-types && npm run test:v4-candidates && npm run test:v4-consistency && npm run test:v4-classification && npm run test:v4-profiles && npm run test:v4-understanding"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",

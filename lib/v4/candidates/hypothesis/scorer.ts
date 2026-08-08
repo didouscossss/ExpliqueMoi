@@ -344,7 +344,11 @@ function scoreActionRole(
   if (!ctx) return { role, score: sumScore(reasons), reasons };
   const L = lex(ctx);
   if (role === "requestedAction") {
-    if (/merci\s+de|veuillez|vous\s+devez|nous\s+vous\s+prions/.test(L.same)) {
+    if (
+      /merci\s+de|remercions\s+de|veuillez|vous\s+devez|nous\s+vous\s+prions|transmettre/.test(
+        L.same
+      )
+    ) {
       pushReason(reasons, "sameLineLabel:imperative", 0.45);
     }
     if (/avant\s+le|au\s+plus\s+tard|dans\s+un\s+delai/.test(L.same)) {

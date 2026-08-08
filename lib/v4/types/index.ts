@@ -78,5 +78,21 @@ export type {
   DocumentProfile
 } from "./documentProfile.js";
 
+export type {
+  UnderstandingClaimStatus,
+  PurposeKind,
+  PartyRole,
+  WarningKind,
+  UnderstandingItem,
+  DocumentIdentity,
+  ActionUnderstanding,
+  UnderstandingWarning,
+  UnderstandingUncertainty,
+  SectionUnderstanding,
+  EvidenceCoverage,
+  StructuredSummary,
+  DocumentUnderstanding
+} from "./documentUnderstanding.js";
+
 export type { DocumentSessionInit } from "./documentSession.js";
 export { DocumentSession } from "./documentSession.js";

@@ -7,10 +7,12 @@ import type { ExtractionHit } from "./types.js";
 
 const ACTION_PATTERNS: RegExp[] = [
   /merci\s+de\s+([^.\n]{5,80})/gi,
+  /nous\s+vous\s+remercions\s+de\s+([^.\n]{5,100})/gi,
   /veuillez\s+([^.\n]{5,80})/gi,
   /nous\s+vous\s+prions\s+de\s+([^.\n]{5,80})/gi,
   /vous\s+devez\s+([^.\n]{5,80})/gi,
-  /doit\s+([^.\n]{5,60})/gi
+  /doit\s+([^.\n]{5,60})/gi,
+  /transmettre\s+([^.\n]{5,80})/gi
 ];
 
 export function extractActionHits(blocks: readonly TextBlock[]): ExtractionHit[] {
