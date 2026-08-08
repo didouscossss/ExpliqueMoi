@@ -14,7 +14,9 @@ const ACTION_PATTERNS: RegExp[] = [
   /nous\s+vous\s+prions\s+de\s+([^.\n]{5,80})/gi,
   /vous\s+devez\s+([^.\n]{5,80})/gi,
   /(?<!ne\s)(?<!n['’])doit\s+([^.\n]{5,60})/gi,
-  /transmettre\s+([^.\n]{5,80})/gi
+  /transmettre\s+([^.\n]{5,80})/gi,
+  // Impératifs de démarche (formulaires) — pas les négations (filtrées à part)
+  /\b((?:retournez|transmettez|envoyez|compl[eé]tez|joignez)\s+[^.\n]{5,80})/gi
 ];
 
 /** Négation / éventualité : ne pas extraire d’obligation. */

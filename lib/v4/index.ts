@@ -10,7 +10,9 @@
  * V4-G : DocumentExplanation déterministe et traçable
  * V4-H : UserPresentation — formulation utilisateur déterministe
  * V4-I : Pipeline end-to-end + diagnostics
- * V3 / V2 inchangées. Aucun branchement UI. Aucun provider IA.
+ * V4-J : Stress / robustesse
+ * V4-K : Intégration Preview contrôlée (feature flag, adaptateur, mapper)
+ * V3 inchangée par défaut (USE_V4_ENGINE=false).
  */
 
 export * from "./types/index.js";
@@ -22,3 +24,4 @@ export * from "./understanding/index.js";
 export * from "./explanation/index.js";
 export * from "./presentation/index.js";
 export * from "./pipeline/index.js";
+export * from "./integration/index.js";

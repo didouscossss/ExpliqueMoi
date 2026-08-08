@@ -23,6 +23,10 @@ import {
 import { analyzeLongPdf } from "../lib/longPdfAnalysis.js";
 import { buildAnalysisPrompt } from "../lib/analysisPrompt.js";
 import { enrichAnalysisResult } from "../lib/analysisEnrichment.js";
+import {
+  isV4EngineEnabled,
+  runV4PreviewAnalysis
+} from "../lib/v4PreviewAnalysis.js";
 
 // Limite unique côté document : 4 Mo (pas de limite de pages PDF).
 const MAX_FILE_SIZE = MAX_DOCUMENT_SIZE;
@@ -224,6 +228,59 @@ export default async function handler(request, response) {
         pageError.message ||
           `La page « ${pageError.name || "?"} » n’a pas pu être lue.`
       );
+    }
+
+    // -------- V4-K : chemin Preview contrôlé (feature flag) --------
+    // USE_V4_ENGINE=false (défaut) → V3 inchangé ci-dessous.
+    // unknown / faible confiance V4 ≠ erreur technique (pas de fallback auto).
+    if (isV4EngineEnabled(request)) {
+      const v4Run = runV4PreviewAnalysis({
+        pages: requestContext.pages,
+        pastedText: text
+      });
+
+      requestContext.diagnostics.push({
+        step: "v4_preview",
+        ok: v4Run.ok,
+        fallbackReason: v4Run.ok ? null : v4Run.fallbackReason,
+        message: v4Run.ok ? null : v4Run.message
+      });
+
+      if (v4Run.ok) {
+        const validated = {
+          ...v4Run.analysis,
+          // enrichissement V3 léger désactivé : mapping V4 déjà au format Preview
+          tables: normalizeTables(v4Run.analysis.tables || []),
+          page_errors: requestContext.pageErrors,
+          heterogeneous: heterogeneous === true,
+          engine: "v4"
+        };
+
+        const mergedWarnings = [
+          ...requestContext.warnings,
+          ...(v4Run.warnings || [])
+        ];
+
+        return response.status(200).json(
+          succeed(validated, mergedWarnings, {
+            ...v4Run.pdfProcessing,
+            diagnostics: [
+              ...(v4Run.pdfProcessing.diagnostics || []),
+              ...requestContext.diagnostics
+            ]
+          })
+        );
+      }
+
+      // Erreur technique V4 uniquement → fallback V3 (Preview), non silencieux
+      requestContext.warnings.push(
+        `Analyse V4 indisponible (${v4Run.fallbackReason || "erreur"}) — bascule sur le moteur V3.`
+      );
+      requestContext.diagnostics.push({
+        step: "v4_fallback_v3",
+        fallbackReason: v4Run.fallbackReason,
+        message: v4Run.message
+      });
     }
 
     const pdfOnly =

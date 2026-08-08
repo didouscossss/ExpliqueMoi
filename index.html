@@ -5657,8 +5657,18 @@
           "Aucune demande certaine.",
 
         whyReceived:
-          cleanText(data?.why_received) ||
-          "Raison non indiquée.",
+          data?.engine === "v4"
+            ? cleanText(data?.why_received)
+            : cleanText(data?.why_received) ||
+              "Raison non indiquée.",
+
+        engine:
+          cleanText(data?.engine) || "v3",
+
+        v4Debug:
+          data?.v4_debug && typeof data.v4_debug === "object"
+            ? data.v4_debug
+            : null,
 
         actions:
           normalizeActions(data?.actions),
@@ -6032,11 +6042,13 @@
         analysis.request;
 
       renderActions(
-        analysis.actions
+        analysis.actions,
+        analysis
       );
 
       renderMainDate(
-        analysis.dates
+        analysis.dates,
+        analysis
       );
 
       $("mainAmount").textContent =
@@ -6050,7 +6062,9 @@
       );
 
       $("whyReceived").textContent =
-        analysis.whyReceived;
+        analysis.engine === "v4" && !analysis.whyReceived
+          ? "Non indiqué dans le document."
+          : analysis.whyReceived;
 
       renderEvidence(
         analysis.evidence
@@ -6063,6 +6077,14 @@
       updateUnderstandingDisplay(
         analysis
       );
+
+      // Diagnostic Preview V4 — console uniquement (pas d’écran prod)
+      if (analysis.engine === "v4" || analysis.v4Debug) {
+        console.info("[ExpliqueMoi V4 Preview]", {
+          engine: analysis.engine || "v4",
+          ...(analysis.v4Debug || {})
+        });
+      }
     }
 
     function getCategory(documentType) {
@@ -6323,16 +6345,24 @@
           : "Lire la suite";
     }
 
-    function renderActions(actions) {
+    function renderActions(actions, analysis) {
       const list =
         $("actionList");
 
       list.innerHTML = "";
 
+      const isV4 = analysis?.engine === "v4";
+
       const values =
         actions.length
           ? actions
-          : [{
+          : isV4
+            ? [{
+                action:
+                  "Aucune action explicite n’a été détectée dans ce document.",
+                how: ""
+              }]
+            : [{
               action:
                 "Aucune action certaine n’a été identifiée.",
 
@@ -6374,7 +6404,7 @@
       });
     }
 
-    function renderMainDate(dates) {
+    function renderMainDate(dates, analysis) {
       if (!dates.length) {
         $("mainDate").textContent =
           "Non trouvée";
@@ -6385,12 +6415,16 @@
         return;
       }
 
+      // V4 : respecter l’ordre UserPresentation — pas de choix
+      // « première / dernière / plus récente » côté UI.
       const date =
-        dates.find((item) =>
-          /limite|échéance|paiement|réponse|avant/i.test(
-            `${item.label} ${item.meaning}`
-          )
-        ) || dates[0];
+        analysis?.engine === "v4"
+          ? dates[0]
+          : dates.find((item) =>
+              /limite|échéance|paiement|réponse|avant/i.test(
+                `${item.label} ${item.meaning}`
+              )
+            ) || dates[0];
 
       $("mainDate").textContent =
         date.date;
