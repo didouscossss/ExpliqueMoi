@@ -66,6 +66,14 @@ function isReliableIssuer(name: string | null | undefined): string | null {
   if (/^\d/.test(cleaned) || /\b\d+[.,]\d{2}\b/.test(cleaned)) return null;
   if (/\beuros?\b/i.test(cleaned) && /\d/.test(cleaned)) return null;
   if (/^(SASU|SAS|SARL|EURL|SA|SCI|SNC)\s*$/i.test(cleaned)) return null;
+  // Destinataire / civilité ≠ émetteur
+  if (
+    /^(m\.?|mr\.?|mme\.?|mlle\.?|monsieur|madame|mademoiselle)\s+/i.test(
+      cleaned
+    )
+  ) {
+    return null;
+  }
   return cleaned;
 }
 

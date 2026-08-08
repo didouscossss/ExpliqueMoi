@@ -25,6 +25,7 @@ export {
   extractDates,
   extractIban,
   extractInvoiceNumber,
+  extractLegalIssuer,
   extractSiret,
   isPlausibleIban,
   isValidSiret,

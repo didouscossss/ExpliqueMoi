@@ -52,7 +52,7 @@ export function extractDates(text: string): {
 
   const numeric = [
     ...text.matchAll(
-      /(?:date(?:\s*d['’]émission|\s*du\s*document|\s*de\s*pr[ée]l[èe]vement|\s*de\s*facture)?|émise?\s+le|fait\s+le|en\s+date\s+du|pr[ée]l[èe]vement)\s*[:=]?\s*(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})|(?:^|[^\d])(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})(?!\d)/gi
+      /(?:date(?:\s*d['’]émission|\s*du\s*document|\s*de\s*pr[ée]l[èe]vement|\s*de\s*facture)?|émise?\s+le|fait\s+le|en\s+date\s+du|facture\s+du|pr[ée]l[èe]vement)\s*[:=]?\s*(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})|(?:^|[^\d])(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})(?!\d)/gi
     )
   ];
   for (const match of numeric) {
@@ -67,7 +67,11 @@ export function extractDates(text: string): {
       label = "deadline";
     } else if (/pr[ée]l[èe]vement/i.test(match[0])) {
       label = "payment_date";
-    } else if (/émission|emise|fait\s+le|date\s+d['’]?émission|date\s+de\s+facture/i.test(match[0])) {
+    } else if (
+      /émission|emise|fait\s+le|date\s+d['’]?émission|date\s+de\s+facture|facture\s+du/i.test(
+        match[0]
+      )
+    ) {
       label = "issue_date";
     } else if (/date/i.test(match[0])) {
       label = "document_date";
@@ -529,65 +533,184 @@ function isUsableCompanyName(name: string | null): name is string {
   return true;
 }
 
-export function extractCompanyName(text: string): string | null {
-  const labeled = text.match(
-    /(?:émetteur|emetteur|société|societe|entreprise|vendeur|prestataire)\s*[:=]\s*([^\n]+)/i
+/** Civilité + nom : destinataire / client, pas émetteur. */
+function isPersonRecipientLine(line: string): boolean {
+  const t = String(line || "").trim();
+  if (!t) return false;
+  if (
+    /^(m\.?|mr\.?|mme\.?|mlle\.?|monsieur|madame|mademoiselle)\s+[a-zàâäéèêëïîôùûüç]/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  // « M CHAMPION VALENTIN » (civilité courte + NOM en capitales)
+  if (/^(m\.?|mr\.?|mme\.?)\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ'’\-]+(?:\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ'’\-]+){0,4}$/.test(
+    t
+  )) {
+    return true;
+  }
+  return false;
+}
+
+function isCoordonneesHeading(line: string): boolean {
+  return /vos\s+coordonn[eé]es|coordonn[eé]es\s*(du\s*client)?|adress[eé]\s*de\s*facturation|destinataire/i.test(
+    line
   );
-  if (labeled?.[1] && !isLegalCapitalLine(labeled[1])) {
-    const name = cleanName(labeled[1]);
-    if (isUsableCompanyName(name)) {
-      return name;
+}
+
+/** Indices de lignes à exclure comme émetteur (bloc client). */
+function clientBlockLineIndexes(lines: string[]): Set<number> {
+  const skip = new Set<number>();
+  for (let i = 0; i < lines.length; i += 1) {
+    if (isCoordonneesHeading(lines[i]) || /^(client|destinataire)\b/i.test(lines[i].trim())) {
+      for (let j = i; j <= Math.min(lines.length - 1, i + 5); j += 1) {
+        skip.add(j);
+      }
+    }
+    if (isPersonRecipientLine(lines[i])) {
+      skip.add(i);
     }
   }
+  return skip;
+}
 
-  for (const line of linesOf(text).slice(0, 12)) {
-    if (isLegalCapitalLine(line)) {
-      continue;
-    }
-    // « SAS DUPONT » OK — « SAS au capital de … » rejeté
-    const form = line.match(
-      /\b((?:SASU|SAS|SARL|EURL|SA|SCI|SNC)\s+(?!au\s+capital)[A-Z0-9ÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ&'’.\- ]{1,60})/i
-    );
+export function extractLegalIssuer(text: string): string | null {
+  const lines = linesOf(text);
+  const skip = clientBlockLineIndexes(lines);
+  for (let i = 0; i < lines.length; i += 1) {
+    if (skip.has(i)) continue;
+    const line = lines[i];
+    if (isLegalCapitalLine(line)) continue;
+    // « SAS DUPONT … » ou « Orange SA » / « Acme SAS » (même ligne)
+    const form =
+      line.match(
+        /\b((?:SASU|SAS|SARL|EURL|SA|SCI|SNC)[ \t]+(?!au[ \t]+capital)[A-Z0-9ÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ&'’.\- ]{1,60})/i
+      ) ||
+      line.match(
+        /\b([A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ&'’.\-]{1,40}[ \t]+(?:SASU|SAS|SARL|EURL|SA))\b/
+      );
     if (form?.[1] && !isLegalCapitalLine(form[1])) {
       const name = cleanName(form[1]);
-      if (isUsableCompanyName(name)) {
+      if (isUsableCompanyName(name) && !isPersonRecipientLine(name)) {
         return name;
       }
     }
   }
+  // Texte aplati (espaces, pas de retour ligne entre marque et forme)
+  const flat =
+    String(text || "").match(
+      /\b((?:SASU|SAS|SARL|EURL|SA)[ \t]+(?!au[ \t]+capital)[A-Z0-9ÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ&'’.\- ]{1,40})/i
+    ) ||
+    String(text || "").match(
+      /\b([A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ&'’.\-]{1,40}[ \t]+(?:SASU|SAS|SARL|EURL|SA))\b/
+    );
+  if (flat?.[1] && !isLegalCapitalLine(flat[1])) {
+    const name = cleanName(flat[1]);
+    if (isUsableCompanyName(name) && !isPersonRecipientLine(name)) {
+      return name;
+    }
+  }
+  return null;
+}
 
-  // Première ligne « titre » hors mots-clés document
-  for (const line of linesOf(text).slice(0, 8)) {
+export function extractCompanyName(text: string): string | null {
+  const client = extractClientName(text);
+  const labeled = text.match(
+    /(?:émetteur|emetteur|société|societe|entreprise|vendeur|prestataire|marque)\s*[:=]\s*([^\n]+)/i
+  );
+  if (labeled?.[1] && !isLegalCapitalLine(labeled[1])) {
+    const name = cleanName(labeled[1]);
+    if (
+      isUsableCompanyName(name) &&
+      !isPersonRecipientLine(name) &&
+      (!client || normalizeCompact(name) !== normalizeCompact(client))
+    ) {
+      return name;
+    }
+  }
+
+  // Marque en tête de document juste avant « Facture » (OCR aplati inclus)
+  const leadingBrand = String(text || "").match(
+    /^\s*([A-Za-zÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ]{1,28})\s+(?:facture|invoice|by)\b/im
+  );
+  if (leadingBrand?.[1]) {
+    const name = cleanName(leadingBrand[1]);
+    if (
+      isUsableCompanyName(name) &&
+      !isPersonRecipientLine(name) &&
+      !/^(facture|devis|total|date|montant)$/i.test(name) &&
+      (!client || normalizeCompact(name) !== normalizeCompact(client))
+    ) {
+      return name;
+    }
+  }
+
+  // « MARQUE SAS au capital de … » en tête de document (pas le bas de page légal)
+  const brandBeforeLegal = String(text || "").match(
+    /\b([A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-Za-zÉÈÊËÀÂÄÔÖÙÛÜÇ0-9][A-Za-zÉÈÊËÀÂÄÔÖÙÛÜÇ0-9 &'’.\-]{0,40}?)[ \t]+(?:SASU|SAS|SARL|EURL|SA)[ \t]+au[ \t]+capital\b/m
+  );
+  if (
+    brandBeforeLegal?.[1] &&
+    (brandBeforeLegal.index ?? 0) < 220
+  ) {
+    const name = cleanName(brandBeforeLegal[1]);
+    if (
+      isUsableCompanyName(name) &&
+      !isPersonRecipientLine(name) &&
+      (!client || normalizeCompact(name) !== normalizeCompact(client))
+    ) {
+      return name;
+    }
+  }
+
+  const lines = linesOf(text);
+  const skip = clientBlockLineIndexes(lines);
+
+  // Première ligne « titre » / marque hors mots-clés document et hors client
+  for (let i = 0; i < Math.min(lines.length, 10); i += 1) {
+    if (skip.has(i)) continue;
+    const line = lines[i];
     const compact = normalizeCompact(line);
     if (
-      /^(facture|devis|contrat|bulletin|releve|ordonnance|objet|total|prix|tva|date|montant|somme|sas|sarl|sa)\b/.test(
+      /^(facture|devis|contrat|bulletin|releve|ordonnance|objet|total|prix|tva|date|montant|somme|sas|sarl|sa|vos)\b/.test(
         compact
       )
     ) {
       continue;
     }
-    if (isLegalCapitalLine(line)) {
-      continue;
-    }
-    // Évite les montants / lignes numériques (ex. « 8.33 EUR »)
-    if (/^\d/.test(line.trim()) || /\b\d+[.,]\d{2}\b/.test(line)) {
-      continue;
-    }
+    if (isLegalCapitalLine(line) || isPersonRecipientLine(line)) continue;
+    if (/^\d/.test(line.trim()) || /\b\d+[.,]\d{2}\b/.test(line)) continue;
     if (/[a-z]{3,}/i.test(line) && line.length >= 3 && line.length <= 60) {
-      // ALL CAPS ou Title Case commercial (pas une phrase juridique)
       const allCaps =
         /^[A-Z0-9ÉÈÊËÀÂÄÔÖÙÛÜÇ][A-Z0-9ÉÈÊËÀÂÄÔÖÙÛÜÇ &'’.\-]{2,}$/.test(line);
       const titleCase =
         /^[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ'’.\-]*(?:\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ'’.\-]*){0,5}$/.test(
           line.trim()
         );
-      if (allCaps || titleCase) {
+      // Marque collée type « SOSHbyOrange » / token commercial court
+      const brandToken =
+        /^[A-Za-zÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ]{1,24}$/.test(line.trim());
+      if (allCaps || titleCase || brandToken) {
         const name = cleanName(line);
-        if (isUsableCompanyName(name)) {
+        if (
+          isUsableCompanyName(name) &&
+          !isPersonRecipientLine(name) &&
+          (!client || normalizeCompact(name) !== normalizeCompact(client))
+        ) {
           return name;
         }
       }
     }
+  }
+
+  // Repli : émetteur légal (SAS/SA …) hors bloc client
+  const legal = extractLegalIssuer(text);
+  if (
+    legal &&
+    (!client || normalizeCompact(legal) !== normalizeCompact(client))
+  ) {
+    return legal;
   }
 
   return null;
@@ -597,15 +720,33 @@ export function extractClientName(text: string): string | null {
   const labeled = text.match(
     /(?:client|facturé\s*[àa]|facture\s*[àa]|destinataire|adressé\s*[àa]|patient)\s*[:=]\s*([^\n]+)/i
   );
-  if (labeled?.[1]) {
+  if (labeled?.[1] && !isLegalCapitalLine(labeled[1])) {
     return cleanName(labeled[1]);
   }
 
   const block = text.match(
-    /(?:client|facturé\s*[àa]|destinataire)\s*\n\s*([^\n]+)/i
+    /(?:client|facturé\s*[àa]|destinataire|vos\s+coordonn[eé]es)\s*\n\s*([^\n]+)/i
   );
-  if (block?.[1]) {
-    return cleanName(block[1]);
+  if (block?.[1] && !isCoordonneesHeading(block[1])) {
+    const name = cleanName(block[1]);
+    if (name && (isPersonRecipientLine(name) || /[a-z]/i.test(name))) {
+      return name;
+    }
+  }
+
+  // Texte aplati : « Vos coordonnées M CHAMPION VALENTIN … »
+  const flatCoord = String(text || "").match(
+    /vos\s+coordonn[eé]es\s+((?:m\.?|mr\.?|mme\.?|mlle\.?|monsieur|madame)\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-Za-zÉÈÊËÀÂÄÔÖÙÛÜÇ'’\-]+(?:\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-Za-zÉÈÊËÀÂÄÔÖÙÛÜÇ'’\-]+){0,4})/i
+  );
+  if (flatCoord?.[1]) {
+    return cleanName(flatCoord[1]);
+  }
+
+  // Civilité en tête de ligne dans les ~25 premières lignes
+  for (const line of linesOf(text).slice(0, 25)) {
+    if (isPersonRecipientLine(line)) {
+      return cleanName(line);
+    }
   }
 
   return null;

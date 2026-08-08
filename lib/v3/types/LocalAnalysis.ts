@@ -70,8 +70,12 @@ export interface LocalEvidenceSpan {
 
 /** Champs structurés demandés à l’étape D. */
 export interface LocalAnalysisFields {
+  /** Marque / émetteur commercial (ex. enseigne). */
   companyName: string | null;
+  /** Destinataire / client — jamais confondu avec l’émetteur. */
   clientName: string | null;
+  /** Émetteur légal (SAS/SA …) si distinct de la marque. */
+  legalIssuer: string | null;
   /**
    * Date principale affichée :
    * facture/devis → date de facture (émission) ;

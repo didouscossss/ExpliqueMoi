@@ -380,7 +380,8 @@ function extractAmountsFromText(
 }
 
 /**
- * Contexte de classification = même ligne, texte À GAUCHE du montant.
+ * Contexte de classification = même ligne, texte À GAUCHE du montant,
+ * plus un suffixe immédiat À DROITE (ex. « 21,66 € HT », « 25,99 € TTC »).
  * Sur texte multiligne, ne remonte pas à la ligne précédente (sinon
  * « Montant HT » pollue le scoring de « TVA : 20 € »).
  * Sur texte PDF.js aplati (une seule ligne), le rayon limite la portée.
@@ -392,7 +393,7 @@ function classificationContext(
   end: number,
   prevLine: string,
   nextLine: string
-): { classify: string; display: string } {
+): { classify: string; display: string; after: string } {
   const lineStart = full.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
   const from = Math.max(lineStart, start - CONTEXT_RADIUS_BEFORE);
   const before = full.slice(from, start);
@@ -401,7 +402,88 @@ function classificationContext(
   const display = [prevLine.slice(-24), before, after, nextLine.slice(0, 24)]
     .filter(Boolean)
     .join(" ");
-  return { classify, display };
+  return { classify, display, after };
+}
+
+/** Libellé HT/TTC/TVA immédiatement après le montant — même ligne uniquement. */
+function immediateSuffixMoneyTag(
+  after: string
+): { tag: "ht" | "ttc" | "tva"; weight: number; reason: string } | null {
+  // Pas de \n : « 21,66 €\nTVA : 20 % » ≠ suffixe du montant.
+  // Pas de nouveau champ / taux : « 8.33 € TVA : 1.66 » ou « 8.33 € TVA [20%] ».
+  const m = String(after || "").match(
+    /^[ \t\u00a0]*(?:€|eur|euros?|(?<![a-z])e(?![a-z]))?[ \t\u00a0]*(ttc|ht|tva)\b(?![ \t\u00a0]*[:\[]|[ \t\u00a0]*\d)/i
+  );
+  if (!m) return null;
+  const tag = m[1].toLowerCase() as "ht" | "ttc" | "tva";
+  if (tag === "ttc") {
+    return { tag, weight: 80, reason: "suffixe TTC après montant (+80)" };
+  }
+  if (tag === "ht") {
+    return { tag, weight: 20, reason: "suffixe HT après montant (+20)" };
+  }
+  return { tag, weight: 15, reason: "suffixe TVA après montant (+15)" };
+}
+
+/**
+ * En-têtes colonnes « HT … TVA … TTC » suivis de 3 montants :
+ * assigne les rôles par position (layout facture télécom fréquent).
+ */
+function applyColumnHeaderRoles(
+  full: string,
+  candidates: RankedAmountCandidate[]
+): void {
+  const text = String(full || "");
+  const headerRe = /\bht\b[\s\/.|:]*\btva\b[\s\/.|:]*\bttc\b/gi;
+  for (const match of text.matchAll(headerRe)) {
+    const headerEnd = (match.index || 0) + match[0].length;
+    const after = text.slice(headerEnd, headerEnd + 180);
+    const amounts = extractAmountsFromText(after).filter((a) =>
+      /[.,]\d{2}/.test(a.raw)
+    );
+    if (amounts.length < 3) continue;
+    const roles: Array<"ht" | "tva" | "ttc"> = ["ht", "tva", "ttc"];
+    for (let i = 0; i < 3; i += 1) {
+      const absStart = headerEnd + amounts[i].start;
+      const role = roles[i];
+      const cand = candidates.find(
+        (c) =>
+          c.start != null &&
+          Math.abs(c.start - absStart) <= 2 &&
+          Math.abs(c.value - amounts[i].value) < 0.001
+      );
+      if (!cand) continue;
+      cand.tags = cand.tags.filter(
+        (t) => !["ht", "tva", "ttc", "offer", "payable"].includes(t)
+      );
+      cand.tags.push(role);
+      // Recalcule un score de rôle colonne (écrase la contamination « TTC » gauche)
+      let score = 8; // forme monétaire
+      if (role === "ht") {
+        score += 45;
+        if (/\btotal\b/i.test(match[0]) || /\btotal\b/i.test(text.slice(Math.max(0, (match.index || 0) - 24), match.index || 0))) {
+          score += 25;
+          pushUniqueReason(cand.reasons, "colonne Total HT (+25)");
+        }
+        pushUniqueReason(cand.reasons, "colonne HT (ordre HT/TVA/TTC) (+45)");
+      } else if (role === "tva") {
+        score += 30;
+        pushUniqueReason(cand.reasons, "colonne TVA (ordre HT/TVA/TTC) (+30)");
+      } else {
+        score += 90;
+        pushUniqueReason(cand.reasons, "colonne TTC (ordre HT/TVA/TTC) (+90)");
+      }
+      cand.score = score;
+    }
+  }
+}
+
+function looksLikeOfferContext(before: string): boolean {
+  const c = normalizeCtx(before);
+  return (
+    /\b(forfait|abonnement|offre|option|pack|promo(?:tion)?)\b/.test(c) &&
+    !/\b(total|somme|montant|ttc|a\s*payer|facture)\b/.test(c.slice(-40))
+  );
 }
 
 function lineIndexAt(lines: string[], offset: number, full: string): number {
@@ -428,7 +510,7 @@ export function rankAmountCandidates(text: string): RankedAmountCandidate[] {
     const li = lineIndexAt(lines, hit.start, full);
     const prev = lines[li - 1] || "";
     const next = lines[li + 1] || "";
-    const { classify, display } = classificationContext(
+    const { classify, display, after } = classificationContext(
       full,
       hit.start,
       hit.end,
@@ -444,6 +526,29 @@ export function rankAmountCandidates(text: string): RankedAmountCandidate[] {
       /€|eur|euros?/i.test(hit.raw) ||
       /[.,]\d{2}\b/.test(hit.raw) ||
       /\d[ \u00a0]\d{2}\b/.test(hit.raw);
+
+    // Suffixe immédiat « 21,66 € HT » / « 25,99 € TTC » : prioritaire sur le gauche
+    const suffix = immediateSuffixMoneyTag(after);
+    if (suffix && monetary) {
+      localTags = localTags.filter((t) => !["ht", "tva", "ttc"].includes(t));
+      // Retirer les poids HT/TVA/TTC déjà comptés à gauche (recalcul propre)
+      score = localTags.reduce((acc, t) => {
+        if (t === "payable") return acc + 100;
+        if (t === "net") return acc + 70;
+        if (t === "total") return acc + 35;
+        if (t === "partial") return acc - 50;
+        if (t === "balance") return acc - 40;
+        if (t === "capital") return acc - 120;
+        return acc;
+      }, 0);
+      localTags.push(suffix.tag);
+      score += suffix.weight;
+      pushUniqueReason(localReasons, suffix.reason);
+      if (suffix.tag === "ht" && localTags.includes("total")) {
+        score += 25;
+        pushUniqueReason(localReasons, "total HT (+25)");
+      }
+    }
 
     // Entiers sans forme monétaire (n° de ligne, etc.) : jamais HT/TVA/TTC/payable
     if (!monetary) {
@@ -462,6 +567,22 @@ export function rankAmountCandidates(text: string): RankedAmountCandidate[] {
     if (monetary) {
       score += 8;
       pushUniqueReason(localReasons, "forme monétaire (€ / décimales) (+8)");
+    }
+
+    // Prix d’offre / forfait : ce n’est pas un total facture par défaut
+    if (
+      monetary &&
+      looksLikeOfferContext(classify) &&
+      !localTags.includes("ttc") &&
+      !localTags.includes("payable") &&
+      !localTags.includes("ht")
+    ) {
+      if (!localTags.includes("offer")) localTags.push("offer");
+      score -= 45;
+      pushUniqueReason(
+        localReasons,
+        "contexte offre/forfait (pas un total facture) (−45)"
+      );
     }
 
     candidates.push({
@@ -522,11 +643,15 @@ export function rankAmountCandidates(text: string): RankedAmountCandidate[] {
     }
   }
 
-  // Boost arithmétique HT + TVA ≈ TTC (renforce, n’élimine pas).
-  applyArithmeticBoost(candidates);
+  // Colonnes HT / TVA / TTC (layout tableau) avant le boost arithmétique.
+  applyColumnHeaderRoles(full, candidates);
+
+  // Boost arithmétique HT+TVA€≈TTC et/ou HT×(1+taux%)≈TTC (renforce, n’élimine pas).
+  applyArithmeticBoost(candidates, extractVatRates(full)[0] ?? null);
 
   // Dédupliquer par valeur : max score + union des tags/raisons
   // (ex. « Total TTC 9,99 » + « Montant à payer : 9,99 » → payable+ttc).
+  // Si une occurrence est une offre et une autre un total TTC, garder le total.
   const byValue = new Map<number, RankedAmountCandidate>();
   for (const cand of candidates) {
     const prev = byValue.get(cand.value);
@@ -536,8 +661,24 @@ export function rankAmountCandidates(text: string): RankedAmountCandidate[] {
     }
     prev.tags = [...new Set([...prev.tags, ...cand.tags])];
     for (const r of cand.reasons) pushUniqueReason(prev.reasons, r);
-    if (cand.score > prev.score) {
-      prev.score = cand.score;
+    const preferCand =
+      cand.score > prev.score ||
+      (cand.tags.includes("ttc") &&
+        !prev.tags.includes("ttc") &&
+        cand.score >= prev.score - 20) ||
+      (prev.tags.includes("offer") &&
+        !cand.tags.includes("offer") &&
+        (cand.tags.includes("ttc") || cand.tags.includes("payable")));
+    if (preferCand) {
+      prev.score = Math.max(prev.score, cand.score);
+      // Si on préfère une occurrence TTC/total à une offre, remonter le score TTC
+      if (
+        (cand.tags.includes("ttc") || cand.tags.includes("payable")) &&
+        prev.tags.includes("offer")
+      ) {
+        prev.score = Math.max(prev.score, cand.score);
+        prev.tags = prev.tags.filter((t) => t !== "offer");
+      }
       prev.raw = cand.raw;
       prev.context = cand.context;
       prev.start = cand.start;
@@ -558,38 +699,82 @@ export function rankAmountCandidates(text: string): RankedAmountCandidate[] {
   return [...byValue.values()].sort((a, b) => b.score - a.score);
 }
 
-function applyArithmeticBoost(candidates: RankedAmountCandidate[]): void {
+function promoteAsTtc(
+  cand: RankedAmountCandidate,
+  reason: string,
+  boost: number
+): void {
+  cand.score += boost;
+  pushUniqueReason(cand.reasons, reason);
+  // Un montant cohérent avec HT×taux / HT+TVA n’est pas un montant TVA
+  if (cand.tags.includes("tva") && !cand.tags.includes("ttc")) {
+    cand.tags = cand.tags.filter((t) => t !== "tva");
+  }
+  if (cand.tags.includes("offer")) {
+    cand.tags = cand.tags.filter((t) => t !== "offer");
+  }
+  if (!cand.tags.includes("ttc") && !cand.tags.includes("ht")) {
+    cand.tags.push("ttc");
+    pushUniqueReason(cand.reasons, "inféré TTC via cohérence arithmétique");
+  } else if (cand.tags.includes("ttc") || cand.tags.includes("payable")) {
+    pushUniqueReason(cand.reasons, "confiance TTC/à payer renforcée");
+  }
+}
+
+function applyArithmeticBoost(
+  candidates: RankedAmountCandidate[],
+  vatRate: number | null
+): void {
   const htCands = candidates
-    .filter((c) => c.tags.includes("ht") && !c.tags.includes("capital"))
+    .filter(
+      (c) =>
+        c.tags.includes("ht") &&
+        !c.tags.includes("capital") &&
+        !c.tags.includes("ttc") &&
+        !c.tags.includes("payable")
+    )
     .sort((a, b) => b.score - a.score);
-  const tvaCands = candidates
-    .filter((c) => c.tags.includes("tva") && !c.tags.includes("capital"))
-    .sort((a, b) => b.score - a.score);
-  if (!htCands.length || !tvaCands.length) return;
-
-  // Évite HT=TVA si même ligne mal scorée : prend les meilleurs distincts
+  if (!htCands.length) return;
   const ht = htCands[0];
-  const tva =
-    tvaCands.find((c) => c.value !== ht.value) || tvaCands[0];
-  if (ht.value === tva.value) return;
 
-  const expected = Math.round((ht.value + tva.value) * 100) / 100;
-  for (const cand of candidates) {
-    if (Math.abs(cand.value - expected) <= 0.02) {
-      cand.score += 50;
-      pushUniqueReason(
-        cand.reasons,
-        `cohérence HT+TVA≈montant (${ht.value}+${tva.value}≈${cand.value}) (+50)`
-      );
-      if (
-        !cand.tags.includes("ttc") &&
-        !cand.tags.includes("ht") &&
-        !cand.tags.includes("tva")
-      ) {
-        cand.tags.push("ttc");
-        pushUniqueReason(cand.reasons, "inféré TTC via cohérence arithmétique");
-      } else if (cand.tags.includes("ttc") || cand.tags.includes("payable")) {
-        pushUniqueReason(cand.reasons, "confiance TTC/à payer renforcée");
+  // 1) HT + montant TVA (€) ≈ TTC
+  const tvaCands = candidates
+    .filter(
+      (c) =>
+        c.tags.includes("tva") &&
+        !c.tags.includes("capital") &&
+        c.value !== ht.value &&
+        // Exclure un faux « montant TVA » qui est en réalité le TTC
+        !(vatRate != null && Math.abs(c.value - ht.value * (1 + vatRate / 100)) <= 0.05)
+    )
+    .sort((a, b) => b.score - a.score);
+  if (tvaCands.length) {
+    const tva = tvaCands[0];
+    const expectedSum = Math.round((ht.value + tva.value) * 100) / 100;
+    for (const cand of candidates) {
+      if (cand.value === ht.value || cand.value === tva.value) continue;
+      if (Math.abs(cand.value - expectedSum) <= 0.02) {
+        promoteAsTtc(
+          cand,
+          `cohérence HT+TVA≈montant (${ht.value}+${tva.value}≈${cand.value}) (+50)`,
+          50
+        );
+      }
+    }
+  }
+
+  // 2) HT × (1 + taux/100) ≈ TTC — générique, sans montant TVA requis
+  if (vatRate != null && vatRate > 0 && vatRate <= 100) {
+    const expectedRate =
+      Math.round(ht.value * (1 + vatRate / 100) * 100) / 100;
+    for (const cand of candidates) {
+      if (cand.value === ht.value) continue;
+      if (Math.abs(cand.value - expectedRate) <= 0.02) {
+        promoteAsTtc(
+          cand,
+          `cohérence HT×(1+TVA%)≈montant (${ht.value}×${(1 + vatRate / 100).toFixed(2)}≈${cand.value}) (+55)`,
+          55
+        );
       }
     }
   }
@@ -685,6 +870,10 @@ function toFinding(
   };
 }
 
+function expectedTtcFromHtRate(ht: number, vatRate: number): number {
+  return Math.round(ht * (1 + vatRate / 100) * 100) / 100;
+}
+
 /**
  * Sélectionne les champs montant + principal à partir du ranking sémantique.
  */
@@ -696,28 +885,54 @@ export function selectAmountFields(text: string): AmountFieldSelection {
   // Seuils bas (y compris scores légèrement négatifs dus à un taux % voisin) :
   // un montant monétaire classé reste éligible ; le score départage.
   const ht = bestByTag(candidates, "ht", -50);
-  // Montant TVA : jamais un taux % (même 20.00 dans [20.00%]).
+
+  const rateConsistentTtc =
+    ht && vatRate != null
+      ? candidates.find(
+          (c) =>
+            c.value !== ht.value &&
+            !c.tags.includes("capital") &&
+            Math.abs(c.value - expectedTtcFromHtRate(ht.value, vatRate)) <= 0.02
+        ) || null
+      : null;
+
+  // Montant TVA : jamais un taux % ; jamais un TTC cohérent avec HT×taux.
   const tvaCandidates = candidates.filter((c) => {
     if (!c.tags.includes("tva")) return false;
     if (vatRate != null && Math.abs(c.value - vatRate) < 0.001 && !hasMoneyCurrency(c)) {
       return false;
     }
-    // Exige une forme monétaire pour le montant TVA
+    if (
+      ht &&
+      vatRate != null &&
+      Math.abs(c.value - expectedTtcFromHtRate(ht.value, vatRate)) <= 0.02
+    ) {
+      return false;
+    }
+    if (c.tags.includes("ttc") || c.tags.includes("payable")) return false;
     return hasMoneyDecimals(c) || hasMoneyCurrency(c);
   });
-  const tva =
-    tvaCandidates.sort((a, b) => b.score - a.score)[0] ||
-    bestByTag(
-      candidates.filter(
-        (c) =>
-          !(vatRate != null && Math.abs(c.value - vatRate) < 0.001 && !hasMoneyCurrency(c))
-      ),
-      "tva",
-      -50
-    );
+  let tva: RankedAmountCandidate | null =
+    tvaCandidates.sort((a, b) => b.score - a.score)[0] || null;
+
   const payable = bestByTag(candidates, "payable", -50);
-  const ttc = bestByTag(candidates, "ttc", -50);
+  let ttc = bestByTag(candidates, "ttc", -50);
   const net = bestByTag(candidates, "net", -50);
+
+  // Si le meilleur « TTC » est en réalité le HT, préférer le candidat cohérent
+  if (ht && ttc && ttc.value === ht.value && rateConsistentTtc) {
+    ttc = rateConsistentTtc;
+  }
+  if (!ttc && rateConsistentTtc) {
+    ttc = rateConsistentTtc;
+    pushUniqueReason(
+      rateConsistentTtc.reasons,
+      "sélectionné comme TTC car HT×(1+TVA%)≈valeur"
+    );
+    if (!rateConsistentTtc.tags.includes("ttc")) {
+      rateConsistentTtc.tags.push("ttc");
+    }
+  }
 
   let amountTTC = ttc;
   let amountToPay = payable;
@@ -735,7 +950,7 @@ export function selectAmountFields(text: string): AmountFieldSelection {
         (c) =>
           Math.abs(c.value - expected) <= 0.02 &&
           c.value !== ht.value &&
-          c.value !== tva.value &&
+          c.value !== tva!.value &&
           !c.tags.includes("capital")
       );
       if (inferred) {
@@ -746,6 +961,15 @@ export function selectAmountFields(text: string): AmountFieldSelection {
         );
       }
     }
+  } else if (ht && vatRate != null && (amountTTC || amountToPay || rateConsistentTtc)) {
+    const expected = expectedTtcFromHtRate(ht.value, vatRate);
+    const ttcValue =
+      amountToPay?.value ?? amountTTC?.value ?? rateConsistentTtc?.value ?? null;
+    if (ttcValue != null) {
+      arithmeticOk = Math.abs(ttcValue - expected) <= 0.02;
+    }
+    // Ne pas inventer amountTVA s’il n’apparaît pas dans le document :
+    // le taux seul + cohérence HT×(1+taux) suffit pour valider le TTC.
   }
 
   const principalPool = [amountToPay, amountTTC, netToPay]
@@ -768,24 +992,30 @@ export function selectAmountFields(text: string): AmountFieldSelection {
       principalSource = "amountTTC";
       amountTTC = amountTTC || principal;
     }
+  } else if (rateConsistentTtc) {
+    principal = rateConsistentTtc;
+    principalSource = "amountTTC";
+    amountTTC = amountTTC || rateConsistentTtc;
+    pushUniqueReason(
+      rateConsistentTtc.reasons,
+      "principal = TTC cohérent HT×(1+TVA%)"
+    );
   } else {
-    // Fallback : meilleur candidat monétaire non-TVA / non-capital / non-partial
+    // Fallback : meilleur candidat monétaire non-HT / non-TVA / non-offre
     const fallback = candidates.find(
       (c) =>
         hasMoneyDecimals(c) &&
         !c.tags.includes("tva") &&
+        !c.tags.includes("ht") &&
         !c.tags.includes("capital") &&
         !c.tags.includes("partial") &&
+        !c.tags.includes("offer") &&
         c.score >= 5
     );
     if (fallback) {
       principal = fallback;
-      if (fallback.tags.includes("ht")) {
-        principalSource = "amountHT";
-      } else {
-        principalSource = "amountTTC";
-        amountTTC = amountTTC || fallback;
-      }
+      principalSource = "amountTTC";
+      amountTTC = amountTTC || fallback;
       pushUniqueReason(
         fallback.reasons,
         "fallback : meilleur montant monétaire conservé"
@@ -794,6 +1024,19 @@ export function selectAmountFields(text: string): AmountFieldSelection {
       principal = ht;
       principalSource = "amountHT";
     }
+  }
+
+  // Ne jamais laisser le HT gagner s’il existe un TTC arithmétiquement cohérent
+  if (
+    principal &&
+    ht &&
+    principal.value === ht.value &&
+    rateConsistentTtc &&
+    rateConsistentTtc.value !== ht.value
+  ) {
+    principal = rateConsistentTtc;
+    principalSource = "amountTTC";
+    amountTTC = rateConsistentTtc;
   }
 
   const amounts: LocalAmountFinding[] = [];

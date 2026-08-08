@@ -22,6 +22,7 @@ import {
   extractDates,
   extractIban,
   extractInvoiceNumber,
+  extractLegalIssuer,
   extractSiret
 } from "./extractors.js";
 import { buildFactualSummary } from "./factualSummary.js";
@@ -50,12 +51,31 @@ export class LocalAnalysisEngine {
     const ibans = extractIban(text);
     const sirets = extractSiret(text);
     const invoiceNumbers = extractInvoiceNumber(text);
-    const companyName = extractCompanyName(text);
+    let companyName = extractCompanyName(text);
     const clientName = extractClientName(text);
+    const legalIssuer = extractLegalIssuer(text);
+    // Garde-fou : le destinataire n’est jamais l’émetteur
+    if (
+      companyName &&
+      clientName &&
+      companyName.replace(/\s+/g, " ").trim().toLowerCase() ===
+        clientName.replace(/\s+/g, " ").trim().toLowerCase()
+    ) {
+      companyName = legalIssuer && legalIssuer !== clientName ? legalIssuer : null;
+    }
+    if (
+      companyName &&
+      /^(m\.?|mr\.?|mme\.?|mlle\.?|monsieur|madame)\s+/i.test(companyName)
+    ) {
+      companyName = legalIssuer || null;
+    }
     const contacts = extractContacts(text);
 
     if (companyName) {
       contacts.unshift({ kind: "company", value: companyName, page: null });
+    }
+    if (legalIssuer && legalIssuer !== companyName) {
+      contacts.push({ kind: "company", value: legalIssuer, page: null });
     }
     if (clientName) {
       contacts.push({ kind: "person", value: clientName, page: null });
@@ -66,6 +86,7 @@ export class LocalAnalysisEngine {
       documentType: typeGuess.documentType,
       companyName,
       clientName,
+      legalIssuer,
       dates,
       deadlines,
       ranked,
@@ -204,6 +225,7 @@ export class LocalAnalysisEngine {
     documentType: LocalAnalysis["documentType"];
     companyName: string | null;
     clientName: string | null;
+    legalIssuer: string | null;
     dates: LocalAnalysis["dates"];
     deadlines: LocalAnalysis["deadlines"];
     ranked: ReturnType<typeof selectAmountFields>;
@@ -247,6 +269,17 @@ export class LocalAnalysisEngine {
     return {
       companyName: parts.companyName,
       clientName: parts.clientName,
+      legalIssuer: (() => {
+        const legal = parts.legalIssuer;
+        const brand = parts.companyName;
+        if (!legal) return null;
+        if (!brand) return legal;
+        if (legal === brand) return null;
+        // Évite « TELECOM SA » si la marque est déjà « OPERATEUR TELECOM SA »
+        const n = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+        if (n(brand).includes(n(legal))) return null;
+        return legal;
+      })(),
       date: primaryDate,
       issueDate,
       invoiceDate,
@@ -283,6 +316,7 @@ export class LocalAnalysisEngine {
       fields: {
         companyName: null,
         clientName: null,
+        legalIssuer: null,
         date: null,
         issueDate: null,
         invoiceDate: null,
