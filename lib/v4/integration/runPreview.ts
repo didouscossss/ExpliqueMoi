@@ -14,6 +14,10 @@ import {
 } from "../knowledge/fr/tax/case/buildDocumentCase.js";
 import { checkDocumentCaseSafety } from "../knowledge/fr/tax/case/safety.js";
 import {
+  applyClarificationAnswer,
+  initClarificationState
+} from "../knowledge/fr/tax/clarification/index.js";
+import {
   ocrResultToV4Input,
   pagesToV4Input,
   type AnalyzePageLike,
@@ -34,6 +38,8 @@ export interface V4PreviewRunInput {
   adapted?: V4AdapterResult;
   /** Reset ids — utile en tests. */
   resetIds?: boolean;
+  /** V4-S — réponses de clarification à appliquer dans l’ordre. */
+  clarificationAnswers?: Array<{ questionId?: string; answer: string }>;
 }
 
 export interface V4PreviewRunSuccess {
@@ -170,34 +176,50 @@ export function runV4PreviewAnalysis(
       fallbackReason: null
     });
 
-    if (multi) {
-      const docCase = buildDocumentCase(
+    // V4-R/S — DocumentCase + clarification (multi-doc, ou mono fiscal)
+    const fiscalMono =
+      !multi &&
+      dossierDocs.length === 1 &&
+      Boolean(analysis.fiscal_document);
+    if (multi || fiscalMono) {
+      let docCase = buildDocumentCase(
         dossierDocs.map((d) => ({
           text: d.text,
           fileName: d.fileName || null
         })),
         { resetIds: Boolean(input.resetIds) }
       );
-      const order = assertUploadOrderStable(
-        dossierDocs.map((d) => ({ text: d.text, fileName: d.fileName })),
-        [...dossierDocs]
-          .reverse()
-          .map((d) => ({ text: d.text, fileName: d.fileName }))
-      );
-      docCase.invariants.uploadOrderChangesConclusion =
-        order.uploadOrderChangesConclusion;
+      if (multi) {
+        const order = assertUploadOrderStable(
+          dossierDocs.map((d) => ({ text: d.text, fileName: d.fileName })),
+          [...dossierDocs]
+            .reverse()
+            .map((d) => ({ text: d.text, fileName: d.fileName }))
+        );
+        docCase.invariants.uploadOrderChangesConclusion =
+          order.uploadOrderChangesConclusion;
+      }
+      let clar = initClarificationState(docCase);
+      for (const step of input.clarificationAnswers || []) {
+        const qid =
+          step.questionId ||
+          clar.currentQuestion?.questionId ||
+          clar.session.currentQuestionId;
+        if (!qid) break;
+        clar = applyClarificationAnswer(clar, qid, step.answer).state;
+      }
+      docCase = clar.documentCase;
       const safety = checkDocumentCaseSafety(docCase);
       if (!safety.ok && docCase.invariants.crossDocumentUnsafeAggregation > 0) {
         return {
           ok: false,
           technicalError: true,
           fallbackReason: "v4_invariant_violation",
-          message: "Invariants dossier V4-R violés.",
+          message: "Invariants dossier V4-R/S violés.",
           diagnostics: [...diagnostics, { step: "case_safety", ...safety }]
         };
       }
       analysis.document_case = documentCaseToPreviewJson(docCase);
-      // Enrichir fiscal_document.tax_fields avec vue case-centric si possible
       if (analysis.fiscal_document && docCase.caseCentricViews.length) {
         const fd = analysis.fiscal_document as Record<string, unknown>;
         fd.dossier_summary = {
@@ -210,7 +232,8 @@ export function runV4PreviewAnalysis(
         step: "document_case",
         caseId: docCase.caseId,
         metrics: docCase.metrics,
-        safety_ok: safety.ok
+        safety_ok: safety.ok,
+        clarification_question: clar.currentQuestion?.requirementId || null
       });
     }
 

@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-08-08T21:00:00.869Z",
+  "caseId": "case-4ae85800a99042aa",
+  "currentQuestion": "1aj-employer-doc",
+  "userFacts": 1,
+  "conflicts": 0,
+  "invariants": {
+    "userFactPromotedToDocumentFact": 0,
+    "userFactPromotedToOfficialKnowledge": 0,
+    "unknownPromotedToKnown": 0,
+    "refusedPromotedToNegative": 0,
+    "invalidAnswerAccepted": 0,
+    "ambiguousAnswerPromotedToCertain": 0,
+    "userDocumentConflictAutoResolved": 0,
+    "userUserConflictLost": 0,
+    "crossYearAnswerPromoted": 0,
+    "crossRoleAnswerPromoted": 0,
+    "clarificationLoopDetected": 0,
+    "questionRepeatedAfterRefusal": 0,
+    "questionRepeatedAfterUnknownImmediately": 0,
+    "uploadOrderChangesQuestion": 0,
+    "automaticUnsafeAggregation": 0,
+    "unsupportedEligibilityDecision": 0,
+    "missingProvenance": 0
+  },
+  "ok": true,
+  "violations": []
+}

@@ -208,6 +208,26 @@ export function scoreFactForRequirement(
     contributions
   };
 
+  // Montant attendu mais case vide → jamais « strong found »
+  if (
+    requirement.kind === "amount" &&
+    fact.value == null &&
+    (fact.displayValue == null || String(fact.displayValue).trim() === "")
+  ) {
+    return {
+      fact,
+      breakdown: {
+        ...breakdown,
+        rejectReasons: ["reject:empty_amount"],
+        contributions: [
+          ...contributions,
+          { key: "reject", value: 0, note: "reject:empty_amount" }
+        ]
+      },
+      verdict: "rejected"
+    };
+  }
+
   // Règles fortes dominent
   if (fieldEvidenceMatch === 1 && factTypeMatch === 1 && yearMatch >= 0.6) {
     return { fact, breakdown, verdict: "strong" };
@@ -282,6 +302,24 @@ export function findCandidateFactsForRequirementInCase(
       yearRelation,
       aggregatedValue: null
     };
+  }
+
+  // Amount requirement without any valued fact → missing (présence vide ≠ trouvé)
+  if (requirement.kind === "amount") {
+    const valued = matches.filter(
+      (m) =>
+        m.fact.displayValue != null ||
+        (typeof m.fact.value === "number" && Number.isFinite(m.fact.value))
+    );
+    if (!valued.length) {
+      return {
+        matches,
+        status: "missing",
+        verdict: "rejected",
+        yearRelation,
+        aggregatedValue: null
+      };
+    }
   }
 
   const strong = matches.filter((m) => m.verdict === "strong");

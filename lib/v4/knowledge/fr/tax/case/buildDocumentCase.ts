@@ -505,9 +505,11 @@ export function buildDocumentCase(
     fieldAssistance.push(assist);
   }
 
-  // User answers ≠ official knowledge
+  // User answers ≠ official knowledge (clarification source is still user-provided)
   for (const ua of userAnswers) {
-    if (ua.kind !== "user" || ua.source !== "user") {
+    if (ua.kind !== "user") {
+      invariants.userAnswerPromotedToOfficialKnowledge += 1;
+    } else if (ua.source !== "user" && ua.source !== "clarification") {
       invariants.userAnswerPromotedToOfficialKnowledge += 1;
     }
   }
@@ -714,7 +716,15 @@ export function addDocumentsToCase(
     })),
     ...additions
   ];
-  return buildDocumentCase(inputs, options);
+  const rebuilt = buildDocumentCase(inputs, {
+    ...options,
+    userAnswers: options.userAnswers || existing.userAnswers
+  });
+  return {
+    ...rebuilt,
+    clarificationSession: existing.clarificationSession || null,
+    userAnswers: options.userAnswers || existing.userAnswers || rebuilt.userAnswers
+  };
 }
 
 /** Recalcule un dossier après suppression — aucun fait fantôme. */
@@ -729,10 +739,16 @@ export function removeDocumentFromCase(
       text: d.text,
       fileName: d.fileName
     }));
-  return buildDocumentCase(remaining, {
+  const rebuilt = buildDocumentCase(remaining, {
     ...options,
+    userAnswers: options.userAnswers || existing.userAnswers,
     removedDocumentIds: [documentId, ...(options.removedDocumentIds || [])]
   });
+  return {
+    ...rebuilt,
+    clarificationSession: existing.clarificationSession || null,
+    userAnswers: options.userAnswers || existing.userAnswers || rebuilt.userAnswers
+  };
 }
 
 export function buildCaseTaxAssistanceContext(
@@ -778,7 +794,16 @@ export function buildCaseTaxAssistanceContext(
         )
     ),
     deterministicQuestions: assist?.questions || base.questions,
-    userAnswers: docCase.userAnswers
+    userAnswers: docCase.userAnswers,
+    clarificationSession: docCase.clarificationSession || null,
+    currentQuestion:
+      docCase.clarificationSession?.questions.find(
+        (q) => q.questionId === docCase.clarificationSession?.currentQuestionId
+      ) || null,
+    unresolvedConflicts: docCase.conflicts.filter(
+      (c) => !c.resolution || c.resolution === "unresolved"
+    ),
+    changeHistory: docCase.clarificationSession?.changeHistory || []
   };
 }
 

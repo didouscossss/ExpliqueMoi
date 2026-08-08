@@ -1587,6 +1587,92 @@
         );
     }
 
+    /* V4-S — boucle de clarification */
+    .fiscal-clarification {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid color-mix(in srgb, var(--blue) 28%, transparent);
+      background: color-mix(in srgb, var(--blue) 8%, var(--solid));
+    }
+
+    .fiscal-clarification.hidden {
+      display: none;
+    }
+
+    .fiscal-clarification-reason {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .fiscal-clarification-type {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .fiscal-clarification-choices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .fiscal-clarification-choices button {
+      min-height: 44px;
+      padding: 10px 14px;
+    }
+
+    .fiscal-clarification-form {
+      display: grid;
+      gap: 10px;
+    }
+
+    .fiscal-clarification-form label {
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .fiscal-clarification-form input,
+    .fiscal-clarification-form select {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+      background: var(--solid);
+      color: var(--text);
+      font: inherit;
+    }
+
+    .fiscal-clarification-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .fiscal-clarification-actions button {
+      min-height: 44px;
+      padding: 10px 14px;
+    }
+
+    .fiscal-clarification-changes,
+    .fiscal-clarification-conflict {
+      display: grid;
+      gap: 6px;
+    }
+
+    .fiscal-clarification-conflict {
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
+      background: color-mix(in srgb, var(--text) 4%, var(--solid));
+    }
+
+    .fiscal-provenance-user {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
     .actions-card {
       background:
         linear-gradient(
@@ -2665,6 +2751,11 @@
         <div id="fiscalDocumentFacts" class="fiscal-block"></div>
         <div id="fiscalActions" class="fiscal-block"></div>
         <div id="fiscalCaseDocuments" class="fiscal-block"></div>
+        <div
+          id="fiscalClarification"
+          class="fiscal-block fiscal-clarification hidden"
+          aria-live="polite"
+        ></div>
         <div id="fiscalFields" class="fiscal-block"></div>
         <div id="fiscalCaseConflicts" class="fiscal-block"></div>
         <div id="fiscalUncertainties" class="fiscal-block"></div>
@@ -3117,6 +3208,8 @@
       isBusy: false,
       /** V4-R — documents distincts du dossier (état local Preview). */
       dossierDocuments: [],
+      /** V4-S — réponses de clarification locales (rejouées à l’analyse). */
+      clarificationAnswers: [],
       // Sprint 3 — conversation liée UNIQUEMENT au document courant
       documentId: null,
       chatHistory: [],
@@ -3269,6 +3362,11 @@
       const dossierList = $("dossierList");
       if (dossierList) {
         dossierList.addEventListener("click", handleDossierListClick);
+      }
+      const clarEl = $("fiscalClarification");
+      if (clarEl) {
+        clarEl.addEventListener("click", handleClarificationClick);
+        clarEl.addEventListener("submit", handleClarificationSubmit);
       }
 
       $("newDocumentButton").addEventListener(
@@ -5538,6 +5636,11 @@
       const docs = state.dossierDocuments || [];
       if (!docs.length) return;
 
+      if (!state.clarificationReplay) {
+        state.clarificationAnswers = [];
+      }
+      state.clarificationReplay = false;
+
       // Envoi comme collage multi-DOC pour le chemin V4 / backend
       const composed = docs
         .map((d) => `---DOC:${d.fileName || "document.txt"}---\n${d.text}`)
@@ -5562,6 +5665,12 @@
           }))
         )
       );
+      if ((state.clarificationAnswers || []).length) {
+        formData.append(
+          "clarification_answers",
+          JSON.stringify(state.clarificationAnswers)
+        );
+      }
 
       await sendAnalysis(formData, {
         pagesSnapshot: [],
@@ -5576,6 +5685,11 @@
       if (state.isCompressing || state.isSelectingFile) {
         return;
       }
+
+      if (!state.clarificationReplay) {
+        state.clarificationAnswers = [];
+      }
+      state.clarificationReplay = false;
 
       if (state.isAnalyzing) {
         resetAnalysisRuntimeState({
@@ -5608,6 +5722,12 @@
       const formData = new FormData();
 
       formData.append("text", text);
+      if ((state.clarificationAnswers || []).length) {
+        formData.append(
+          "clarification_answers",
+          JSON.stringify(state.clarificationAnswers)
+        );
+      }
 
       await sendAnalysis(formData, {
         pagesSnapshot: [],
@@ -6484,6 +6604,189 @@
       }
     }
 
+    function renderFiscalClarification(documentCase) {
+      const el = $("fiscalClarification");
+      if (!el) return;
+      const clar = documentCase?.clarification;
+      if (!clar || typeof clar !== "object") {
+        el.classList.add("hidden");
+        el.innerHTML = "";
+        return;
+      }
+
+      const q = clar.current_question;
+      const changes = Array.isArray(clar.last_changes) ? clar.last_changes : [];
+      const conflicts = Array.isArray(clar.user_vs_document_conflicts)
+        ? clar.user_vs_document_conflicts
+        : [];
+      const userFacts = Array.isArray(clar.user_facts) ? clar.user_facts : [];
+
+      const changesHtml =
+        changes.length || userFacts.length
+          ? `<div class="fiscal-clarification-changes">
+              <h3>Ce qui a changé</h3>
+              ${
+                userFacts.length
+                  ? `<ul class="fiscal-list">${userFacts
+                      .slice(0, 4)
+                      .map(
+                        (f) => `<li>
+                          <span class="fiscal-fact-label">${escapeHtml(
+                            f.field_code || f.requirement_id || "Information"
+                          )}</span>
+                          <strong>${escapeHtml(String(f.value ?? ""))}</strong>
+                          <p class="fiscal-provenance-user">${escapeHtml(
+                            f.source_label || "Information fournie par vous"
+                          )}</p>
+                        </li>`
+                      )
+                      .join("")}</ul>`
+                  : ""
+              }
+              ${
+                changes.length
+                  ? `<ul class="fiscal-list">${changes
+                      .slice(0, 5)
+                      .map((c) => `<li>${escapeHtml(c)}</li>`)
+                      .join("")}</ul>`
+                  : ""
+              }
+            </div>`
+          : "";
+
+      const conflictHtml = conflicts.length
+        ? `<div class="fiscal-clarification-conflict" role="status">
+            <h3>Contradiction conservée</h3>
+            <ul class="fiscal-list">${conflicts
+              .map((c) => `<li>${escapeHtml(c.description || "")}</li>`)
+              .join("")}</ul>
+            <p class="fiscal-provenance-user">Je conserve les deux informations séparément — document et réponse utilisateur.</p>
+          </div>`
+        : "";
+
+      if (!q) {
+        if (!changesHtml && !conflictHtml) {
+          el.classList.add("hidden");
+          el.innerHTML = "";
+          return;
+        }
+        el.classList.remove("hidden");
+        el.innerHTML = `${conflictHtml}${changesHtml}`;
+        return;
+      }
+
+      const choices = Array.isArray(q.choices) ? q.choices : [];
+      const choicesHtml = choices.length
+        ? `<div class="fiscal-clarification-choices" role="group" aria-label="Choix possibles">
+            ${choices
+              .map(
+                (c) =>
+                  `<button type="button" class="secondary-btn" data-clarification-choice="${escapeHtml(
+                    c
+                  )}">${escapeHtml(c)}</button>`
+              )
+              .join("")}
+          </div>`
+        : "";
+
+      el.classList.remove("hidden");
+      el.innerHTML = `
+        <h3>Une question pour continuer</h3>
+        ${
+          q.reason
+            ? `<p class="fiscal-clarification-reason">${escapeHtml(
+                q.reason
+              )}</p>`
+            : ""
+        }
+        <p><strong>${escapeHtml(q.question || "")}</strong></p>
+        ${
+          q.expected_answer_type
+            ? `<p class="fiscal-clarification-type">Type attendu : ${escapeHtml(
+                q.expected_answer_type
+              )}${
+                q.field_code
+                  ? ` · Case ${escapeHtml(q.field_code)}`
+                  : ""
+              }</p>`
+            : ""
+        }
+        ${choicesHtml}
+        <form class="fiscal-clarification-form" data-clarification-form>
+          <label for="clarificationAnswerInput">Votre réponse</label>
+          <input
+            id="clarificationAnswerInput"
+            name="clarificationAnswer"
+            type="text"
+            autocomplete="off"
+            inputmode="${
+              q.expected_answer_type === "amount" ||
+              q.expected_answer_type === "year" ||
+              q.expected_answer_type === "integer"
+                ? "decimal"
+                : "text"
+            }"
+          />
+          <div class="fiscal-clarification-actions">
+            <button type="submit" class="primary-btn">Valider</button>
+            <button type="button" class="secondary-btn" data-clarification-unknown>Je ne sais pas</button>
+            <button type="button" class="secondary-btn" data-clarification-skip>Passer</button>
+          </div>
+        </form>
+        ${conflictHtml}
+        ${changesHtml}
+      `;
+      el.dataset.questionId = q.question_id || "";
+    }
+
+    function submitClarificationAnswer(rawAnswer) {
+      const el = $("fiscalClarification");
+      const questionId = el?.dataset?.questionId || "";
+      const answer = String(rawAnswer || "").trim();
+      if (!answer) return;
+      state.clarificationAnswers = [
+        ...(state.clarificationAnswers || []),
+        questionId ? { questionId, answer } : { answer }
+      ];
+      state.clarificationReplay = true;
+      if ((state.dossierDocuments || []).length) {
+        analyzeDossierState();
+        return;
+      }
+      analyzeText();
+    }
+
+    function handleClarificationClick(event) {
+      const unknownBtn = event.target.closest("[data-clarification-unknown]");
+      if (unknownBtn) {
+        event.preventDefault();
+        submitClarificationAnswer("je ne sais pas");
+        return;
+      }
+      const skipBtn = event.target.closest("[data-clarification-skip]");
+      if (skipBtn) {
+        event.preventDefault();
+        submitClarificationAnswer("passer");
+        return;
+      }
+      const choiceBtn = event.target.closest("[data-clarification-choice]");
+      if (choiceBtn) {
+        event.preventDefault();
+        const value = choiceBtn.getAttribute("data-clarification-choice") || "";
+        const input = $("clarificationAnswerInput");
+        if (input) input.value = value;
+        submitClarificationAnswer(value);
+      }
+    }
+
+    function handleClarificationSubmit(event) {
+      const form = event.target.closest("[data-clarification-form]");
+      if (!form) return;
+      event.preventDefault();
+      const input = $("clarificationAnswerInput");
+      submitClarificationAnswer(input ? input.value : "");
+    }
+
     function renderFiscalDocument(fiscal, documentCase) {
       const card = $("fiscalCard");
       if (!card) return;
@@ -6515,6 +6818,8 @@
       const related = $("fiscalRelated");
       const sourcesList = $("fiscalSourcesList");
       const premiumList = $("fiscalPremiumList");
+
+      renderFiscalClarification(documentCase);
 
       if (caseDocs) {
         const docs = Array.isArray(documentCase?.documents)
@@ -9296,6 +9601,7 @@
       state.isSelectingFile = false;
       state.isCompressing = false;
       state.dossierDocuments = [];
+      state.clarificationAnswers = [];
       renderDossierList();
       syncActionControls();
     }

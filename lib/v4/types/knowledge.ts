@@ -764,6 +764,10 @@ export interface TaxAssistanceContext {
   ambiguities: EvaluatedRequirement[];
   deterministicQuestions?: TaxFieldQuestion[];
   userAnswers: UserProvidedFact[] | Array<{ requirementId: string; answer: string }>;
+  clarificationSession?: ClarificationSession | null;
+  currentQuestion?: ClarificationQuestion | null;
+  unresolvedConflicts?: FactConflict[];
+  changeHistory?: ClarificationChangeSet[];
   provenance: KnowledgeProvenance[];
   informationStatus: FieldInformationStatus;
   questions: TaxFieldQuestion[];
@@ -802,7 +806,19 @@ export type FactConflictKind =
   | "role"
   | "identity"
   | "emptyVsValue"
+  | "userVsDocument"
+  | "userVsUser"
   | "other";
+
+/** Source d’evidence pour un requirement — document ≠ utilisateur. */
+export type RequirementEvidenceSource =
+  | "foundInDocument"
+  | "providedByUser"
+  | "ambiguous"
+  | "missing"
+  | "unknown"
+  | "refused"
+  | "notApplicableKnown";
 
 /** Instance stable d’un document dans un dossier — jamais le seul fileName. */
 export interface DocumentInstance {
@@ -845,16 +861,167 @@ export interface FactConflict {
   factIds: string[];
   description: string;
   evidence: EvidenceSpan[];
+  /** V4-S — faits utilisateur impliqués (jamais fusionnés aux DocumentFacts). */
+  userFactIds?: string[];
+  resolution?: "unresolved" | "acknowledged" | "superseded";
 }
 
-/** Réponse utilisateur explicite — UserProvidedFact ≠ OfficialKnowledge. */
+/**
+ * Réponse utilisateur explicite — UserProvidedFact ≠ OfficialKnowledge ≠ DocumentFact.
+ * V4-S : provenance clarification, normalisation séparée du brut.
+ */
 export interface UserProvidedFact {
   kind: "user";
+  factId?: string;
   questionId: string;
   requirementId: string;
+  fieldCode?: string | null;
   answer: string;
+  rawAnswer?: string;
+  normalizedValue?: string | number | boolean | null;
+  valueType?: ClarificationAnswerType | null;
+  answerStatus?: ClarificationAnswerStatus | null;
+  role?: TaxFieldDeclarantRole | null;
+  year?: number | null;
+  documentRef?: string | null;
   answeredAt: string | null;
-  source: "user";
+  /** logical sequence — déterministe, pas Date.now() */
+  sequence?: number;
+  active?: boolean;
+  supersededBy?: string | null;
+  source: "user" | "clarification";
+}
+
+/* ─── V4-S — Boucle de clarification déterministe ─── */
+
+export type ClarificationAnswerType =
+  | "amount"
+  | "integer"
+  | "decimal"
+  | "year"
+  | "date"
+  | "boolean"
+  | "choice"
+  | "text"
+  | "declarant"
+  | "document"
+  | "yesNo"
+  | "unknown"
+  | "refused"
+  | "notApplicable";
+
+export type ClarificationAnswerStatus =
+  | "accepted"
+  | "unknown"
+  | "refused"
+  | "invalid"
+  | "ambiguous"
+  | "unanswered";
+
+export type ClarificationQuestionStatus =
+  | "unasked"
+  | "asked"
+  | "answered"
+  | "unknown"
+  | "refused"
+  | "invalid"
+  | "ambiguous"
+  | "resolved"
+  | "superseded"
+  | "notApplicable";
+
+export interface ClarificationQuestion {
+  questionId: string;
+  caseId: string;
+  requirementId: string;
+  fieldCode: string | null;
+  documentRef: string | null;
+  declarantRole: TaxFieldDeclarantRole | null;
+  question: string;
+  expectedAnswerType: ClarificationAnswerType;
+  reason: string;
+  priority: RequirementPriority;
+  provenance: KnowledgeProvenance[];
+  evidenceRefs: string[];
+  status: ClarificationQuestionStatus;
+  askedCount: number;
+  firstAskedSequence: number | null;
+  lastAskedSequence: number | null;
+  priorityScore: number;
+  priorityReasons: string[];
+  choices?: string[];
+  dependsOnQuestionId?: string | null;
+  maxAskedCount: number;
+}
+
+export interface ClarificationAnswer {
+  answerId: string;
+  questionId: string;
+  requirementId: string;
+  rawAnswer: string;
+  normalizedValue: string | number | boolean | null;
+  valueType: ClarificationAnswerType;
+  status: ClarificationAnswerStatus;
+  sequence: number;
+  parseNotes: string[];
+}
+
+export interface ClarificationChangeSet {
+  factsAdded: string[];
+  factsSuperseded: string[];
+  conflictsAdded: string[];
+  conflictsResolved: string[];
+  requirementsChanged: Array<{
+    requirementId: string;
+    from: string;
+    to: string;
+    evidenceSource?: RequirementEvidenceSource;
+  }>;
+  questionsResolved: string[];
+  questionsAdded: string[];
+  documentsAffected: string[];
+  caseStatusChanges: string[];
+  explanations: string[];
+}
+
+export interface ClarificationSession {
+  sessionId: string;
+  caseId: string;
+  sequence: number;
+  questions: ClarificationQuestion[];
+  answers: ClarificationAnswer[];
+  activeUserFacts: UserProvidedFact[];
+  historicalUserFacts: UserProvidedFact[];
+  currentQuestionId: string | null;
+  changeHistory: ClarificationChangeSet[];
+  invariants: ClarificationInvariants;
+}
+
+export interface ClarificationInvariants {
+  userFactPromotedToDocumentFact: number;
+  userFactPromotedToOfficialKnowledge: number;
+  unknownPromotedToKnown: number;
+  refusedPromotedToNegative: number;
+  invalidAnswerAccepted: number;
+  ambiguousAnswerPromotedToCertain: number;
+  userDocumentConflictAutoResolved: number;
+  userUserConflictLost: number;
+  crossYearAnswerPromoted: number;
+  crossRoleAnswerPromoted: number;
+  clarificationLoopDetected: number;
+  questionRepeatedAfterRefusal: number;
+  questionRepeatedAfterUnknownImmediately: number;
+  uploadOrderChangesQuestion: number;
+  automaticUnsafeAggregation: number;
+  unsupportedEligibilityDecision: number;
+  missingProvenance: number;
+}
+
+export interface ClarificationState {
+  session: ClarificationSession;
+  documentCase: DocumentCase;
+  currentQuestion: ClarificationQuestion | null;
+  lastChangeSet: ClarificationChangeSet | null;
 }
 
 export interface MatchScoreBreakdown {
@@ -874,6 +1041,8 @@ export interface CaseRequirementMatch {
   status: RequirementStatus;
   statusLabel: string;
   verdict: CrossMatchVerdict;
+  /** V4-S — distingue document vs réponse utilisateur. */
+  evidenceSource?: RequirementEvidenceSource;
   candidateFacts: CandidateDocumentFact[];
   evidenceLinks: RequirementEvidenceLink[];
   scoreBreakdowns: Array<{
@@ -969,6 +1138,8 @@ export interface DocumentCase {
   caseCentricViews: CaseCentricFieldView[];
   documentCentricViews: DocumentCentricView[];
   userAnswers: UserProvidedFact[];
+  /** V4-S — session de clarification attachée au dossier. */
+  clarificationSession?: ClarificationSession | null;
   metrics: DocumentCaseMetrics;
   taxContext: {
     primaryReferences: string[];

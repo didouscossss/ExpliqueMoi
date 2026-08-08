@@ -234,9 +234,20 @@ export default async function handler(request, response) {
     // USE_V4_ENGINE=false (défaut) → V3 inchangé ci-dessous.
     // unknown / faible confiance V4 ≠ erreur technique (pas de fallback auto).
     if (isV4EngineEnabled(request)) {
+      let clarificationAnswers = [];
+      try {
+        const rawClar = String(formData.get("clarification_answers") || "").trim();
+        if (rawClar) {
+          const parsed = JSON.parse(rawClar);
+          if (Array.isArray(parsed)) clarificationAnswers = parsed;
+        }
+      } catch {
+        clarificationAnswers = [];
+      }
       const v4Run = runV4PreviewAnalysis({
         pages: requestContext.pages,
-        pastedText: text
+        pastedText: text,
+        clarificationAnswers
       });
 
       requestContext.diagnostics.push({

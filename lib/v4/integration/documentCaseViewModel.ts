@@ -40,7 +40,9 @@ export function documentCaseToPreviewJson(
     conflicts: docCase.conflicts.map((c) => ({
       kind: c.kind,
       description: c.description,
-      document_ids: c.documentIds
+      document_ids: c.documentIds,
+      user_fact_ids: c.userFactIds || [],
+      resolution: c.resolution || "unresolved"
     })),
     ambiguities: docCase.ambiguities,
     tax_fields: docCase.caseCentricViews.map((v) => ({
@@ -83,6 +85,56 @@ export function documentCaseToPreviewJson(
       years_present: docCase.taxContext.yearsPresent,
       field_codes_present: docCase.taxContext.fieldCodesPresent
     },
+    clarification: docCase.clarificationSession
+      ? {
+          session_id: docCase.clarificationSession.sessionId,
+          current_question: (() => {
+            const q = docCase.clarificationSession.questions.find(
+              (x) =>
+                x.questionId ===
+                docCase.clarificationSession?.currentQuestionId
+            );
+            if (!q) return null;
+            return {
+              question_id: q.questionId,
+              field_code: q.fieldCode,
+              requirement_id: q.requirementId,
+              question: q.question,
+              reason: q.reason,
+              expected_answer_type: q.expectedAnswerType,
+              choices: q.choices || [],
+              priority_reasons: q.priorityReasons
+            };
+          })(),
+          user_facts: docCase.clarificationSession.activeUserFacts.map((f) => ({
+            fact_id: f.factId,
+            field_code: f.fieldCode,
+            requirement_id: f.requirementId,
+            value: f.normalizedValue ?? f.answer,
+            raw_answer: f.rawAnswer ?? f.answer,
+            source_label: "Information fournie par vous",
+            active: f.active !== false
+          })),
+          historical_user_facts: (
+            docCase.clarificationSession.historicalUserFacts || []
+          ).map((f) => ({
+            fact_id: f.factId,
+            field_code: f.fieldCode,
+            value: f.normalizedValue ?? f.answer,
+            superseded_by: f.supersededBy,
+            source_label: "Ancienne réponse (historique)"
+          })),
+          last_changes:
+            docCase.clarificationSession.changeHistory.slice(-1)[0]
+              ?.explanations || [],
+          user_vs_document_conflicts: docCase.conflicts
+            .filter((c) => c.kind === "userVsDocument")
+            .map((c) => ({
+              description: c.description,
+              resolution: c.resolution || "unresolved"
+            }))
+        }
+      : null,
     suggested_declared_amount: null,
     eligibility_decision: null,
     invariants: {

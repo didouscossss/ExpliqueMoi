@@ -188,7 +188,8 @@ export { checkTaxFieldAssistanceSafety } from "./fr/tax/fields/requirements/safe
 export {
   assistFieldWithLlm,
   explainRequirementsWithContext,
-  decideFieldApplicability
+  decideFieldApplicability,
+  narrateClarificationWithLlm
 } from "./fr/tax/fields/requirements/premiumBoundary.js";
 export {
   buildDocumentCase,
@@ -213,3 +214,19 @@ export {
   buildCaseId,
   normalizeDocumentText
 } from "./fr/tax/case/hash.js";
+export {
+  parseClarificationAnswer,
+  selectNextClarificationQuestion,
+  assertQuestionOrderStable,
+  DEFAULT_MAX_ASKED,
+  buildClarificationSession,
+  markQuestionAsked,
+  emptyClarificationInvariants,
+  initClarificationState,
+  applyClarificationAnswer,
+  explainClarificationChanges,
+  auditClarification,
+  auditClarificationState,
+  type ApplyClarificationResult,
+  type ClarificationAuditReport
+} from "./fr/tax/clarification/index.js";

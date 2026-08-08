@@ -1,5 +1,5 @@
 /**
- * Orchestration Preview — dossier multi-documents V4-R.
+ * Orchestration Preview — dossier multi-documents V4-R/S.
  */
 
 import {
@@ -8,6 +8,11 @@ import {
   type DocumentCaseInput
 } from "../knowledge/fr/tax/case/buildDocumentCase.js";
 import { checkDocumentCaseSafety } from "../knowledge/fr/tax/case/safety.js";
+import {
+  applyClarificationAnswer,
+  initClarificationState
+} from "../knowledge/fr/tax/clarification/index.js";
+import { auditClarification } from "../knowledge/fr/tax/clarification/audit.js";
 import { resetCandidateIdsForTests } from "../candidates/ids.js";
 import { resetRelationIdsForTests } from "../relations/ids.js";
 import { resetRequirementFactIdsForTests } from "../knowledge/fr/tax/fields/requirements/documentFactIndex.js";
@@ -25,12 +30,18 @@ export interface V4DocumentCaseRunInput {
     answer: string;
     answeredAt?: string | null;
   }>;
+  /** V4-S — réponses de clarification à appliquer dans l’ordre. */
+  clarificationAnswers?: Array<{
+    questionId?: string;
+    answer: string;
+  }>;
 }
 
 export function runV4PreviewDocumentCase(input: V4DocumentCaseRunInput): {
   ok: true;
   document_case: Record<string, unknown>;
   safety_ok: boolean;
+  clarification_ok?: boolean;
 } | {
   ok: false;
   technicalError: true;
@@ -53,7 +64,7 @@ export function runV4PreviewDocumentCase(input: V4DocumentCaseRunInput): {
         message: "Aucun document fourni pour le dossier."
       };
     }
-    const docCase = buildDocumentCase(docs, {
+    let docCase = buildDocumentCase(docs, {
       resetIds: Boolean(input.resetIds),
       userAnswers: (input.userAnswers || []).map((u) => ({
         kind: "user" as const,
@@ -71,7 +82,21 @@ export function runV4PreviewDocumentCase(input: V4DocumentCaseRunInput): {
     docCase.invariants.uploadOrderChangesConclusion =
       order.uploadOrderChangesConclusion;
 
+    // V4-S — boucle de clarification
+    let clarState = initClarificationState(docCase);
+    for (const step of input.clarificationAnswers || []) {
+      const qid =
+        step.questionId ||
+        clarState.currentQuestion?.questionId ||
+        clarState.session.currentQuestionId;
+      if (!qid) break;
+      const result = applyClarificationAnswer(clarState, qid, step.answer);
+      clarState = result.state;
+    }
+    docCase = clarState.documentCase;
+
     const safety = checkDocumentCaseSafety(docCase);
+    const clarAudit = auditClarification(docCase, clarState.session);
     if (
       docCase.invariants.crossDocumentUnsafeAggregation > 0 ||
       docCase.suggestedDeclaredAmount != null
@@ -79,14 +104,15 @@ export function runV4PreviewDocumentCase(input: V4DocumentCaseRunInput): {
       return {
         ok: false,
         technicalError: true,
-        message: "Invariant agrégation V4-R violé."
+        message: "Invariant agrégation V4-R/S violé."
       };
     }
 
     return {
       ok: true,
       document_case: documentCaseToPreviewJson(docCase),
-      safety_ok: safety.ok
+      safety_ok: safety.ok,
+      clarification_ok: clarAudit.ok
     };
   } catch (error) {
     return {

@@ -186,5 +186,15 @@ export type {
   DocumentCentricView,
   DocumentCaseMetrics,
   DocumentCaseInvariants,
-  DocumentCase
+  DocumentCase,
+  RequirementEvidenceSource,
+  ClarificationAnswerType,
+  ClarificationAnswerStatus,
+  ClarificationQuestionStatus,
+  ClarificationQuestion,
+  ClarificationAnswer,
+  ClarificationChangeSet,
+  ClarificationSession,
+  ClarificationInvariants,
+  ClarificationState
 } from "./knowledge.js";
