@@ -9,8 +9,7 @@ import type {
   ClassificationStatus,
   DocumentClassification,
   DocumentTypeId,
-  DocumentTypeScores,
-  SecondarySectionSignal
+  DocumentTypeScores
 } from "../types/documentClassification.js";
 import type { ScoreReason } from "../types/entityCandidate.js";
 import { toConfidence } from "../types/confidence.js";
@@ -21,6 +20,7 @@ import {
 import { listSchemaProfiles } from "./profiles/registry.js";
 import type { SchemaProfile } from "./schemaProfile.js";
 import { scoreSchemaProfile } from "./scorer.js";
+import { detectSecondarySections } from "./secondarySections.js";
 import { CLASSIFICATION_WEIGHTS as W } from "./weights.js";
 import type { EntityCandidate } from "../types/entityCandidate.js";
 import type { Relation, ConsistencyResult } from "../types/relation.js";
@@ -91,41 +91,8 @@ export class DocumentSchemaRouter {
       confidenceScore = top.score;
     }
 
-    // Secondary sections : fonctions annexes (ex. paiement SEPA dans une facture)
-    const secondarySections: SecondarySectionSignal[] = [];
-    if (
-      primary === "invoice" &&
-      (ctx.structures.hasIban || ctx.structures.hasPrelevement)
-    ) {
-      secondarySections.push({
-        type: "bankStatement",
-        confidence: Math.min(
-          scores.bankStatement || 0.12,
-          W.ibanAloneBankCap + 0.08
-        ),
-        signals: [
-          "secondary:paymentCoordinates",
-          ctx.structures.hasIban ? "iban" : "",
-          ctx.structures.hasPrelevement ? "prelevement" : ""
-        ].filter(Boolean)
-      });
-    }
-    for (const s of scored) {
-      if (s.type === primary) continue;
-      if (secondarySections.some((sec) => sec.type === s.type)) continue;
-      if (s.score < W.secondarySectionMin) continue;
-      if (s.score > confidenceScore * W.secondarySectionMaxPrimaryRatio + 0.15) {
-        // trop proche → déjà dans alternatives / ambiguous
-        continue;
-      }
-      if (s.score >= W.secondarySectionMin && s.score < top.score * 0.55) {
-        secondarySections.push({
-          type: s.type,
-          confidence: s.score,
-          signals: s.reasons.slice(0, 4).map((r) => r.signal)
-        });
-      }
-    }
+    // Sections fonctionnelles (contenu) — jamais des DocumentTypeId
+    const secondarySections = detectSecondarySections(ctx);
 
     const alternatives: ClassificationAlternative[] = scored
       .filter((s) => s.type !== primary)
@@ -189,7 +156,7 @@ export function explainClassification(
   }
   for (const sec of classification.secondarySections) {
     lines.push(
-      `secondarySection:${sec.type} (${sec.confidence.toFixed(2)}) ${sec.signals.join(", ")}`
+      `secondarySection:${sec.kind} (${sec.confidence.toFixed(2)}) ${sec.signals.join(", ")}`
     );
   }
   return lines;

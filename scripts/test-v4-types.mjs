@@ -124,7 +124,14 @@ function testClassificationMultiScores() {
       (classification.scores.bankStatement || 0)
   );
   assert.ok((classification.scores.bankStatement || 0) < 0.5);
-  console.log("  OK", classification.scores);
+  /** @type {import("../lib/v4/index.ts").SecondarySectionSignal} */
+  const functional = {
+    kind: "bankingDetails",
+    confidence: 0.8,
+    signals: ["iban"]
+  };
+  assert.notEqual(functional.kind, "bankStatement");
+  console.log("  OK", classification.scores, "+ secondary kind=", functional.kind);
 }
 
 function testDocumentProfileInterface() {

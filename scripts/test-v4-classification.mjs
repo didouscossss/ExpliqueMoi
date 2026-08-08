@@ -9,9 +9,26 @@ import {
   explainClassification,
   supportedDocumentTypes,
   listSchemaProfiles,
+  SECONDARY_SECTION_KINDS,
+  DOCUMENT_TYPE_IDS,
   resetCandidateIdsForTests,
   resetRelationIdsForTests
 } from "../lib/v4/index.ts";
+
+function assertFunctionalSecondaryOnly(secondarySections) {
+  for (const sec of secondarySections) {
+    assert.ok(
+      SECONDARY_SECTION_KINDS.includes(sec.kind),
+      `secondarySections.kind invalide: ${sec.kind}`
+    );
+    assert.equal(sec.type, undefined, "secondarySections ne doit pas exposer .type documentaire");
+    assert.ok(
+      !DOCUMENT_TYPE_IDS.includes(sec.kind),
+      `secondarySections ne doit jamais être un DocumentType (${sec.kind})`
+    );
+    assert.notEqual(sec.kind, "bankStatement");
+  }
+}
 
 function section(title) {
   console.log(`\n▸ ${title}`);
@@ -76,7 +93,7 @@ Mouvements du compte
       assert.ok((classification.scores.bankStatement || 0) > (classification.scores.invoice || 0));
     }
 
-    section("C — facture + IBAN reste invoice");
+    section("C — facture + IBAN reste invoice (sections fonctionnelles)");
     {
       const { classification } = classify(`
 Facture
@@ -96,13 +113,46 @@ IBAN FR76 1234 5678 9012 3456 7890 123
       );
       assert.equal(classification.primary, "invoice");
       assert.ok((classification.scores.bankStatement || 0) < 0.35);
+      assertFunctionalSecondaryOnly(classification.secondarySections);
+      const kinds = classification.secondarySections.map((s) => s.kind);
+      assert.ok(kinds.includes("bankingDetails"), "IBAN → bankingDetails");
+      assert.ok(kinds.includes("paymentInformation"), "prélèvement → paymentInformation");
+      assert.ok(!kinds.includes("bankStatement"));
+    }
+
+    section("C2 — facture + IBAN + SEPA sans ledger ≠ bankStatement");
+    {
+      const { classification } = classify(`
+Facture
+Total HT : 80,00 €
+TVA 20 % : 16,00 €
+Total TTC : 96,00 €
+Prélèvement automatique le 5 de chaque mois
+Mandat SEPA : FR12ZZZ123456
+IBAN FR76 1234 5678 9012 3456 7890 123
+RIB associé
+`.trim());
+      console.log(
+        "  primary=",
+        classification.primary,
+        "bank=",
+        classification.scores.bankStatement,
+        "secondary=",
+        classification.secondarySections.map((s) => s.kind)
+      );
+      assert.equal(classification.primary, "invoice");
       assert.ok(
-        classification.secondarySections.some(
-          (s) =>
-            s.type === "bankStatement" &&
-            s.signals.some((x) => /iban|payment/i.test(x))
-        ),
-        "IBAN doit apparaître comme section secondaire, pas comme primary bank"
+        (classification.scores.bankStatement || 0) < 0.2,
+        "sans ledger, bankStatement doit rester très faible"
+      );
+      assertFunctionalSecondaryOnly(classification.secondarySections);
+      const kinds = classification.secondarySections.map((s) => s.kind);
+      assert.ok(kinds.includes("bankingDetails"));
+      assert.ok(kinds.includes("paymentInformation"));
+      assert.ok(
+        !classification.secondarySections.some(
+          (s) => s.kind === "bankStatement" || s.type === "bankStatement"
+        )
       );
     }
 
@@ -223,18 +273,25 @@ IBAN FR76 1234 5678 9012 3456 7890 123
       assert.ok(
         (classification.scores.invoice || 0) > (classification.scores.bankStatement || 0)
       );
-      // IBAN/prélèvement éventuellement secondaire, jamais primary bank
+      // IBAN/prélèvement = sections fonctionnelles, jamais type bankStatement
       assert.ok((classification.scores.bankStatement || 0) < 0.4);
-      const hasNegBank = classification.evidence.some(
-        (e) =>
-          e.type === "bankStatement" ||
-          /noTransaction|factureLabel|invoiceTotals/i.test(e.signal)
-      );
-      assert.ok(
-        hasNegBank ||
-          (classification.scores.bankStatement || 0) <
-            (classification.scores.invoice || 0) / 2
-      );
+      assertFunctionalSecondaryOnly(classification.secondarySections);
+      const kinds = classification.secondarySections.map((s) => s.kind);
+      assert.ok(kinds.includes("bankingDetails"));
+      assert.ok(kinds.includes("paymentInformation"));
+      assert.ok(!kinds.includes("bankStatement"));
+    }
+
+    section("Séparation conceptuelle DocumentType ≠ SecondarySectionKind");
+    {
+      for (const kind of SECONDARY_SECTION_KINDS) {
+        assert.ok(
+          !DOCUMENT_TYPE_IDS.includes(kind),
+          `${kind} ne doit pas être un DocumentTypeId`
+        );
+      }
+      assert.ok(DOCUMENT_TYPE_IDS.includes("bankStatement"));
+      assert.ok(!SECONDARY_SECTION_KINDS.includes("bankStatement"));
     }
 
     assert.equal(fetchCalls, 0);

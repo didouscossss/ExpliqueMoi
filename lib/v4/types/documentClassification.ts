@@ -65,8 +65,33 @@ export interface ClassificationAlternative {
   confidence: number;
 }
 
+/**
+ * Catégories fonctionnelles secondaires — ce que le document CONTIENT.
+ * Strictement distinctes de DocumentTypeId (ce qu’est le document).
+ * Un IBAN / RIB / mandat SEPA / prélèvement ne produit JAMAIS bankStatement ici.
+ */
+export type SecondarySectionKind =
+  | "paymentInformation"
+  | "bankingDetails"
+  | "paymentSchedule"
+  | "contactInformation"
+  | "legalInformation"
+  | "contractualInformation"
+  | "taxInformation";
+
+export const SECONDARY_SECTION_KINDS: readonly SecondarySectionKind[] = [
+  "paymentInformation",
+  "bankingDetails",
+  "paymentSchedule",
+  "contactInformation",
+  "legalInformation",
+  "contractualInformation",
+  "taxInformation"
+] as const;
+
 export interface SecondarySectionSignal {
-  type: DocumentTypeId;
+  /** Catégorie fonctionnelle — jamais un DocumentTypeId. */
+  kind: SecondarySectionKind;
   confidence: number;
   signals: string[];
 }
@@ -80,7 +105,10 @@ export interface DocumentClassification {
   status: ClassificationStatus;
   scores: DocumentTypeScores;
   alternatives: ClassificationAlternative[];
-  /** Sections / fonctions secondaires (ex. paiement SEPA dans une facture). */
+  /**
+   * Sections fonctionnelles secondaires (contenu), PAS des types documentaires.
+   * Ex. facture + IBAN → bankingDetails / paymentInformation, jamais bankStatement.
+   */
   secondarySections: SecondarySectionSignal[];
   evidence: ClassificationEvidenceItem[];
   contradictions: ScoreReason[];

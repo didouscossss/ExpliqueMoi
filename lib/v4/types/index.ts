@@ -53,10 +53,14 @@ export type {
   ClassificationEvidenceItem,
   ClassificationStatus,
   ClassificationAlternative,
+  SecondarySectionKind,
   SecondarySectionSignal,
   DocumentClassification
 } from "./documentClassification.js";
-export { DOCUMENT_TYPE_IDS } from "./documentClassification.js";
+export {
+  DOCUMENT_TYPE_IDS,
+  SECONDARY_SECTION_KINDS
+} from "./documentClassification.js";
 
 export type {
   DocumentProfileContext,

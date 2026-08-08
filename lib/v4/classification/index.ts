@@ -23,3 +23,7 @@ export {
   classifyDocumentText
 } from "./pipeline.js";
 export type { ClassificationPipelineResult } from "./pipeline.js";
+export {
+  detectSecondarySections,
+  isSecondarySectionKind
+} from "./secondarySections.js";
