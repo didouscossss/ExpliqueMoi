@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-08T21:23:08.905Z",
+  "generatedAt": "2026-08-08T21:23:30.277Z",
   "caseId": "case-d0c6268f2747eabb",
   "formulaIds": [],
   "formulasCount": 0,
@@ -80,7 +80,7 @@
     "calculationsProduced": 0,
     "calculationsBlocked": 7,
     "conflicts": 0,
-    "durationMs": 1
+    "durationMs": 0
   },
   "suggestedDeclaredAmount": null,
   "eligibilityDecision": null,
