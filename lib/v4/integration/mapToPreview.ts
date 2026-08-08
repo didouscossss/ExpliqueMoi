@@ -162,7 +162,10 @@ export function mapV4ResultToPreviewAnalysis(
     .filter((a) => a.value != null && !isAmbiguous(a))
     .map((a) => ({
       label: a.label || a.kind,
-      value: formatMoneyFR(a.value) || String(a.value),
+      value:
+        a.kind === "rate" || /taux/i.test(a.label || "")
+          ? `${a.value} %`
+          : formatMoneyFR(a.value) || String(a.value),
       kind: a.kind,
       page: String(a.evidence?.[0]?.page || "")
     }));
