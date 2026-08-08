@@ -130,6 +130,13 @@ export function scoreLineContext(context: string): {
       reason: "montant de prélèvement (+90)"
     },
     {
+      // « total auprès d'… » / « total du montant prélevé » = total facture TTC
+      tag: "payable",
+      re: /total\s+aupres\s+d|total\s+du\s+montant\s+preleve|montant\s+preleve/g,
+      weight: 95,
+      reason: "total auprès / montant prélevé (+95)"
+    },
+    {
       tag: "ttc",
       re: /\bttc\b|toutes\s*taxes\s*comprises/g,
       weight: 80,
@@ -298,6 +305,7 @@ export function extractVatRates(text: string): number[] {
   const seen = new Set<number>();
   const patterns = [
     /(?:tva|vat|taux(?:\s*(?:de\s*)?tva)?)\s*[[(:]?\s*(\d{1,2}(?:[.,]\d{1,2})?)\s*%/gi,
+    /(?:tva|vat)\s+est\s+de\s+(\d{1,2}(?:[.,]\d{1,2})?)\s*%/gi,
     /(\d{1,2}(?:[.,]\d{1,2})?)\s*%\s*\]?\s*(?:tva|vat|t\.?\s*v\.?\s*a)/gi,
     /\[(\d{1,2}(?:[.,]\d{1,2})?)\s*%\]/gi,
     /\((\d{1,2}(?:[.,]\d{1,2})?)\s*%\)/gi
@@ -425,55 +433,130 @@ function immediateSuffixMoneyTag(
   return { tag, weight: 15, reason: "suffixe TVA après montant (+15)" };
 }
 
+function assignColumnRolesToAmounts(
+  text: string,
+  headerMatch: RegExpMatchArray,
+  roles: Array<"ht" | "tva" | "ttc">,
+  candidates: RankedAmountCandidate[],
+  reasonPrefix: string
+): void {
+  const headerEnd = (headerMatch.index || 0) + headerMatch[0].length;
+  // Fenêtre assez large : en-têtes souvent 1–2 lignes au-dessus des montants
+  const after = text.slice(headerEnd, headerEnd + 320);
+  const amounts = extractAmountsFromText(after).filter((a) =>
+    /[.,]\d{2}/.test(a.raw)
+  );
+  if (amounts.length < roles.length) return;
+
+  for (let i = 0; i < roles.length; i += 1) {
+    const absStart = headerEnd + amounts[i].start;
+    const role = roles[i];
+    let cand =
+      candidates.find(
+        (c) =>
+          c.start != null &&
+          Math.abs(c.start - absStart) <= 2 &&
+          Math.abs(c.value - amounts[i].value) < 0.001
+      ) || null;
+    // Repli : même valeur non encore assignée à ce rôle
+    if (!cand) {
+      cand =
+        candidates.find(
+          (c) =>
+            Math.abs(c.value - amounts[i].value) < 0.001 &&
+            !c.tags.includes(role)
+        ) || null;
+    }
+    if (!cand) continue;
+
+    cand.tags = cand.tags.filter(
+      (t) => !["ht", "tva", "ttc", "offer", "partial", "payable"].includes(t)
+    );
+    cand.tags.push(role);
+    if (role === "ttc") cand.tags.push("payable");
+
+    let score = 8;
+    if (role === "ht") {
+      score += 50;
+      pushUniqueReason(cand.reasons, `${reasonPrefix} HT (+50)`);
+    } else if (role === "tva") {
+      score += 30;
+      pushUniqueReason(cand.reasons, `${reasonPrefix} TVA (+30)`);
+    } else {
+      score += 100;
+      pushUniqueReason(cand.reasons, `${reasonPrefix} TTC (+100)`);
+    }
+    // Ne pas laisser une pénalité offre/partial écraser le total facture
+    cand.score = Math.max(cand.score, score);
+  }
+}
+
 /**
- * En-têtes colonnes « HT … TVA … TTC » suivis de 3 montants :
- * assigne les rôles par position (layout facture télécom fréquent).
+ * En-têtes colonnes HT/TVA/TTC ou HT/TTC suivis des montants (layout télécom).
  */
 function applyColumnHeaderRoles(
   full: string,
   candidates: RankedAmountCandidate[]
 ): void {
   const text = String(full || "");
-  const headerRe = /\bht\b[\s\/.|:]*\btva\b[\s\/.|:]*\bttc\b/gi;
-  for (const match of text.matchAll(headerRe)) {
-    const headerEnd = (match.index || 0) + match[0].length;
-    const after = text.slice(headerEnd, headerEnd + 180);
-    const amounts = extractAmountsFromText(after).filter((a) =>
-      /[.,]\d{2}/.test(a.raw)
+
+  // 1) HT TVA TTC → 3 montants
+  for (const match of text.matchAll(/\bht\b[\s\/.|:]*\btva\b[\s\/.|:]*\bttc\b/gi)) {
+    assignColumnRolesToAmounts(
+      text,
+      match,
+      ["ht", "tva", "ttc"],
+      candidates,
+      "colonne (ordre HT/TVA/TTC)"
     );
-    if (amounts.length < 3) continue;
-    const roles: Array<"ht" | "tva" | "ttc"> = ["ht", "tva", "ttc"];
-    for (let i = 0; i < 3; i += 1) {
-      const absStart = headerEnd + amounts[i].start;
-      const role = roles[i];
-      const cand = candidates.find(
-        (c) =>
-          c.start != null &&
-          Math.abs(c.start - absStart) <= 2 &&
-          Math.abs(c.value - amounts[i].value) < 0.001
+  }
+
+  // 2) HT TTC → 2 montants (ex. « HT TTC » puis « total auprès d'… 21,66 25,99 »)
+  for (const match of text.matchAll(/\bht\b[\s\/.|:]*\bttc\b/gi)) {
+    // Évite le sous-match de « HT TVA TTC »
+    const slice = match[0].replace(/\s+/g, " ");
+    if (/\btva\b/i.test(slice)) continue;
+    assignColumnRolesToAmounts(
+      text,
+      match,
+      ["ht", "ttc"],
+      candidates,
+      "colonne (ordre HT/TTC)"
+    );
+  }
+
+  // 3) Même ligne : « total auprès d'X 21,66 25,99 » → HT puis TTC
+  for (const match of text.matchAll(
+    /total\s+aupr[eè]s\s+d['’]?[^\n\d]{0,40}?(\d+[.,]\d{2})\s+(\d+[.,]\d{2})/gi
+  )) {
+    const htVal = parseFrenchAmount(match[1]);
+    const ttcVal = parseFrenchAmount(match[2]);
+    if (htVal == null || ttcVal == null || htVal >= ttcVal) continue;
+    const htCand = candidates.find((c) => Math.abs(c.value - htVal) < 0.001);
+    const ttcCand = candidates.find((c) => Math.abs(c.value - ttcVal) < 0.001);
+    if (htCand) {
+      htCand.tags = htCand.tags.filter(
+        (t) => !["ttc", "payable", "offer", "partial", "tva"].includes(t)
       );
-      if (!cand) continue;
-      cand.tags = cand.tags.filter(
-        (t) => !["ht", "tva", "ttc", "offer", "payable"].includes(t)
+      if (!htCand.tags.includes("ht")) htCand.tags.push("ht");
+      if (!htCand.tags.includes("total")) htCand.tags.push("total");
+      htCand.score = Math.max(htCand.score, 70);
+      pushUniqueReason(
+        htCand.reasons,
+        "paire HT/TTC après « total auprès » (+HT)"
       );
-      cand.tags.push(role);
-      // Recalcule un score de rôle colonne (écrase la contamination « TTC » gauche)
-      let score = 8; // forme monétaire
-      if (role === "ht") {
-        score += 45;
-        if (/\btotal\b/i.test(match[0]) || /\btotal\b/i.test(text.slice(Math.max(0, (match.index || 0) - 24), match.index || 0))) {
-          score += 25;
-          pushUniqueReason(cand.reasons, "colonne Total HT (+25)");
-        }
-        pushUniqueReason(cand.reasons, "colonne HT (ordre HT/TVA/TTC) (+45)");
-      } else if (role === "tva") {
-        score += 30;
-        pushUniqueReason(cand.reasons, "colonne TVA (ordre HT/TVA/TTC) (+30)");
-      } else {
-        score += 90;
-        pushUniqueReason(cand.reasons, "colonne TTC (ordre HT/TVA/TTC) (+90)");
-      }
-      cand.score = score;
+    }
+    if (ttcCand) {
+      ttcCand.tags = ttcCand.tags.filter(
+        (t) => !["ht", "offer", "partial", "tva"].includes(t)
+      );
+      if (!ttcCand.tags.includes("ttc")) ttcCand.tags.push("ttc");
+      if (!ttcCand.tags.includes("payable")) ttcCand.tags.push("payable");
+      ttcCand.score = Math.max(ttcCand.score, 120);
+      pushUniqueReason(
+        ttcCand.reasons,
+        "paire HT/TTC après « total auprès » (+TTC)"
+      );
     }
   }
 }
@@ -659,10 +742,27 @@ export function rankAmountCandidates(text: string): RankedAmountCandidate[] {
       byValue.set(cand.value, { ...cand, tags: [...cand.tags], reasons: [...cand.reasons] });
       continue;
     }
-    prev.tags = [...new Set([...prev.tags, ...cand.tags])];
+    const invoiceTotalTags = (c: RankedAmountCandidate) =>
+      c.tags.includes("ttc") ||
+      c.tags.includes("payable") ||
+      (c.tags.includes("total") && !c.tags.includes("offer") && !c.tags.includes("partial"));
+    const isOfferLike = (c: RankedAmountCandidate) =>
+      c.tags.includes("offer") || c.tags.includes("partial");
+
+    // Union des tags, mais une occurrence total facture purge offre/partial
+    if (invoiceTotalTags(cand) && isOfferLike(prev)) {
+      prev.tags = prev.tags.filter((t) => t !== "offer" && t !== "partial");
+    }
+    if (invoiceTotalTags(prev) && isOfferLike(cand)) {
+      // ne pas importer offer/partial depuis l’offre
+      prev.tags = [...new Set([...prev.tags, ...cand.tags.filter((t) => t !== "offer" && t !== "partial")])];
+    } else {
+      prev.tags = [...new Set([...prev.tags, ...cand.tags])];
+    }
     for (const r of cand.reasons) pushUniqueReason(prev.reasons, r);
     const preferCand =
       cand.score > prev.score ||
+      (invoiceTotalTags(cand) && isOfferLike(prev)) ||
       (cand.tags.includes("ttc") &&
         !prev.tags.includes("ttc") &&
         cand.score >= prev.score - 20) ||
@@ -671,13 +771,9 @@ export function rankAmountCandidates(text: string): RankedAmountCandidate[] {
         (cand.tags.includes("ttc") || cand.tags.includes("payable")));
     if (preferCand) {
       prev.score = Math.max(prev.score, cand.score);
-      // Si on préfère une occurrence TTC/total à une offre, remonter le score TTC
-      if (
-        (cand.tags.includes("ttc") || cand.tags.includes("payable")) &&
-        prev.tags.includes("offer")
-      ) {
+      if (invoiceTotalTags(cand)) {
+        prev.tags = prev.tags.filter((t) => t !== "offer" && t !== "partial");
         prev.score = Math.max(prev.score, cand.score);
-        prev.tags = prev.tags.filter((t) => t !== "offer");
       }
       prev.raw = cand.raw;
       prev.context = cand.context;

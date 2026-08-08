@@ -524,33 +524,44 @@ function isLegalCapitalLine(line: string): boolean {
   return /capital(\s+social)?|au\s+capital\s+de/i.test(line);
 }
 
+/** Déterminants / libellés UI — jamais un émetteur seuls. */
+const ISSUER_STOPWORDS =
+  /^(votre|vos|notre|nos|mon|ma|mes|le|la|les|un|une|des|du|de|client|clients|facture|factures|devis|offre|offres|total|mobile|page|document|coordonnees|coordonnées|destinataire|emetteur|émetteur)$/i;
+
 function isUsableCompanyName(name: string | null): name is string {
   if (!name) return false;
   if (isLegalCapitalLine(name)) return false;
   if (/capital(\s+social)?|au\s+capital/i.test(name)) return false;
   if (/\beuros?\b/i.test(name) && /\d/.test(name)) return false;
   if (/^\d/.test(name) || /\b\d{3,}[ \u00a0]\d{3}/.test(name)) return false;
+  if (ISSUER_STOPWORDS.test(name.trim())) return false;
+  // Pronom/déterminant + mot générique (« Votre facture » déjà coupé, mais filet)
+  if (/^(votre|vos|notre|nos)\b/i.test(name.trim()) && name.trim().split(/\s+/).length <= 2) {
+    return false;
+  }
   return true;
+}
+
+function isNumericIdentifier(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const compact = String(value).replace(/[\s./-]/g, "");
+  return /^\d{4,}$/.test(compact);
+}
+
+/** Extrait « M NOM PRÉNOM » en tête de ligne (s’arrête avant un mot minuscule). */
+function extractPersonNamePrefix(line: string): string | null {
+  const t = String(line || "").trim();
+  if (!t) return null;
+  // Civilité + 1–5 tokens NOM (majuscules) — ne pas avaler « total auprès… »
+  const m = t.match(
+    /^((?:M\.?|Mr\.?|Mme\.?|Mlle\.?|Monsieur|Madame|Mademoiselle)\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ'’\-]*(?:\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ'’\-]*){0,4})(?:\s|$)/
+  );
+  return m?.[1] ? cleanName(m[1]) : null;
 }
 
 /** Civilité + nom : destinataire / client, pas émetteur. */
 function isPersonRecipientLine(line: string): boolean {
-  const t = String(line || "").trim();
-  if (!t) return false;
-  if (
-    /^(m\.?|mr\.?|mme\.?|mlle\.?|monsieur|madame|mademoiselle)\s+[a-zàâäéèêëïîôùûüç]/i.test(
-      t
-    )
-  ) {
-    return true;
-  }
-  // « M CHAMPION VALENTIN » (civilité courte + NOM en capitales)
-  if (/^(m\.?|mr\.?|mme\.?)\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ'’\-]+(?:\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ'’\-]+){0,4}$/.test(
-    t
-  )) {
-    return true;
-  }
-  return false;
+  return Boolean(extractPersonNamePrefix(line));
 }
 
 function isCoordonneesHeading(line: string): boolean {
@@ -630,7 +641,22 @@ export function extractCompanyName(text: string): string | null {
     }
   }
 
-  // Marque en tête de document juste avant « Facture » (OCR aplati inclus)
+  // « Bienvenue chez Marque » — signal commercial générique (pas un déterminant)
+  const welcomeBrand = String(text || "").match(
+    /\bbienvenue\s+chez\s+([A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ]{1,32})\b/i
+  );
+  if (welcomeBrand?.[1]) {
+    const name = cleanName(welcomeBrand[1]);
+    if (
+      isUsableCompanyName(name) &&
+      !isPersonRecipientLine(name) &&
+      (!client || normalizeCompact(name) !== normalizeCompact(client))
+    ) {
+      return name;
+    }
+  }
+
+  // Marque en tête juste avant « Facture » — refuse les déterminants (Votre/Vos…)
   const leadingBrand = String(text || "").match(
     /^\s*([A-Za-zÉÈÊËÀÂÄÔÖÙÛÜÇ][\wÉÈÊËÀÂÄÔÖÙÛÜÇ]{1,28})\s+(?:facture|invoice|by)\b/im
   );
@@ -639,7 +665,9 @@ export function extractCompanyName(text: string): string | null {
     if (
       isUsableCompanyName(name) &&
       !isPersonRecipientLine(name) &&
-      !/^(facture|devis|total|date|montant)$/i.test(name) &&
+      !/^(facture|devis|total|date|montant|votre|vos|notre|nos|mobile|offre)$/i.test(
+        name
+      ) &&
       (!client || normalizeCompact(name) !== normalizeCompact(client))
     ) {
       return name;
@@ -717,35 +745,48 @@ export function extractCompanyName(text: string): string | null {
 }
 
 export function extractClientName(text: string): string | null {
-  const labeled = text.match(
-    /(?:client|facturé\s*[àa]|facture\s*[àa]|destinataire|adressé\s*[àa]|patient)\s*[:=]\s*([^\n]+)/i
+  // 1) Priorité : personne sous « vos coordonnées » (pas un n° client)
+  const coordBlock = String(text || "").match(
+    /vos\s+coordonn[eé]es\s*\n\s*([^\n]+)/i
   );
-  if (labeled?.[1] && !isLegalCapitalLine(labeled[1])) {
-    return cleanName(labeled[1]);
-  }
-
-  const block = text.match(
-    /(?:client|facturé\s*[àa]|destinataire|vos\s+coordonn[eé]es)\s*\n\s*([^\n]+)/i
-  );
-  if (block?.[1] && !isCoordonneesHeading(block[1])) {
-    const name = cleanName(block[1]);
-    if (name && (isPersonRecipientLine(name) || /[a-z]/i.test(name))) {
-      return name;
-    }
+  if (coordBlock?.[1]) {
+    const person = extractPersonNamePrefix(coordBlock[1]);
+    if (person) return person;
   }
 
   // Texte aplati : « Vos coordonnées M CHAMPION VALENTIN … »
   const flatCoord = String(text || "").match(
-    /vos\s+coordonn[eé]es\s+((?:m\.?|mr\.?|mme\.?|mlle\.?|monsieur|madame)\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-Za-zÉÈÊËÀÂÄÔÖÙÛÜÇ'’\-]+(?:\s+[A-ZÉÈÊËÀÂÄÔÖÙÛÜÇ][A-Za-zÉÈÊËÀÂÄÔÖÙÛÜÇ'’\-]+){0,4})/i
+    /vos\s+coordonn[eé]es\s+([^\n]+)/i
   );
   if (flatCoord?.[1]) {
-    return cleanName(flatCoord[1]);
+    const person = extractPersonNamePrefix(flatCoord[1]);
+    if (person) return person;
   }
 
   // Civilité en tête de ligne dans les ~25 premières lignes
   for (const line of linesOf(text).slice(0, 25)) {
-    if (isPersonRecipientLine(line)) {
-      return cleanName(line);
+    const person = extractPersonNamePrefix(line);
+    if (person && !isNumericIdentifier(person)) {
+      return person;
+    }
+  }
+
+  const labeled = text.match(
+    /(?:facturé\s*[àa]|facture\s*[àa]|destinataire|adressé\s*[àa]|patient)\s*[:=]\s*([^\n]+)/i
+  );
+  if (labeled?.[1] && !isLegalCapitalLine(labeled[1])) {
+    const name = cleanName(labeled[1]);
+    if (name && !isNumericIdentifier(name)) return name;
+  }
+
+  // « client : » seulement si valeur non numérique (évite n° client / compte)
+  const clientLabeled = text.match(
+    /(?:^|\n)\s*client\s*[:=]\s*([^\n]+)/i
+  );
+  if (clientLabeled?.[1]) {
+    const name = cleanName(clientLabeled[1]);
+    if (name && !isNumericIdentifier(name) && !/^n[°o]/i.test(name)) {
+      return name;
     }
   }
 

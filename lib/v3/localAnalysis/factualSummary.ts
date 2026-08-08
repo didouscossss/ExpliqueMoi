@@ -74,6 +74,14 @@ function isReliableIssuer(name: string | null | undefined): string | null {
   ) {
     return null;
   }
+  // Déterminants / libellés UI seuls
+  if (
+    /^(votre|vos|notre|nos|client|facture|offre|mobile|total|page|document)$/i.test(
+      cleaned
+    )
+  ) {
+    return null;
+  }
   return cleaned;
 }
 
