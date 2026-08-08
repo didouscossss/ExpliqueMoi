@@ -11,14 +11,34 @@
     "test:pdf-pages": "node scripts/test-pdf-page-limit.mjs",
     "test:photo-compression": "node scripts/test-photo-compression.mjs",
     "test:analysis-quality": "node scripts/test-analysis-quality.mjs",
-    "test:upload-payload": "node scripts/test-upload-payload.mjs"
+    "test:upload-payload": "node scripts/test-upload-payload.mjs",
+    "test:v3-ocr": "tsx scripts/test-v3-ocr.mjs",
+    "test:v3-local": "tsx scripts/test-v3-local-analysis.mjs",
+    "test:v3-providers": "tsx scripts/test-v3-providers.mjs",
+    "test:v3-openai": "tsx scripts/test-v3-openai.mjs",
+    "test:v3-front-map": "tsx scripts/test-v3-front-map.mjs",
+    "test:v3-degraded": "tsx scripts/test-v3-degraded.mjs",
+    "test:v3-amount-ranking": "tsx scripts/test-v3-amount-ranking.mjs",
+    "test:v3-pdfjs-pipeline": "tsx scripts/test-v3-pdfjs-pipeline.mjs",
+    "test:v3-vat-rate-dates": "tsx scripts/test-v3-vat-rate-dates.mjs",
+    "test:v3-evidence-quality": "tsx scripts/test-v3-evidence-quality.mjs",
+    "test:v3-sosh-ht-ttc": "tsx scripts/test-v3-sosh-ht-ttc.mjs",
+    "test:v3-sosh-real-pdf": "tsx scripts/test-v3-sosh-real-pdf.mjs",
+    "test:v3-audit-no-ai": "tsx scripts/audit-v3-no-ai.mjs",
+    "test:v3": "npm run test:v3-local && npm run test:v3-front-map && npm run test:v3-amount-ranking && npm run test:v3-pdfjs-pipeline && npm run test:v3-vat-rate-dates && npm run test:v3-evidence-quality && npm run test:v3-sosh-ht-ttc && npm run test:v3-sosh-real-pdf && npm run test:v3-degraded && npm run test:v3-audit-no-ai"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^4.10.38"
+    "pdfjs-dist": "^4.10.38",
+    "tesseract.js": "^5.1.1"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "tsx": "^4.23.9",
+    "typescript": "^5.8.3"
   }
 }
