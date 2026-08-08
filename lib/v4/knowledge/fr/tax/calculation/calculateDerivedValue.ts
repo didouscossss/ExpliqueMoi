@@ -20,6 +20,7 @@ import { evaluateTypedOperation } from "./evaluateFormula.js";
 import { resolveFormulaInputs } from "./resolveInputs.js";
 import { getFormulasForField } from "./formulas.js";
 import { explainTaxCalculation } from "./explainCalculation.js";
+import { evaluateFormulaConditions } from "./formulaConditions.js";
 
 export function emptyCalculationInvariants(): TaxCalculationInvariants {
   return {
@@ -174,8 +175,9 @@ export function calculateDerivedValue(options: CalculateOptions): {
     }
     // applicable → may calculate
   }
-  // null applicability = aucune règle V4-T pour cette case → le calcul peut procéder
-  // (unknown explicite est déjà bloqué ci-dessus).
+  // null applicability :
+  // - si la formule exige un gate V4-T → traiter comme unknown (pas de calcul)
+  // - sinon → le calcul peut procéder
 
   // Evaluate first verified formula with complete provenance
   const formula = formulas.find(
@@ -211,12 +213,37 @@ export function calculateDerivedValue(options: CalculateOptions): {
     };
   }
 
+  // Formule exige un gate d’applicabilité mais aucun résultat V4-T fourni
+  if (formula.requiresApplicabilityField && !options.applicability) {
+    return {
+      invariants,
+      result: unsupportedResult(
+        fieldCode,
+        "Calcul impossible tant que la pertinence de la case n’est pas déterminée."
+      )
+    };
+  }
+
   // Year gate
   if (
     formula.yearPolicy === "exact" &&
     options.targetYear != null &&
     !formula.taxYears.includes(options.targetYear)
   ) {
+    invariants.crossYearCalculation = 0;
+    return {
+      invariants,
+      result: unsupportedResult(
+        fieldCode,
+        "La formule modélisée ne s’applique pas à cette année."
+      )
+    };
+  }
+  if (
+    options.targetYear != null &&
+    !formula.taxYears.includes(options.targetYear)
+  ) {
+    // verifiedStable hors millésimes modélisés → pas de calcul cross-year
     invariants.crossYearCalculation = 0;
     return {
       invariants,
@@ -283,6 +310,36 @@ export function calculateDerivedValue(options: CalculateOptions): {
         sources: sourcesOf(formula),
         limits: [
           "Cette valeur calculée n’est pas une valeur officielle de déclaration."
+        ],
+        derivedValue: null
+      }
+    };
+  }
+
+  // Conditions propres à la formule (plafond, exclusions…)
+  const cond = evaluateFormulaConditions(formula, {
+    resolved: resolved.resolved,
+    userFacts: options.userFacts || []
+  });
+  if (!cond.ok) {
+    return {
+      invariants,
+      result: {
+        fieldCode,
+        status: cond.status,
+        value: null,
+        unit: formula.unit,
+        formulaId: formula.formulaId,
+        inputs: resolved.resolved,
+        missingInputs: cond.missingInputs,
+        conflicts: [],
+        evidence: [],
+        explanation: cond.explanation,
+        sources: sourcesOf(formula),
+        limits: [
+          "Cette valeur calculée n’est pas une valeur officielle de déclaration.",
+          formula.resultLabel ||
+            "Ce calcul ne constitue ni une obligation ni une décision d’avantage fiscal."
         ],
         derivedValue: null
       }
@@ -384,15 +441,24 @@ export function calculateDerivedValue(options: CalculateOptions): {
           ? "Information fournie par vous"
           : r.sourceKind === "derived"
             ? "Valeur dérivée"
-            : "Information trouvée dans le document",
+            : r.sourceKind === "constant"
+              ? "Constante officielle de la formule"
+              : "Information trouvée dans le document",
       detail: `${r.inputId}=${r.value} ${r.unit}`,
-      sourceKind: r.sourceKind === "derived" ? "derived" : r.sourceKind,
+      sourceKind:
+        r.sourceKind === "constant"
+          ? "formula"
+          : r.sourceKind === "derived"
+            ? "derived"
+            : r.sourceKind,
       sourceId: r.sourceId
     })),
     explanation: "",
     sources: sourcesOf(formula),
     limits: [
       "Cette valeur calculée n’est pas une valeur officielle de déclaration.",
+      formula.resultLabel ||
+        "Ce calcul ne constitue ni une obligation ni une décision d’avantage fiscal.",
       "Ce calcul ne constitue ni une obligation ni une décision d’avantage fiscal."
     ],
     derivedValue: derived

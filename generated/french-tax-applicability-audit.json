@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-08T21:23:29.389Z",
+  "generatedAt": "2026-08-08T21:31:55.233Z",
   "caseId": "case-b38a0d4d3e4cb75c",
   "ruleIds": [
     "1aj-declarant1-scope",
@@ -7,10 +7,11 @@
     "4ba-regime-reel",
     "4bb-regime-reel",
     "4bc-regime-reel",
+    "4be-micro-foncier-scope",
     "7db-no-aids-only-unknown",
     "7dr-aids-scope"
   ],
-  "rulesCount": 7,
+  "rulesCount": 8,
   "evaluations": [
     {
       "fieldCode": "1AJ",

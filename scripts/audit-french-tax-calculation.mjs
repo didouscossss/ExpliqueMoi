@@ -17,6 +17,7 @@ import {
   TAX_FORMULAS
 } from "../lib/v4/index.ts";
 import { CALC_DOCS } from "../lib/v4/__fixtures__/fiscal/calculationFixtures.mjs";
+import { FIRST_FORMULA_DOCS } from "../lib/v4/__fixtures__/fiscal/firstFormulaFixtures.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -33,6 +34,7 @@ function main() {
       CALC_DOCS.salary1AJ,
       CALC_DOCS.empty1AJ,
       CALC_DOCS.foncierMicro,
+      FIRST_FORMULA_DOCS.micro4BE_10000,
       CALC_DOCS.multiAmountsNoFormula,
       ...CALC_DOCS.duplicatePair
     ],
@@ -61,7 +63,8 @@ function main() {
     boundaries: {
       derivedValuePromotedToDeclaredAmount: 0,
       calculationPromotedToEligibility: 0,
-      packIsEmptyByDesign: TAX_FORMULAS.length === 0
+      packIsEmptyByDesign: false,
+      firstProductionFormulaId: "4be-micro-foncier-revenu-imposable"
     },
     ...report
   };
@@ -76,8 +79,14 @@ function main() {
     console.error("AUDIT FAILED");
     process.exit(1);
   }
-  if (TAX_FORMULAS.length !== 0) {
-    console.error("Unexpected production formulas — pack should stay empty unless sourced");
+  if (TAX_FORMULAS.length !== 1) {
+    console.error(
+      `Expected exactly 1 production formula (V4-V micro-foncier), got ${TAX_FORMULAS.length}`
+    );
+    process.exit(1);
+  }
+  if (TAX_FORMULAS[0]?.formulaId !== "4be-micro-foncier-revenu-imposable") {
+    console.error("Unexpected production formula id");
     process.exit(1);
   }
   console.log("AUDIT OK");

@@ -217,6 +217,8 @@ export type {
   TaxFormulaYearPolicy,
   TaxFormulaRolePolicy,
   TaxFormulaInput,
+  TaxFormulaConstant,
+  TaxFormulaCondition,
   TaxFormula,
   ResolvedFormulaInput,
   CalculationEvidence,

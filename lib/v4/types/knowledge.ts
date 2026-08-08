@@ -1240,7 +1240,43 @@ export interface TaxFormulaInput {
   allowUserFact?: boolean;
   /** Autorise DerivedTaxValue comme input. */
   allowDerivedValue?: boolean;
+  /**
+   * Constante officielle sourcée (taux, etc.) — résolue depuis TaxFormula.constants,
+   * jamais inventée à l’exécution.
+   */
+  constantId?: string | null;
 }
+
+/** Constante officielle intégrée à une formule (taux, plafond…). */
+export interface TaxFormulaConstant {
+  constantId: string;
+  label: string;
+  value: number;
+  unit: TaxValueUnit;
+  /** Lien explicite avec l’extrait officiel. */
+  sourceNote: string;
+}
+
+/**
+ * Conditions déterministes propres à la formule (en plus du gate V4-T).
+ * Si non satisfaites → notApplicable / needsInformation / unsupported — jamais de calcul inventé.
+ */
+export type TaxFormulaCondition =
+  | {
+      kind: "inputAtMost";
+      inputId: string;
+      value: number;
+      unit: TaxValueUnit;
+      onFail: "notApplicable" | "needsInformation" | "unsupported";
+      message: string;
+    }
+  | {
+      kind: "userFactAccepted";
+      requirementId: string;
+      fieldCode: string;
+      missingId: string;
+      message: string;
+    };
 
 export interface TaxFormula {
   formulaId: string;
@@ -1255,6 +1291,15 @@ export interface TaxFormula {
   roundingPolicy: TaxRoundingPolicy;
   /** Conditions d’applicabilité optionnelles (fieldCode gate V4-T). */
   requiresApplicabilityField?: string | null;
+  /** Constantes officielles (taux / plafonds) — toutes sourcées via provenance. */
+  constants?: TaxFormulaConstant[];
+  /** Conditions additionnelles avant calcul. */
+  formulaConditions?: TaxFormulaCondition[];
+  /**
+   * Sens du résultat dérivé (ex. revenu imposable après abattement),
+   * distinct du montant éventuellement porté en case.
+   */
+  resultLabel?: string | null;
   provenance: KnowledgeProvenance[];
   sourceExcerpt: string;
   verificationStatus: "verified" | "partial" | "unverified";
@@ -1266,7 +1311,7 @@ export interface ResolvedFormulaInput {
   unit: TaxValueUnit;
   taxYear: number | null;
   role: TaxFieldDeclarantRole | null;
-  sourceKind: "document" | "user" | "derived";
+  sourceKind: "document" | "user" | "derived" | "constant";
   sourceId: string;
   status: "resolved" | "missing" | "conflicted" | "incompatible";
   provenanceNote: string;

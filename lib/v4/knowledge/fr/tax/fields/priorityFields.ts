@@ -394,9 +394,9 @@ export const PRIORITY_TAX_FIELDS: readonly FrenchTaxFieldEntry[] = [
     subsection: "Micro-foncier",
     label: "Régime micro-foncier — recettes brutes",
     explanation:
-      "Case du régime micro-foncier : montant brut des revenus fonciers lorsque ce régime s’applique (abattement forfaitaire appliqué ensuite).",
+      "Case du régime micro-foncier : montant brut des revenus fonciers lorsque ce régime s’applique. Un abattement forfaitaire de 30 % est ensuite appliqué automatiquement pour déterminer le revenu imposable (ne pas le déduire du montant porté en case), sous le plafond de recettes brutes de 15 000 € et sous réserve des exclusions officielles.",
     plainLanguageWhat:
-      "Cette case sert à indiquer les recettes brutes de locations non meublées en micro-foncier.",
+      "Cette case sert à indiquer les recettes brutes de locations non meublées en micro-foncier (avant abattement forfaitaire de 30 %).",
     declarantRole: "household",
     valueType: "amount",
     applicableYears: YEARS_STABLE,

@@ -139,6 +139,45 @@ export const TAX_APPLICABILITY_RULES: readonly TaxApplicabilityRule[] = [
     }
   },
   {
+    ruleId: "4be-micro-foncier-scope",
+    fieldCode: "4BE",
+    documentRef: "2042",
+    taxYears: YEARS,
+    yearPolicy: "verifiedStable",
+    requiredRole: null,
+    absenceIsUnknown: true,
+    verificationStatus: "verified",
+    provenance: [SRC_2042_NOTICE, SRC_FONCIERS_AIDE, SRC_FONCIERS_BROCHURE],
+    sourceExcerpt:
+      "Le régime micro-foncier (case 4BE) s’applique si les recettes brutes n’excèdent pas 15 000 € et sous réserve des exclusions ; l’abattement de 30 % est ensuite appliqué automatiquement pour déterminer le revenu imposable.",
+    effectWhenTrue: "applicable",
+    effectWhenFalse: "notApplicable",
+    conditions: {
+      op: "allOf",
+      conditions: [
+        {
+          predicate: "regimeIs",
+          value: "micro",
+          fieldCode: "4BE",
+          allowUserFact: true,
+          missingInformationId: "4be-regime",
+          missingQuestion:
+            "Vos revenus fonciers relèvent-ils du régime micro-foncier (et non du régime réel) ?",
+          expectedAnswerType: "choice"
+        },
+        {
+          predicate: "amountPresent",
+          fieldCode: "4BE",
+          allowUserFact: true,
+          missingInformationId: "4be-amount",
+          missingQuestion:
+            "Disposez-vous du montant des recettes brutes de locations non meublées (case 4BE) ?",
+          expectedAnswerType: "amount"
+        }
+      ]
+    }
+  },
+  {
     ruleId: "4ba-regime-reel",
     fieldCode: "4BA",
     documentRef: "2042",

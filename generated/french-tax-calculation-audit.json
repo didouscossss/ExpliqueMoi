@@ -1,12 +1,15 @@
 {
-  "generatedAt": "2026-08-08T21:23:30.277Z",
-  "caseId": "case-d0c6268f2747eabb",
-  "formulaIds": [],
-  "formulasCount": 0,
+  "generatedAt": "2026-08-08T21:32:00.924Z",
+  "caseId": "case-1fcea53b658d232b",
+  "formulaIds": [
+    "4be-micro-foncier-revenu-imposable"
+  ],
+  "formulasCount": 1,
   "nonModeledNotes": [
     "1AJ/1BJ : montants directement lus — DocumentFact, pas formule identity.",
-    "4BA/4BB/4BC : report / déficit décrits, mais pas de formule arithmétique 2044 complète sourcée dans le repo.",
-    "7DB/7DR : crédit d’impôt — taux/plafonds/éligibilité non modélisés ; pas de calcul d’avantage.",
+    "4BA/4BB/4BC : report / déficit décrits, mais pas de formule arithmétique 2044 complète (lignes → cases) sourcée pour un calcul dérivé.",
+    "7DB/7DR : séparation aides/dépenses décrite ; taux/plafonds du crédit d’impôt non modélisés — pas de calcul d’avantage.",
+    "Micro-foncier : abattement 30 % modélisé (V4-V) ; exclusions officielles restent un gate needsInformation jusqu’à confirmation.",
     "Somme multi-documents : interdite sans TaxFormula explicite (refuseUnsafeAggregation)."
   ],
   "calculationResults": [
@@ -56,6 +59,17 @@
       "conflicts": 0
     },
     {
+      "fieldCode": "4BE",
+      "status": "needsInformation",
+      "formulaId": "4be-micro-foncier-revenu-imposable",
+      "value": null,
+      "unit": "EUR",
+      "missingInputs": [
+        "4be-micro-exclusions-ok"
+      ],
+      "conflicts": 0
+    },
+    {
       "fieldCode": "7DB",
       "status": "unsupported",
       "formulaId": null,
@@ -75,19 +89,20 @@
     }
   ],
   "metrics": {
-    "formulasEvaluated": 7,
-    "inputsResolved": 0,
+    "formulasEvaluated": 8,
+    "inputsResolved": 2,
     "calculationsProduced": 0,
-    "calculationsBlocked": 7,
+    "calculationsBlocked": 8,
     "conflicts": 0,
-    "durationMs": 0
+    "durationMs": 1
   },
   "suggestedDeclaredAmount": null,
   "eligibilityDecision": null,
   "boundaries": {
     "derivedValuePromotedToDeclaredAmount": 0,
     "calculationPromotedToEligibility": 0,
-    "packIsEmptyByDesign": true
+    "packIsEmptyByDesign": false,
+    "firstProductionFormulaId": "4be-micro-foncier-revenu-imposable"
   },
   "ok": true,
   "violations": [],

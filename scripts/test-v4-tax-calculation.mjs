@@ -70,9 +70,13 @@ function main() {
   };
 
   try {
-    section("Pack production vide + ops typées");
+    section("Pack production V4-V (1 formule sourcée) + ops typées");
     {
-      assert.equal(TAX_FORMULAS.length, 0);
+      assert.equal(TAX_FORMULAS.length, 1);
+      assert.equal(
+        TAX_FORMULAS[0].formulaId,
+        "4be-micro-foncier-revenu-imposable"
+      );
       assert.ok(NON_MODELED_FORMULA_NOTES.length >= 3);
       const sum = evaluateTypedOperation(
         "sum",
@@ -648,7 +652,7 @@ function main() {
     ok("perf");
 
     assert.equal(fetchCalls, 0);
-    console.log(`\n=== V4-U OK — ${passed} checks (fetch=${fetchCalls}) formulas_prod=${TAX_FORMULAS.length} ===`);
+    console.log(`\n=== V4-U OK — ${passed} checks (fetch=${fetchCalls}) formulas_prod=${TAX_FORMULAS.length} (V4-V micro-foncier) ===`);
   } finally {
     globalThis.fetch = originalFetch;
   }

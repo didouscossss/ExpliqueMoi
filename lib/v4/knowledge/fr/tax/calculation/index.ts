@@ -6,7 +6,8 @@ export {
   TAX_FORMULAS,
   NON_MODELED_FORMULA_NOTES,
   getFormulasForField,
-  listFormulaIds
+  listFormulaIds,
+  getProductionFormulaById
 } from "./formulas.js";
 export { evaluateTypedOperation } from "./evaluateFormula.js";
 export {
@@ -14,6 +15,7 @@ export {
   detectImplicitAggregation,
   assertUnitsCompatible
 } from "./resolveInputs.js";
+export { evaluateFormulaConditions } from "./formulaConditions.js";
 export {
   calculateDerivedValue,
   evaluateDocumentCaseCalculations,

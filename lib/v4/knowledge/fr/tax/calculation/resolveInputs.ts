@@ -62,6 +62,53 @@ function resolveOne(
   formula: TaxFormula,
   ctx: ResolveInputsContext
 ): ResolvedFormulaInput {
+  // Constante officielle sourcée — pas un fait document/user
+  if (input.constantId) {
+    const c = (formula.constants || []).find(
+      (x) => x.constantId === input.constantId
+    );
+    if (!c) {
+      return {
+        inputId: input.inputId,
+        value: null,
+        unit: input.unit,
+        taxYear: null,
+        role: input.role || null,
+        sourceKind: "constant",
+        sourceId: input.constantId,
+        status: "missing",
+        provenanceNote: `Constante officielle absente: ${input.constantId}`,
+        documentId: null
+      };
+    }
+    if (c.unit !== input.unit) {
+      return {
+        inputId: input.inputId,
+        value: null,
+        unit: input.unit,
+        taxYear: null,
+        role: input.role || null,
+        sourceKind: "constant",
+        sourceId: c.constantId,
+        status: "incompatible",
+        provenanceNote: `Unité constante incompatible: ${c.unit} vs ${input.unit}`,
+        documentId: null
+      };
+    }
+    return {
+      inputId: input.inputId,
+      value: c.value,
+      unit: c.unit,
+      taxYear: null,
+      role: input.role || null,
+      sourceKind: "constant",
+      sourceId: c.constantId,
+      status: "resolved",
+      provenanceNote: c.sourceNote,
+      documentId: null
+    };
+  }
+
   const code = (input.fieldCode || "").toUpperCase();
   const candidates: ResolvedFormulaInput[] = [];
 
@@ -124,20 +171,39 @@ function resolveOne(
       continue;
     }
 
-    // Role
-    if (input.role && input.role !== "unknown" && input.role !== "household") {
-      if (
+    // Role — pas de glissement silencieux cross-role.
+    // household : n’accepte que household / unknown / null (pas declarant1/2).
+    if (input.role && input.role !== "unknown") {
+      if (input.role === "household") {
+        if (
+          f.declarantRole &&
+          f.declarantRole !== "unknown" &&
+          f.declarantRole !== "household"
+        ) {
+          ctx.invariants.crossRoleCalculation += 0;
+          continue;
+        }
+      } else if (
         f.declarantRole &&
         f.declarantRole !== "unknown" &&
         f.declarantRole !== input.role
       ) {
+        ctx.invariants.crossRoleCalculation += 0;
         continue;
       }
     }
-    if (
+    if (formula.rolePolicy === "household") {
+      if (
+        f.declarantRole &&
+        f.declarantRole !== "unknown" &&
+        f.declarantRole !== "household"
+      ) {
+        ctx.invariants.crossRoleCalculation += 0;
+        continue;
+      }
+    } else if (
       formula.rolePolicy !== "any" &&
-      formula.rolePolicy !== "unknown" &&
-      formula.rolePolicy !== "household"
+      formula.rolePolicy !== "unknown"
     ) {
       if (
         f.declarantRole &&
@@ -170,6 +236,16 @@ function resolveOne(
       if (code && u.fieldCode !== code) continue;
       if (u.answerStatus === "unknown" || u.answerStatus === "refused") continue;
       if (u.answerStatus !== "accepted") continue;
+      // Ne pas traiter un oui/non (ex. confirmation d’exclusions) comme un montant EUR.
+      if (
+        input.unit !== "boolean" &&
+        (u.valueType === "boolean" ||
+          typeof u.normalizedValue === "boolean" ||
+          (typeof u.answer === "string" &&
+            /^(oui|non|yes|no|true|false)$/i.test(u.answer.trim())))
+      ) {
+        continue;
+      }
       const num = toNumber(u.normalizedValue ?? u.answer);
       if (num == null && input.unit !== "boolean") continue;
 
@@ -282,8 +358,8 @@ function pickPrimaryCandidate(
   candidates: ResolvedFormulaInput[],
   _ctx: ResolveInputsContext
 ): ResolvedFormulaInput {
-  // Prefer document over user over derived — but same value only reaches here
-  const order = { document: 0, user: 1, derived: 2 } as const;
+  // Prefer document over user over derived/constant — but same value only reaches here
+  const order = { document: 0, user: 1, derived: 2, constant: 3 } as const;
   return [...candidates].sort(
     (a, b) => order[a.sourceKind] - order[b.sourceKind]
   )[0];
