@@ -119,7 +119,7 @@ function detectStructures(
     );
 
   const hasExplanatoryMarks =
-    /mode\s+d['’]?emploi|comment\s+faire|explication|guide\s+pratique|foire\s+aux\s+questions|\bfaq\b/.test(
+    /mode\s+d['’]?emploi|comment\s+faire|explication|guide\s+pratique|foire\s+aux\s+questions|\bfaq\b|a\s+titre\s+d['’]?exemple|titre\s+illustratif|montants?\s+sont\s+donnes/.test(
       lex
     );
 

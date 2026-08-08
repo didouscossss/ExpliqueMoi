@@ -70,7 +70,10 @@ export const invoiceProfile = createDocumentProfile({
       preferredRoles: ["invoiceDate", "documentDate"],
       importance: "high",
       confidenceThreshold: 0.4,
-      positiveContext: [/date\s+(de\s+)?facture|date\s+d['’]?[eé]mission/i]
+      positiveContext: [/date\s+(de\s+)?facture|date\s+d['’]?[eé]mission/i],
+      negativeSignals: [
+        /date\s+de\s+cr[eé]ation|cr[eé]ation\s+de\s+(la\s+)?soci[eé]t[eé]|capital\s+social/i
+      ]
     }),
     field({
       field: "dueDate",
@@ -98,11 +101,18 @@ export const invoiceProfile = createDocumentProfile({
     field({
       field: "amountDue",
       candidateTypes: ["money"],
-      preferredRoles: ["amountDue", "amountTTC", "netToPay"],
+      // amountTTC = repli faible si aucun « reste à payer » / « à payer » explicite.
+      // Le resolver démotive ce repli dès qu’un candidat amountDue est fort.
+      preferredRoles: ["amountDue", "netToPay", "amountTTC"],
       importance: "high",
       // Ne force PAS égalité avec amountTTC
       confidenceThreshold: 0.5,
-      positiveContext: [/montant\s+(total\s+)?([aà]\s+payer|d[uû])|net\s+[aà]\s+payer/i]
+      positiveContext: [
+        /reste\s+[aà]\s+payer|montant\s+restant|montant\s+(total\s+)?([aà]\s+payer|d[uû])|net\s+[aà]\s+payer|somme\s+[aà]\s+payer/i
+      ],
+      negativeSignals: [
+        /deja\s+(pay[eé]|pr[eé]lev)|sous[-\s]?total|remise\b|capital\s+social/i
+      ]
     }),
     field({
       field: "paymentMethod",

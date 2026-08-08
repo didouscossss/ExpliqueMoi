@@ -6,8 +6,10 @@ import type { ExtractionHit } from "./types.js";
  * Détecte les montants monétaires FR.
  * Ne crée PAS de rôle métier (amountHT etc.) — MoneyCandidate seulement.
  */
+// Entiers avec devise acceptés (ex. « 100 € ») — sans devise, les entiers seuls
+// sont filtrés plus bas pour éviter les n° client / SIRET.
 const MONEY_RE =
-  /(?<![\w.])(\d{1,3}(?:[ .\u00a0]\d{3})+,\d{1,2}|\d{1,3}(?:\.\d{3})+,\d{1,2}|\d+[.,]\d{1,2}|\d{1,3}(?:[ \u00a0]\d{3})+)(?:\s*(?:€|eur|euros?))?/gi;
+  /(?<![\w.])(\d{1,3}(?:[ .\u00a0]\d{3})+,\d{1,2}|\d{1,3}(?:\.\d{3})+,\d{1,2}|\d+[.,]\d{1,2}|\d{1,3}(?:[ \u00a0]\d{3})+|\d+)(?:\s*(?:€|eur|euros?))?/gi;
 
 export function extractMoneyHits(blocks: readonly TextBlock[]): ExtractionHit[] {
   const hits: ExtractionHit[] = [];

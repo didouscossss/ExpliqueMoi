@@ -144,6 +144,9 @@ function rankScore(s: ConsistencySolution): number {
   let bonus = 0;
   if (arith && s.contradictions.length === 0) bonus += 0.35;
   if (s.status === "contradictory") bonus -= 0.5;
+  // Départage des bundles au plancher 0.85 : privilégier l’alignement des rôles locaux
+  const local = avgLocal(s.assignments);
+  bonus += local * 0.25;
   return s.score + bonus;
 }
 

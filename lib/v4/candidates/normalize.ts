@@ -5,13 +5,21 @@
 
 /** Normalise espaces / casse pour matching lexical. */
 export function normalizeLex(text: string): string {
-  return String(text || "")
+  let s = String(text || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  // Tolérance OCR légère (pas un moteur OCR) : 0↔o dans labels courants
+  // ex. t0tal → total, m0ntant → montant, tva2o% → tva20%
+  s = s
+    .replace(/(?<=[a-z])0(?=[a-z])/g, "o")
+    .replace(/(?<=\d)o(?=\d)/g, "0")
+    .replace(/(?<=\d)o(?=\s*%)/g, "0")
+    .replace(/\bo(?=\d+\s*%)/g, "0");
+  return s;
 }
 
 /**

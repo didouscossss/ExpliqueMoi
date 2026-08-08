@@ -6,7 +6,6 @@
  * → understanding → explanation → presentation
  */
 
-import { blocksFromPlainText } from "../candidates/context.js";
 import type { DocumentClassification } from "../types/documentClassification.js";
 import type { DocumentExplanation } from "../types/documentExplanation.js";
 import type {
@@ -51,21 +50,11 @@ export function analyzeDocumentV4(
 ): AnalyzeDocumentV4Result {
   const pipeline = new PresentationPipeline();
 
-  const blocks =
+  const result =
     input.blocks && input.blocks.length > 0
-      ? [...input.blocks]
-      : blocksFromPlainText(input.text || "");
+      ? pipeline.runOnBlocks(input.blocks)
+      : pipeline.runOnText(input.text || "");
 
-  const result = pipeline.runOnText(
-    // Si blocks fournis, reconstruire un texte fidèle pour le pipeline existant
-    // (les extracteurs travaillent sur TextBlock via blocksFromPlainText du texte).
-    // Pour préserver les blocks fournis, utiliser fromBlocks path.
-    blocks.map((b) => b.text).join("\n")
-  );
-
-  // Si l’appelant a fourni des blocks explicites avec ids custom,
-  // on ré-exécute via le chemin texte standard (comportement déterministe fixtures).
-  // Les blocks du pipeline sont la source de vérité pour la provenance.
   const diagnostics = buildV4Diagnostics({
     classification: result.classification,
     resolution: result.resolution,

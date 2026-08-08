@@ -21,8 +21,9 @@
     "test:v4-explanation": "tsx scripts/test-v4-explanation.mjs",
     "test:v4-presentation": "tsx scripts/test-v4-presentation.mjs",
     "test:v4-end-to-end": "tsx scripts/test-v4-end-to-end.mjs",
+    "test:v4-robustness": "tsx scripts/test-v4-robustness.mjs",
     "test:v4-typecheck": "tsc -p tsconfig.v4.json --noEmit",
-    "test:v4": "npm run test:v4-typecheck && npm run test:v4-types && npm run test:v4-candidates && npm run test:v4-consistency && npm run test:v4-classification && npm run test:v4-profiles && npm run test:v4-understanding && npm run test:v4-explanation && npm run test:v4-presentation && npm run test:v4-end-to-end"
+    "test:v4": "npm run test:v4-typecheck && npm run test:v4-types && npm run test:v4-candidates && npm run test:v4-consistency && npm run test:v4-classification && npm run test:v4-profiles && npm run test:v4-understanding && npm run test:v4-explanation && npm run test:v4-presentation && npm run test:v4-end-to-end && npm run test:v4-robustness"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",

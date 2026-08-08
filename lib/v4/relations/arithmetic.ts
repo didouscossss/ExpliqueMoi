@@ -5,6 +5,7 @@
 
 import type { EntityCandidate, ScoreReason } from "../types/entityCandidate.js";
 import type { Contradiction, Relation } from "../types/relation.js";
+import { normalizeLex } from "../candidates/normalize.js";
 import {
   bestRole,
   evidenceOf,
@@ -22,6 +23,28 @@ function isTopRole(c: EntityCandidate, role: string | string[]): boolean {
   const top = bestRole(c);
   if (!top) return false;
   return Array.isArray(role) ? role.includes(top) : top === role;
+}
+
+/** HT crédible : rôle principal HT, score suffisant, hors sous-total/remise. */
+function isCredibleInvoiceHt(c: EntityCandidate): boolean {
+  if (!isTopRole(c, "amountHT")) return false;
+  if (roleScore(c, "amountHT") < 0.45) return false;
+  const line = normalizeLex(c.context?.sameLine || "");
+  if (/sous[-\s]?total|remise\b|deja\s+(paye|prelev)|acompte/.test(line)) {
+    return false;
+  }
+  return true;
+}
+
+/** TTC crédible pour l’équation HT+TVA — pas un « reste à payer » seul. */
+function isCredibleInvoiceTtc(c: EntityCandidate): boolean {
+  if (!isTopRole(c, "amountTTC")) return false;
+  return roleScore(c, "amountTTC") >= 0.45;
+}
+
+function isCredibleVatAmount(c: EntityCandidate): boolean {
+  if (!isTopRole(c, "vatAmount")) return false;
+  return roleScore(c, "vatAmount") >= 0.45;
 }
 
 export interface ArithmeticScanResult {
@@ -57,9 +80,9 @@ export function scanArithmeticRelations(
     for (const ttc of monies) {
       if (ht.id === ttc.id) continue;
       const ttcGreater = num(ttc) > num(ht) + W.moneyTolerance;
+      // Ne pas traiter amountDue (reste à payer) comme TTC de l’équation fiscale.
       const topTrioRoles =
-        isTopRole(ht, "amountHT") &&
-        isTopRole(ttc, ["amountTTC", "amountDue"]);
+        isCredibleInvoiceHt(ht) && isCredibleInvoiceTtc(ttc);
 
       // HT + TVA ≈ TTC
       for (const vat of monies) {
@@ -71,13 +94,18 @@ export function scanArithmeticRelations(
         pushReason(reasons, "pair:vatCandidate", roleScore(vat, "vatAmount") * 0.2);
         pushReason(reasons, "pair:ttcCandidate", roleScore(ttc, "amountTTC") * 0.2);
 
+        const roleAlignedBundle =
+          isCredibleInvoiceHt(ht) &&
+          isCredibleInvoiceTtc(ttc) &&
+          isCredibleVatAmount(vat);
+
         if (ok && ttcGreater) {
           pushReason(
             reasons,
             `arithmetic:HT+TVA≈TTC (${num(ht)}+${num(vat)}=${sum}≈${num(ttc)})`,
             W.htPlusVatEqualsTtc
           );
-          const rel: Relation = {
+          relations.push({
             id: nextRelationId("arith"),
             sourceCandidateId: ht.id,
             targetCandidateId: ttc.id,
@@ -87,8 +115,7 @@ export function scanArithmeticRelations(
             evidence: evidenceOf(ht, vat, ttc),
             via: [vat.id],
             label: "HT + TVA ≈ TTC"
-          };
-          relations.push(rel);
+          });
 
           // Cherche un taux compatible
           let rateCand: EntityCandidate | undefined;
@@ -119,22 +146,26 @@ export function scanArithmeticRelations(
             }
           }
 
-          coherentBundles.push({
-            ht,
-            ttc,
-            vatAmount: vat,
-            vatRate: rateCand,
-            relations: relations.filter(
-              (r) =>
-                r.sourceCandidateId === ht.id &&
-                r.targetCandidateId === ttc.id &&
-                (r.via || []).includes(vat.id)
-            )
-          });
+          // Bundle global seulement si les rôles métier sont alignés
+          // (évite 10+90=100 / 50+58=108 comme « meilleure » solution).
+          if (roleAlignedBundle) {
+            coherentBundles.push({
+              ht,
+              ttc,
+              vatAmount: vat,
+              vatRate: rateCand,
+              relations: relations.filter(
+                (r) =>
+                  r.sourceCandidateId === ht.id &&
+                  r.targetCandidateId === ttc.id &&
+                  (r.via || []).includes(vat.id)
+              )
+            });
+          }
         } else if (
           !ok &&
           topTrioRoles &&
-          isTopRole(vat, "vatAmount")
+          isCredibleVatAmount(vat)
         ) {
           const penaltyReasons: ScoreReason[] = [];
           pushReason(

@@ -24,6 +24,13 @@ export class PresentationPipeline {
     return this.fromExplanationResult(base);
   }
 
+  runOnBlocks(
+    blocks: Parameters<ExplanationPipeline["runOnBlocks"]>[0]
+  ): PresentationPipelineResult {
+    const base = this.explanation.runOnBlocks(blocks);
+    return this.fromExplanationResult(base);
+  }
+
   fromExplanationResult(
     base: ExplanationPipelineResult
   ): PresentationPipelineResult {

@@ -20,6 +20,11 @@ export class UnderstandingPipeline {
     return this.fromProfileResult(base);
   }
 
+  runOnBlocks(blocks: Parameters<ProfilePipeline["runOnBlocks"]>[0]): UnderstandingPipelineResult {
+    const base = this.profiles.runOnBlocks(blocks);
+    return this.fromProfileResult(base);
+  }
+
   fromProfileResult(base: ProfilePipelineResult): UnderstandingPipelineResult {
     const understanding = buildDocumentUnderstanding({
       classification: base.classification,

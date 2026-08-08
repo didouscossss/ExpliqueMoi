@@ -119,6 +119,25 @@ export const invoiceProfile: SchemaProfile = {
         pattern: /solde\s+precedent|nouveau\s+solde|date\s+valeur/i,
         label: "negative:bankSoldes"
       }
+    },
+    {
+      family: "negativeEvidence",
+      weight: 1,
+      matcher: {
+        kind: "regex",
+        pattern:
+          /a\s+titre\s+d['’]?exemple|uniquement\s+[aà]\s+titre\s+illustratif|montants?\s+sont\s+donn[eé]s|guide\s+pratique|mode\s+d['’]?emploi/i,
+        label: "negative:illustrativeOrGuide"
+      }
+    },
+    {
+      family: "negativeEvidence",
+      weight: 0.9,
+      matcher: {
+        kind: "structure",
+        key: "hasExplanatoryMarks",
+        label: "negative:explanatoryStructure"
+      }
     }
   ]
 };

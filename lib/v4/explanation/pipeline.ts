@@ -23,6 +23,13 @@ export class ExplanationPipeline {
     return this.fromUnderstandingResult(base);
   }
 
+  runOnBlocks(
+    blocks: Parameters<UnderstandingPipeline["runOnBlocks"]>[0]
+  ): ExplanationPipelineResult {
+    const base = this.understanding.runOnBlocks(blocks);
+    return this.fromUnderstandingResult(base);
+  }
+
   fromUnderstandingResult(
     base: UnderstandingPipelineResult
   ): ExplanationPipelineResult {

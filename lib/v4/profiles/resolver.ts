@@ -41,6 +41,19 @@ function candidateContextBlob(c: EntityCandidate): string {
   );
 }
 
+function hasStrongAmountDueCandidate(
+  ctx: DocumentProfileContext
+): boolean {
+  return (ctx.candidates || []).some((cand) => {
+    if (cand.type !== "money") return false;
+    if (roleScore(cand, "amountDue") < 0.55) return false;
+    const line = normalizeLex(cand.context?.sameLine || "");
+    return /reste\s+a\s+payer|montant\s+restant|net\s*a\s*payer|somme\s*a\s*payer|(?<!deja\s+)a\s*payer/.test(
+      line
+    );
+  });
+}
+
 function scoreCandidateForField(
   c: EntityCandidate,
   exp: FieldExpectation,
@@ -55,9 +68,16 @@ function scoreCandidateForField(
     ? exp.preferredRoles
     : [bestRole(c) || ""].filter(Boolean);
 
+  const strongDueExists =
+    exp.field === "amountDue" && hasStrongAmountDueCandidate(ctx);
+
   let best = 0;
   for (const role of roles) {
-    const rs = roleScore(c, role);
+    let rs = roleScore(c, role);
+    // Repli TTC pour amountDue : valide seulement s’il n’y a pas de dû explicite
+    if (exp.field === "amountDue" && role === "amountTTC" && strongDueExists) {
+      rs *= 0.25;
+    }
     if (rs > best) best = rs;
     if (rs > 0) reasons.push({ signal: `role:${role}`, delta: rs * 0.7 });
   }
@@ -75,8 +95,17 @@ function scoreCandidateForField(
     (a) => a.candidateId === c.id && roles.includes(a.role)
   );
   if (assigned) {
-    score += 0.28;
-    reasons.push({ signal: "consistency:assigned", delta: 0.28 });
+    if (
+      exp.field === "amountDue" &&
+      assigned.role === "amountTTC" &&
+      strongDueExists
+    ) {
+      // Ne pas laisser le TTC cohérent écraser un « reste à payer »
+      reasons.push({ signal: "consistency:ttcIgnoredForDue", delta: 0 });
+    } else {
+      score += 0.28;
+      reasons.push({ signal: "consistency:assigned", delta: 0.28 });
+    }
   } else if (
     ctx.consistency?.best?.assignments.some((a) => a.candidateId === c.id)
   ) {
@@ -99,14 +128,17 @@ function scoreCandidateForField(
   }
 
   const blob = candidateContextBlob(c);
+  const sameLine = normalizeLex(c.context?.sameLine || "");
   for (const re of exp.positiveContext || []) {
     if (re.test(blob) || re.test(String(c.raw || ""))) {
       score += 0.1;
       reasons.push({ signal: `positiveContext:${re.source}`, delta: 0.1 });
     }
   }
+  // Négatifs : ligne du candidat (et raw) — pas la ligne voisine
+  // (ex. « Reste à payer » ne doit pas hériter du « Déjà payé » précédent).
   for (const re of exp.negativeSignals || []) {
-    if (re.test(blob)) {
+    if (re.test(sameLine) || re.test(String(c.raw || ""))) {
       score -= 0.25;
       reasons.push({ signal: `negative:${re.source}`, delta: -0.25 });
     }

@@ -101,6 +101,14 @@ function applyNegativeMoneyContext(
   if (/\bexemple\b|par\s+exemple/.test(L.blob) && invoiceLike) {
     pushReason(reasons, "negative:exemple", SCORE_WEIGHTS.exemplePenalty);
   }
+  if (
+    /titre\s+d['’]?exemple|a\s+titre\s+illustratif|uniquement\s+a\s+titre|montants?\s+sont\s+donnes/.test(
+      L.blob
+    ) &&
+    invoiceLike
+  ) {
+    pushReason(reasons, "negative:illustratif", SCORE_WEIGHTS.illustratifPenalty);
+  }
   if (/tarif\s+indicatif|prix\s+indicatif/.test(L.blob) && invoiceLike) {
     pushReason(
       reasons,
@@ -114,6 +122,12 @@ function applyNegativeMoneyContext(
       "negative:ancienMontant",
       SCORE_WEIGHTS.ancienMontantPenalty
     );
+  }
+  if (
+    (role === "amountDue" || role === "amountTTC" || role === "netToPay") &&
+    /deja\s+(paye|prelev)|acompte|sous[-\s]?total|remise\b/.test(L.same)
+  ) {
+    pushReason(reasons, "negative:alreadyPaidOrPartial", SCORE_WEIGHTS.alreadyPaidPenalty);
   }
 }
 
@@ -138,25 +152,51 @@ function scoreMoneyRole(
   }
 
   if (role === "amountHT") {
-    labelHit(reasons, L, /\bht\b|hors\s*taxes?/, "HT");
+    labelHit(reasons, L, /\bht\b|hors\s*taxes?|net\s+ht/, "HT");
+    // Sous-total / remise : moins crédible comme HT final
+    if (/sous[-\s]?total|remise\b/.test(L.same)) {
+      pushReason(reasons, "negative:partialHt", -0.45);
+    }
+    if (/net\s+ht/.test(L.same)) {
+      pushReason(reasons, "lexical:netHT", 0.2);
+    }
     if (/\btva\b/.test(L.next) || /\btva\b/.test(L.same)) {
       pushReason(reasons, "nearVATBlock", SCORE_WEIGHTS.nearLabelProximity);
     }
-  } else if (role === "amountTTC" || role === "amountDue") {
+  } else if (role === "amountTTC") {
     labelHit(reasons, L, /\bttc\b|toutes\s*taxes/, "TTC");
-    if (role === "amountDue") {
-      labelHit(
-        reasons,
-        L,
-        /a\s*payer|montant\s*(?:du\s*)?prelevement|net\s*a\s*payer|somme\s*a\s*payer/,
-        "payable",
-        SCORE_WEIGHTS.payableKeyword,
-        SCORE_WEIGHTS.previousLineLabel,
-        SCORE_WEIGHTS.nextLineLabel
-      );
-    }
     if (/\btotal\b/.test(L.same) || /\btotal\b/.test(L.before)) {
       pushReason(reasons, "lexical:total", SCORE_WEIGHTS.totalKeyword);
+    }
+  } else if (role === "amountDue") {
+    // « à payer » / reste dû : même ligne ou précédente — PAS la ligne suivante
+    // (évite qu’un montant « déjà prélevé » hérite du « reste à payer » suivant)
+    labelHit(
+      reasons,
+      L,
+      /reste\s+a\s+payer|montant\s+restant|net\s*a\s*payer|somme\s*a\s*payer|(?<!deja\s+)a\s*payer/,
+      "payable",
+      SCORE_WEIGHTS.sameLineLabel,
+      SCORE_WEIGHTS.previousLineLabel,
+      0
+    );
+    if (/reste\s+a\s+payer|montant\s+restant\s+du/.test(L.same)) {
+      pushReason(reasons, "lexical:resteAPayer", SCORE_WEIGHTS.resteAPayerBoost);
+    } else if (/(?<!deja\s+)a\s*payer/.test(L.same)) {
+      pushReason(reasons, "lexical:aPayer", SCORE_WEIGHTS.payableKeyword);
+    }
+    // Prélèvement prévu (pas « déjà prélevé »)
+    if (
+      /montant\s+(du\s+)?prelevement|prelevement\s+de|prelevement\s+automatique/.test(
+        L.same
+      ) &&
+      !/deja\s+prelev/.test(L.same)
+    ) {
+      pushReason(reasons, "lexical:prelevementDue", SCORE_WEIGHTS.payableKeyword);
+    }
+    // Total TTC sans libellé payable : faible candidat « dû » seulement
+    if (/\bttc\b/.test(L.same) && !/a\s*payer|restant|du\b/.test(L.same)) {
+      pushReason(reasons, "lexical:totalTtcAsDue", SCORE_WEIGHTS.totalKeyword * 0.35);
     }
   } else if (role === "vatAmount") {
     // Montant TVA — JAMAIS un pourcentage
@@ -171,6 +211,10 @@ function scoreMoneyRole(
       // « TVA 20 % : 4,33 » — le % voisin ne doit pas voler le rôle montant
       if (/%/.test(L.same) && /\btva\b/.test(L.same)) {
         pushReason(reasons, "nearVATRate", SCORE_WEIGHTS.nearLabelProximity);
+      }
+      // Net HT / sous-total / déjà payé ne sont pas des montants de TVA
+      if (/net\s+ht|sous[-\s]?total|remise\b|deja\s+(paye|prelev)/.test(L.same)) {
+        pushReason(reasons, "negative:nonVatLine", -0.4);
       }
     }
   } else if (role === "linePrice") {
@@ -330,6 +374,15 @@ function scoreDateRole(
     );
   } else if (role === "documentDate") {
     labelHit(reasons, L, /\bdate\b/, "date");
+  }
+  // Mentions légales / création société ≠ date de facture
+  if (
+    (role === "invoiceDate" || role === "documentDate" || role === "dueDate") &&
+    /date\s+de\s+creation|creation\s+de\s+(la\s+)?societe|capital\s+social/.test(
+      L.blob
+    )
+  ) {
+    pushReason(reasons, "negative:companyCreationDate", -0.55);
   }
   return { role, score: sumScore(reasons), reasons };
 }

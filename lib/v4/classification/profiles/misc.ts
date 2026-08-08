@@ -277,6 +277,16 @@ export const explanatoryDocumentProfile: SchemaProfile = {
         pattern: /mode\s+d['’]?emploi|guide\s+pratique|\bfaq\b|comment\s+faire/i,
         label: "lexical:guide"
       }
+    },
+    {
+      family: "lexical",
+      weight: 0.85,
+      matcher: {
+        kind: "regex",
+        pattern:
+          /a\s+titre\s+d['’]?exemple|uniquement\s+[aà]\s+titre\s+illustratif|montants?\s+sont\s+donn[eé]s\s+uniquement/i,
+        label: "lexical:illustrative"
+      }
     }
   ],
   negativeSignals: []
