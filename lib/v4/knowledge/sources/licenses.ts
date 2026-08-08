@@ -17,9 +17,9 @@ export const FISCAL_EXTERNAL_SOURCES: readonly ExternalSourceRecord[] = [
     commercialUseAllowed: true,
     localBundlingAllowed: true,
     retrievalMethod:
-      "manual-curation + optional build refresh of public HTML form pages; no PDF bulk scrape; no iframe embedding; graphics excluded",
+      "sitemap.xml form URLs + recherche-de-formulaire catalog list + curated enrichments; optional limited /recherche/{ref} for Cerfa samples; no PDF bulk scrape; graphics excluded",
     notes:
-      "Identité visuelle / éléments graphiques DGFiP exclus. Métadonnées structurées (titres, n° formulaires, descriptions) uniquement."
+      "Identité visuelle / éléments graphiques DGFiP exclus. Métadonnées uniquement (référence, titre via slug/page, URL, Cerfa lorsque vérifié). robots.txt : /search/ interdit — /recherche/ et /formulaire/ autorisés."
   },
   {
     id: "service-public-fr",

@@ -20,17 +20,34 @@ export function mergeFiscalKnowledgeIntoClassification(
 
   for (const s of knowledge.signals) {
     const type =
-      s.family === "incomeTaxReturn"
+      s.family === "incomeTaxReturn" ||
+      s.family === "rentalIncomeDeclaration" ||
+      s.family === "foreignIncomeDeclaration" ||
+      s.family === "professionalIncomeDeclaration" ||
+      s.family === "taxCreditReduction" ||
+      s.family === "capitalGainsDeclaration" ||
+      s.family === "wealthTax"
         ? "incomeTaxReturn"
-        : s.family === "incomeTaxNotice"
+        : s.family === "incomeTaxNotice" || s.family === "taxNotice"
           ? "incomeTaxNotice"
           : s.family === "propertyTax"
             ? "propertyTax"
-            : s.family === "unknownTaxDocument"
-              ? "unknownTaxDocument"
-              : s.family === "tax" || s.family === "negative"
-                ? null
-                : "taxDocument";
+            : s.family === "corporateTax" ||
+                s.family === "vatDeclaration" ||
+                s.family === "businessTax" ||
+                s.family === "professionalBenefits" ||
+                s.family === "withholdingTax" ||
+                s.family === "inheritanceDonation" ||
+                s.family === "foreignAccountsDeclaration" ||
+                s.family === "taxCertificate" ||
+                s.family === "taxInstruction" ||
+                s.family === "taxForm"
+              ? "taxForm"
+              : s.family === "unknownTaxDocument"
+                ? "unknownTaxDocument"
+                : s.family === "tax" || s.family === "negative"
+                  ? null
+                  : "taxDocument";
 
     if (type && s.weight > 0) {
       scores[type] = Math.min(1, (scores[type] || 0) + s.weight * 0.5);

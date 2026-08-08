@@ -22,7 +22,6 @@ import {
   knowledgeFactIsNotDocumentFact,
   FREE_LOCAL_KNOWLEDGE_CONSUMER,
   FISCAL_EXTERNAL_SOURCES,
-  FRENCH_TAX_REGISTRY_SEED,
   blocksFromPlainText,
   resetCandidateIdsForTests,
   resetRelationIdsForTests
@@ -355,7 +354,7 @@ function main() {
 
     section("Provenance 2042");
     {
-      const entry = FRENCH_TAX_REGISTRY_SEED.find((e) => e.id === "fr-tax-2042");
+      const entry = loadFrenchTaxRegistry().entries.find((e) => e.id === "fr-tax-2042");
       assert.ok(entry);
       assert.ok(entry.officialSources.some((s) => /impots\.gouv\.fr/.test(s.url)));
       assert.ok(entry.officialSources.some((s) => s.supports.includes("officialTitle")));

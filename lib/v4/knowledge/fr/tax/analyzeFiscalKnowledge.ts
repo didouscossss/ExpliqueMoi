@@ -8,7 +8,10 @@ import type {
   FiscalKnowledgeAnalysis,
   FrenchTaxFamily
 } from "../../../types/knowledge.js";
-import { detectFiscalReferences } from "./detector/detectReferences.js";
+import {
+  detectFiscalReferences,
+  selectPrimaryIdentity
+} from "./detector/detectReferences.js";
 import {
   buildFiscalKnowledgeSignals,
   suggestFamilyFromSignals
@@ -23,13 +26,22 @@ const FAMILY_TO_TYPE: Partial<Record<FrenchTaxFamily, DocumentTypeId>> = {
   incomeTaxReturn: "incomeTaxReturn",
   incomeTaxNotice: "incomeTaxNotice",
   propertyTax: "propertyTax",
+  housingTax: "taxDocument",
   rentalIncomeDeclaration: "incomeTaxReturn",
   foreignIncomeDeclaration: "incomeTaxReturn",
   professionalIncomeDeclaration: "incomeTaxReturn",
+  professionalBenefits: "taxForm",
   taxCreditReduction: "incomeTaxReturn",
+  capitalGainsDeclaration: "incomeTaxReturn",
+  wealthTax: "incomeTaxReturn",
+  foreignAccountsDeclaration: "taxForm",
+  inheritanceDonation: "taxForm",
+  withholdingTax: "taxForm",
   corporateTax: "taxForm",
   vatDeclaration: "taxForm",
   businessTax: "taxForm",
+  taxCertificate: "taxForm",
+  taxInstruction: "taxForm",
   taxForm: "taxForm",
   taxNotice: "incomeTaxNotice",
   unknownTaxDocument: "unknownTaxDocument"
@@ -43,6 +55,8 @@ const FAMILY_TO_PROFILE: Partial<Record<FrenchTaxFamily, string>> = {
   foreignIncomeDeclaration: "incomeTaxReturn",
   professionalIncomeDeclaration: "incomeTaxReturn",
   taxCreditReduction: "incomeTaxReturn",
+  capitalGainsDeclaration: "incomeTaxReturn",
+  wealthTax: "incomeTaxReturn",
   unknownTaxDocument: "unknownTaxDocument"
 };
 
@@ -56,6 +70,7 @@ export function analyzeFiscalKnowledge(
     detectedReferences,
     registry
   );
+  const primaryIdentity = selectPrimaryIdentity(detectedReferences);
   const suggestedFamily = suggestFamilyFromSignals(signals, detectedReferences);
 
   // Document clairement fiscal mais sans famille nette
@@ -66,6 +81,7 @@ export function analyzeFiscalKnowledge(
     );
   // Ne pas forcer unknown si une famille lexicale/identité a déjà été suggérée
   const family =
+    (primaryIdentity?.family as FrenchTaxFamily | null) ||
     suggestedFamily ||
     (clearlyFiscal ? ("unknownTaxDocument" as FrenchTaxFamily) : null);
 
@@ -77,6 +93,7 @@ export function analyzeFiscalKnowledge(
   const knowledgeFacts = [];
   for (const ref of detectedReferences) {
     if (!ref.registryId) continue;
+    if (ref.matchKind === "possible") continue;
     const entry = lookupById(registry, ref.registryId);
     if (entry) knowledgeFacts.push(...knowledgeFactsForEntry(entry));
   }
@@ -125,6 +142,7 @@ export function analyzeFiscalKnowledge(
     suggestedDocumentType,
     suggestedProfileId,
     knowledgeFacts,
+    primaryIdentity,
     invariants: {
       knowledgeAsDocumentFact: 0,
       personalIdAsFormReference,

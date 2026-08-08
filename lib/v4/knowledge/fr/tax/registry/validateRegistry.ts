@@ -17,6 +17,7 @@ const FAMILIES = new Set([
   "incomeTaxReturn",
   "incomeTaxNotice",
   "propertyTax",
+  "housingTax",
   "withholdingTax",
   "taxCreditReduction",
   "taxRefund",
@@ -24,6 +25,11 @@ const FAMILIES = new Set([
   "foreignIncomeDeclaration",
   "rentalIncomeDeclaration",
   "professionalIncomeDeclaration",
+  "professionalBenefits",
+  "capitalGainsDeclaration",
+  "wealthTax",
+  "inheritanceDonation",
+  "foreignAccountsDeclaration",
   "corporateTax",
   "vatDeclaration",
   "businessTax",
@@ -31,7 +37,18 @@ const FAMILIES = new Set([
   "taxAdministrativeLetter",
   "taxForm",
   "taxNotice",
+  "taxInstruction",
   "unknownTaxDocument"
+]);
+
+const KINDS = new Set([
+  "form",
+  "notice",
+  "instruction",
+  "taxNotice",
+  "certificate",
+  "administrativeLetter",
+  "other"
 ]);
 
 function checkEntry(
@@ -54,14 +71,28 @@ function checkEntry(
       message: `famille inconnue: ${e.family}`
     });
   }
+  if (!e.documentKind || !KINDS.has(e.documentKind)) {
+    issues.push({
+      level: "error",
+      path: `${p}.documentKind`,
+      message: `documentKind invalide: ${e.documentKind}`
+    });
+  }
+  if (!e.normalizedReference) {
+    issues.push({
+      level: "error",
+      path: `${p}.normalizedReference`,
+      message: "normalizedReference manquant"
+    });
+  }
   if (!e.officialTitle) {
     issues.push({ level: "error", path: `${p}.officialTitle`, message: "titre manquant" });
   }
   if (!Array.isArray(e.officialSources) || e.officialSources.length === 0) {
     issues.push({
-      level: "warning",
+      level: "error",
       path: `${p}.officialSources`,
-      message: "aucune source officielle"
+      message: "provenance officielle manquante"
     });
   }
   for (const src of e.officialSources || []) {
@@ -82,18 +113,12 @@ function checkEntry(
       });
     }
   }
-  // Pas de données personnelles dans le seed
-  const blob = JSON.stringify(e);
-  if (/\b\d{13}\b/.test(blob) && e.family !== "unknownTaxDocument") {
-    // 13 digits in metadata would be suspicious — seed shouldn't have taxpayer IDs
-    const onlyYears = (blob.match(/\b\d{13}\b/g) || []).every((x) =>
-      /^20\d{2}/.test(x)
-    );
-    if (!onlyYears && /numero\s*fiscal|1890\d{9}/i.test(blob)) {
+  for (const y of e.applicableYears || []) {
+    if (y < 1990 || y > 2100) {
       issues.push({
         level: "error",
-        path: p,
-        message: "possible donnée personnelle (numéro fiscal) dans le registre"
+        path: `${p}.applicableYears`,
+        message: `année invalide: ${y}`
       });
     }
   }
@@ -113,6 +138,9 @@ export function validateFrenchTaxRegistry(
     issues.push({ level: "error", path: "entries", message: "entries vide" });
   }
   const ids = new Set<string>();
+  const norms = new Map<string, string>();
+  const cerfas = new Map<string, string[]>();
+
   for (let i = 0; i < (registry.entries || []).length; i++) {
     const e = registry.entries[i]!;
     if (ids.has(e.id)) {
@@ -124,16 +152,45 @@ export function validateFrenchTaxRegistry(
     }
     ids.add(e.id);
     checkEntry(e, i, issues);
+
+    if (e.normalizedReference && e.documentKind === "form") {
+      const prev = norms.get(e.normalizedReference);
+      if (prev && prev !== e.id) {
+        issues.push({
+          level: "error",
+          path: `entries[${i}].normalizedReference`,
+          message: `référence dupliquée: ${e.normalizedReference} (${prev})`
+        });
+      }
+      norms.set(e.normalizedReference, e.id);
+    }
+    for (const c of e.cerfaNumbers || []) {
+      const base = c.split(/[*#]/)[0]!;
+      const list = cerfas.get(base) || [];
+      list.push(e.id);
+      cerfas.set(base, list);
+    }
   }
-  // Relations doivent pointer vers des ids connus
+
+  for (const [cerfa, entryIds] of cerfas) {
+    const uniq = [...new Set(entryIds)];
+    if (uniq.length > 1) {
+      issues.push({
+        level: "warning",
+        path: "cerfaNumbers",
+        message: `Cerfa ${cerfa} partagé par ${uniq.join(", ")} — vérifier`
+      });
+    }
+  }
+
   for (let i = 0; i < (registry.entries || []).length; i++) {
     const e = registry.entries[i]!;
     for (const rel of e.relatedDocuments || []) {
       if (!ids.has(rel.targetId)) {
         issues.push({
-          level: "warning",
+          level: "error",
           path: `entries[${i}].relatedDocuments`,
-          message: `cible inconnue: ${rel.targetId}`
+          message: `relation cassée: ${rel.targetId}`
         });
       }
     }

@@ -1,8 +1,11 @@
 /**
- * Diff de registres — pas de remplacement silencieux.
+ * Diff de registres V2 — pas de remplacement silencieux.
  */
 
-import type { FrenchTaxDocumentEntry, FrenchTaxDocumentRegistry } from "../../../../types/knowledge.js";
+import type {
+  FrenchTaxDocumentEntry,
+  FrenchTaxDocumentRegistry
+} from "../../../../types/knowledge.js";
 
 export interface RegistryDiff {
   added: string[];
@@ -10,22 +13,25 @@ export interface RegistryDiff {
   changed: Array<{ id: string; fields: string[] }>;
   newVersion: string | null;
   sourceChanged: string[];
+  titleChanged: string[];
+  cerfaChanged: string[];
+  relationshipChanged: string[];
+  yearCoverageChanged: string[];
 }
 
 function entryFingerprint(e: FrenchTaxDocumentEntry): string {
   return JSON.stringify({
     family: e.family,
     documentType: e.documentType,
+    documentKind: e.documentKind,
     referenceNumbers: e.referenceNumbers,
+    normalizedReference: e.normalizedReference,
     cerfaNumbers: e.cerfaNumbers,
     officialTitle: e.officialTitle,
     purpose: e.purpose,
     applicableYears: e.applicableYears,
     documentVersion: e.documentVersion ?? null,
-    validFrom: e.validFrom ?? null,
-    validTo: e.validTo ?? null,
     relatedDocuments: e.relatedDocuments,
-    expectedFields: e.expectedFields,
     officialSources: e.officialSources.map((s) => s.url),
     confidence: e.confidence
   });
@@ -38,20 +44,17 @@ function changedFields(
   const fields: Array<keyof FrenchTaxDocumentEntry> = [
     "family",
     "documentType",
+    "documentKind",
     "referenceNumbers",
+    "normalizedReference",
     "cerfaNumbers",
     "officialTitle",
     "description",
     "purpose",
     "applicableYears",
     "documentVersion",
-    "validFrom",
-    "validTo",
-    "expectedSignals",
-    "negativeSignals",
     "relatedDocuments",
     "profileId",
-    "expectedFields",
     "confidence"
   ];
   const out: string[] = [];
@@ -77,7 +80,11 @@ export function diffFrenchTaxRegistries(
       removed: [],
       changed: [],
       newVersion: next.version,
-      sourceChanged: next.entries.map((e) => e.id)
+      sourceChanged: next.entries.map((e) => e.id),
+      titleChanged: [],
+      cerfaChanged: [],
+      relationshipChanged: [],
+      yearCoverageChanged: []
     };
   }
 
@@ -88,6 +95,10 @@ export function diffFrenchTaxRegistries(
   const removed: string[] = [];
   const changed: Array<{ id: string; fields: string[] }> = [];
   const sourceChanged: string[] = [];
+  const titleChanged: string[] = [];
+  const cerfaChanged: string[] = [];
+  const relationshipChanged: string[] = [];
+  const yearCoverageChanged: string[] = [];
 
   for (const id of nextMap.keys()) {
     if (!prevMap.has(id)) added.push(id);
@@ -102,6 +113,10 @@ export function diffFrenchTaxRegistries(
       const fields = changedFields(prevE, nextE);
       changed.push({ id, fields });
       if (fields.includes("officialSources")) sourceChanged.push(id);
+      if (fields.includes("officialTitle")) titleChanged.push(id);
+      if (fields.includes("cerfaNumbers")) cerfaChanged.push(id);
+      if (fields.includes("relatedDocuments")) relationshipChanged.push(id);
+      if (fields.includes("applicableYears")) yearCoverageChanged.push(id);
     }
   }
 
@@ -110,6 +125,10 @@ export function diffFrenchTaxRegistries(
     removed,
     changed,
     newVersion: previous.version !== next.version ? next.version : null,
-    sourceChanged
+    sourceChanged,
+    titleChanged,
+    cerfaChanged,
+    relationshipChanged,
+    yearCoverageChanged
   };
 }

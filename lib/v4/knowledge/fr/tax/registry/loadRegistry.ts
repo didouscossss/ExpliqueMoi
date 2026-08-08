@@ -1,6 +1,6 @@
 /**
  * Charge le registre fiscal FR — artefact local offline.
- * Runtime : 0 fetch.
+ * Runtime : 0 fetch. Index O(1) pour lookup.
  */
 
 import { readFileSync, existsSync } from "node:fs";
@@ -8,12 +8,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
   FrenchTaxDocumentEntry,
-  FrenchTaxDocumentRegistry
+  FrenchTaxDocumentRegistry,
+  KnowledgeFact
 } from "../../../../types/knowledge.js";
 import {
-  FRENCH_TAX_REGISTRY_SEED,
+  buildSeedRegistry,
   FRENCH_TAX_REGISTRY_VERSION
 } from "./seed.js";
+import { buildRegistryIndex, type FrenchTaxRegistryIndex } from "./indexes.js";
+import { lookupRegistry, type RegistryLookupResult } from "./lookup.js";
+import { normalizeTaxReference } from "../normalize/normalizeReference.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ARTIFACT_CANDIDATES = [
@@ -22,17 +26,12 @@ const ARTIFACT_CANDIDATES = [
 ];
 
 let cached: FrenchTaxDocumentRegistry | null = null;
+let cachedIndex: FrenchTaxRegistryIndex | null = null;
 
 export function buildRegistryFromSeed(
   generatedAt: string = new Date().toISOString()
 ): FrenchTaxDocumentRegistry {
-  return {
-    version: FRENCH_TAX_REGISTRY_VERSION,
-    country: "FR",
-    generatedAt,
-    sourceMode: "curated-official",
-    entries: [...FRENCH_TAX_REGISTRY_SEED]
-  };
+  return buildSeedRegistry(generatedAt);
 }
 
 export function loadFrenchTaxRegistry(): FrenchTaxDocumentRegistry {
@@ -43,6 +42,7 @@ export function loadFrenchTaxRegistry(): FrenchTaxDocumentRegistry {
       const raw = JSON.parse(readFileSync(path, "utf8")) as FrenchTaxDocumentRegistry;
       if (raw?.entries?.length) {
         cached = raw;
+        cachedIndex = buildRegistryIndex(raw);
         return cached;
       }
     } catch {
@@ -50,27 +50,39 @@ export function loadFrenchTaxRegistry(): FrenchTaxDocumentRegistry {
     }
   }
   cached = buildRegistryFromSeed("seed-runtime");
+  cachedIndex = buildRegistryIndex(cached);
   return cached;
+}
+
+export function getFrenchTaxRegistryIndex(): FrenchTaxRegistryIndex {
+  if (!cachedIndex) loadFrenchTaxRegistry();
+  return cachedIndex!;
 }
 
 export function resetFrenchTaxRegistryCacheForTests(): void {
   cached = null;
+  cachedIndex = null;
 }
 
 export function lookupByReference(
   registry: FrenchTaxDocumentRegistry,
   normalizedRef: string
 ): FrenchTaxDocumentEntry | null {
-  const key = normalizedRef.toUpperCase().replace(/\s+/g, "");
-  for (const e of registry.entries) {
-    for (const r of e.referenceNumbers) {
-      if (r.toUpperCase().replace(/\s+/g, "") === key) return e;
-    }
-    for (const a of e.aliases) {
-      if (a.toUpperCase().replace(/\s+/g, "") === key) return e;
-    }
+  const index = buildRegistryIndex(registry);
+  const res = lookupRegistry(index, normalizedRef);
+  if (res.matchKind === "none" || res.matchKind === "possible") {
+    // Compat V4-L : possible ne compte pas comme hit fort pour detector
+    if (res.matchKind === "possible") return null;
+    return null;
   }
-  return null;
+  return res.entry;
+}
+
+export function lookupReferenceDetailed(
+  query: string
+): RegistryLookupResult {
+  const index = getFrenchTaxRegistryIndex();
+  return lookupRegistry(index, query);
 }
 
 export function lookupById(
@@ -82,13 +94,13 @@ export function lookupById(
 
 export function knowledgeFactsForEntry(
   entry: FrenchTaxDocumentEntry
-): import("../../../../types/knowledge.js").KnowledgeFact[] {
+): KnowledgeFact[] {
   return [
     {
       kind: "knowledge",
       id: `kf:${entry.id}:title`,
       country: "FR",
-      statement: `${entry.referenceNumbers[0] || entry.id} correspond à « ${entry.officialTitle} ».`,
+      statement: `${entry.normalizedReference || entry.referenceNumbers[0] || entry.id} correspond à « ${entry.officialTitle} ».`,
       subjectId: entry.id,
       fields: ["officialTitle", "reference"],
       provenance: entry.officialSources,
@@ -106,3 +118,9 @@ export function knowledgeFactsForEntry(
     }
   ];
 }
+
+export function knownNormalizedReferences(): Set<string> {
+  return getFrenchTaxRegistryIndex().knownReferences;
+}
+
+export { FRENCH_TAX_REGISTRY_VERSION, normalizeTaxReference };

@@ -132,5 +132,11 @@ export type {
   DetectedFiscalReference,
   FiscalKnowledgeSignal,
   FiscalKnowledgeAnalysis,
-  ExternalSourceRecord
+  ExternalSourceRecord,
+  TaxDocumentKind,
+  TaxVariantKind,
+  RegistryEntryStatus,
+  RegistryLookupMatchKind,
+  OfficialDocumentCandidate,
+  MetadataQualityScore
 } from "./knowledge.js";

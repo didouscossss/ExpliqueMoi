@@ -1,6 +1,6 @@
 /**
- * Détecteur de références fiscales FR.
- * Produit des candidats + kinds — ne classifie pas seul le document.
+ * Détecteur de références fiscales FR — V4-M (v2).
+ * Candidats → lookup registry → evidence. Ne classifie pas seul.
  */
 
 import { normalizeLex } from "../../../../candidates/normalize.js";
@@ -11,36 +11,71 @@ import type {
   FiscalReferenceRole,
   FrenchTaxDocumentRegistry
 } from "../../../../types/knowledge.js";
-import { lookupByReference } from "../registry/loadRegistry.js";
+import {
+  normalizeTaxReference,
+  ocrRepairTaxReference
+} from "../normalize/normalizeReference.js";
+import { buildRegistryIndex } from "../registry/indexes.js";
+import { lookupRegistry } from "../registry/lookup.js";
 
-/** Formes formulaire : 2042, 2042-C, 2042-C-PRO, 2065-SD, 3310-CA3-SD… */
-const FORM_REF_RE =
-  /\b((?:2042(?:\s*[- ]?\s*(?:C(?:\s*[- ]?\s*PRO)?|RICI|IOM|TA|K)?)?)|2044(?:\s*[- ]?\s*(?:SPE|EB))?|2047|2065(?:\s*[- ]?\s*SD)?|2572(?:\s*[- ]?\s*SD)?|3310(?:\s*[- ]?\s*CA3(?:\s*[- ]?\s*SD)?)?|1330(?:\s*[- ]?\s*CVAE(?:\s*[- ]?\s*SD)?))\b/gi;
-
-/** Numéro fiscal contribuable — 13 chiffres (ne pas confondre avec formulaire). */
+/** Numéro fiscal contribuable — 13 chiffres. */
 const TAXPAYER_ID_RE = /\b(\d{13})\b/g;
 
-/** Référence d’avis synthétique / typique (lettres+chiffres, pas un formulaire connu). */
+/** Référence d’avis. */
 const NOTICE_REF_RE =
   /\b(?:r[eé]f[eé]rence\s+(?:de\s+l['’]?avis|avis)|n[°o]\s*avis|avis\s+n[°o]?)\s*[:\s]*([A-Z0-9][A-Z0-9\-]{5,20})\b/gi;
 
-/** Année fiscale isolée. */
 const YEAR_RE = /\b(20[2-3]\d)\b/g;
 
-function normalizeFormRef(raw: string): string {
-  return raw
-    .toUpperCase()
-    .replace(/\s+/g, "")
-    .replace(/([A-Z])PRO$/, "$1-PRO")
-    .replace(/2042C(?!-)/, "2042-C")
-    .replace(/2042RICI/, "2042-RICI")
-    .replace(/2065SD/, "2065-SD")
-    .replace(/2572SD/, "2572-SD")
-    .replace(/3310CA3SD/, "3310-CA3-SD")
-    .replace(/3310CA3/, "3310-CA3")
-    .replace(/1330CVAESD/, "1330-CVAE-SD")
-    .replace(/1330CVAE/, "1330-CVAE");
+/** Candidats formulaire (typo / OCR / espaces). Pas de tiret long (ponctuation). */
+const FORM_CANDIDATE_RE =
+  /\b(?:n[°oº]\s*)?(?:formulaire\s+)?((?:\d{3,4}|[2O][0OIli]\d{2})(?:[ \-_\/]+[A-Z0-9]{1,8}){0,4})\b/gi;
+
+/** Mots FR qui ne sont jamais des suffixes de formulaire. */
+const VARIANT_STOP = new Set([
+  "ET",
+  "DE",
+  "DES",
+  "DU",
+  "LA",
+  "LE",
+  "LES",
+  "AU",
+  "AUX",
+  "SUR",
+  "POUR",
+  "UNE",
+  "UN",
+  "OU",
+  "EN",
+  "D",
+  "L",
+  "A",
+  "DECLARATION",
+  "IMPOT",
+  "IMPOTS",
+  "REVENUS",
+  "FORMULAIRE",
+  "ANNEE",
+  "PAGE"
+]);
+
+function sanitizeFormCandidate(raw: string): string {
+  // Couper avant tiret typographique / em-dash
+  let s = raw.split(/[–—]/)[0] || raw;
+  const parts = s.split(/[ \-_\/]+/).filter(Boolean);
+  if (!parts.length) return s.trim();
+  const kept = [parts[0]!];
+  for (const p of parts.slice(1)) {
+    const up = p.toUpperCase();
+    if (VARIANT_STOP.has(up)) break;
+    if (!/^[A-Z0-9]{1,8}$/i.test(p)) break;
+    kept.push(p);
+  }
+  return kept.join("-");
 }
+
+const CERFA_RE = /\bCERFA\s*n?[°o]?\s*(\d{5}(?:\s*[*#]\s*\d+)?)\b/gi;
 
 function evidenceFor(block: TextBlock) {
   return [
@@ -54,6 +89,20 @@ function evidenceFor(block: TextBlock) {
   ];
 }
 
+function fiscalContextScore(lex: string): number {
+  let s = 0;
+  if (/formulaire|cerfa|declaration|impot|fiscal|dgfip|finances\s+publiques|annexe|rici/.test(lex))
+    s += 0.45;
+  if (/n[°o]|reference|titre/.test(lex)) s += 0.15;
+  if (/direction\s+generale\s+des\s+finances\s+publiques/.test(lex)) s += 0.2;
+  // négatifs
+  if (/rue|avenue|boulevard|appartement|code\s+postal|telephone|tel\b|facture|client|contrat|compte\s+bancaire/.test(lex))
+    s -= 0.45;
+  if (/€|eur\b|montant|total\s+ttc|total\s+ht/.test(lex) && !/impot|fiscal|declaration|avis/.test(lex))
+    s -= 0.2;
+  return s;
+}
+
 function inferReferenceRole(
   blockText: string,
   normalized: string,
@@ -61,112 +110,166 @@ function inferReferenceRole(
 ): FiscalReferenceRole {
   if (kind !== "formReference") return "unknown";
   const lex = normalizeLex(blockText);
-  const ref = normalizeLex(normalized);
+  // lex est lowercase — la flex ref doit l'être aussi
+  const refFlex = normalized.toLowerCase().replace(/-/g, "[- ]?");
 
-  // Mention / renvoi ≠ identité du document courant
   if (
-    /voir\s+(votre\s+)?declaration|reportez|reporter|conformement\s+a\s+votre|selon\s+votre\s+declaration|joindre\s+votre/.test(
+    /joindre|joignez|piece\s+jointe|annexez|veuillez\s+joindre/.test(lex) &&
+    new RegExp(refFlex, "i").test(lex)
+  ) {
+    return "attachmentReference";
+  }
+  if (
+    /voir\s+(votre\s+)?declaration|reportez|reporter|conformement\s+a\s+votre|selon\s+votre\s+declaration|mentionne/.test(
       lex
     )
   ) {
     return "mentionedDocument";
   }
-
-  // Titre / identité
   if (
     new RegExp(
-      `(declaration\\s+des\\s+revenus|formulaire)\\s+.*${ref.replace(/-/g, "[- ]?")}|${ref.replace(/-/g, "[- ]?")}\\s*(-\\s*)?(declaration|formulaire)`
+      `(declaration\\s+des\\s+revenus|formulaire)\\s+(n[°o]\\s*)?${refFlex}|${refFlex}\\s*(-\\s*)?(declaration|formulaire)`,
+      "i"
     ).test(lex) ||
-    (/^\s*(declaration|formulaire)/.test(lex) && lex.includes(ref.replace(/-/g, "")))
+    (/^\s*(declaration|formulaire)/.test(lex) &&
+      lex.includes(normalized.replace(/-/g, "").toLowerCase()))
+  ) {
+    // "formulaire 2042-C" dans un joignez déjà traité ; sinon identité
+    return "documentIdentity";
+  }
+  if (/annexe|complementaire/.test(lex) && new RegExp(refFlex, "i").test(lex)) {
+    return "relatedDocument";
+  }
+  if (
+    lex.trim().length < 100 &&
+    new RegExp(`\\b${refFlex}\\b`, "i").test(lex) &&
+    /declaration|formulaire|cerfa|impot/.test(lex)
   ) {
     return "documentIdentity";
   }
-
-  if (/annexe|complementaire|joindre|piece\s+jointe/.test(lex)) {
-    return "relatedDocument";
-  }
-
-  // Formulaire seul en tête de ligne courte
-  if (lex.trim().length < 80 && new RegExp(`\\b${ref.replace(/-/g, "[- ]?")}\\b`).test(lex)) {
-    if (/declaration|formulaire|cerfa|impot/.test(lex)) return "documentIdentity";
-  }
-
   return "unknown";
 }
 
-function pushUnique(
-  out: DetectedFiscalReference[],
-  item: DetectedFiscalReference
-): void {
-  const key = `${item.kind}|${item.normalized}|${item.evidence[0]?.blockId || ""}`;
-  if (out.some((x) => `${x.kind}|${x.normalized}|${x.evidence[0]?.blockId || ""}` === key)) {
+function pushUnique(out: DetectedFiscalReference[], item: DetectedFiscalReference): void {
+  const key = `${item.kind}|${item.normalized}|${item.role}|${item.evidence[0]?.blockId || ""}`;
+  if (out.some((x) => `${x.kind}|${x.normalized}|${x.role}|${x.evidence[0]?.blockId || ""}` === key))
     return;
-  }
   out.push(item);
 }
 
-/**
- * Détecte références / identifiants fiscaux dans les blocs.
- */
 export function detectFiscalReferences(
   blocks: readonly TextBlock[],
   registry: FrenchTaxDocumentRegistry
 ): DetectedFiscalReference[] {
   const out: DetectedFiscalReference[] = [];
+  const index = buildRegistryIndex(registry);
+  const known = index.knownReferences;
 
   for (const block of blocks) {
     const text = block.text || "";
     const lex = normalizeLex(text);
+    const ctx = fiscalContextScore(lex);
 
-    // 1) Form references
-    FORM_REF_RE.lastIndex = 0;
+    // 1) Form candidates
+    FORM_CANDIDATE_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
-    while ((m = FORM_REF_RE.exec(text)) !== null) {
-      const raw = m[1] || m[0];
-      const normalized = normalizeFormRef(raw);
-      // Adresse / code postal / bruit : 2042 seul sans contexte fiscal faible
-      const entry = lookupByReference(registry, normalized);
-      const role = inferReferenceRole(text, normalized, "formReference");
-      const fiscalContext =
-        /declaration|formulaire|impot|fiscal|cerfa|avis|revenus|dgfip|annexe|rici/.test(
-          lex
-        );
-      // Faux positif : numéro d'adresse « 2042 » sans contexte
-      if (!fiscalContext && !entry) continue;
+    while ((m = FORM_CANDIDATE_RE.exec(text)) !== null) {
+      const rawCaptured = m[1] || m[0];
+      const raw = sanitizeFormCandidate(rawCaptured);
+      if (!raw) continue;
+      let norm = normalizeTaxReference(raw);
+      let normalizationReason: string | null = null;
+      let normalizedCandidate = norm.normalizedReference;
+
+      let lookup = lookupRegistry(index, norm.normalizedReference);
+
+      // OCR repair only with strong fiscal context
+      if (lookup.matchKind === "none" && ctx >= 0.4) {
+        const repaired = ocrRepairTaxReference(raw, known);
+        if (repaired) {
+          norm = normalizeTaxReference(repaired.candidate);
+          normalizedCandidate = repaired.candidate;
+          normalizationReason = repaired.reason;
+          lookup = lookupRegistry(index, repaired.candidate);
+        }
+      }
+
+      // Années calendaires isolées (2024/2025…) ≠ formulaire —
+      // sauf si la référence est connue du registre (ex. 2042).
       if (
-        !fiscalContext &&
-        role === "unknown" &&
-        /rue|avenue|boulevard|bp\b|cedex|appartement|batiment/.test(lex)
+        /^(19|20)\d{2}$/.test(norm.normalizedReference) &&
+        lookup.matchKind === "none"
       ) {
         continue;
       }
 
+      if (lookup.matchKind === "none" && ctx < 0.35) continue;
+      if (
+        lookup.matchKind === "none" &&
+        !/^\d{3,4}(-[A-Z0-9]+)*$/i.test(norm.normalizedReference)
+      )
+        continue;
+
+      // Address / invoice false positives
+      if (ctx < 0.2) continue;
+      if (
+        ctx < 0.35 &&
+        /rue|avenue|boulevard|appartement|facture\s+n|client\s|contrat\s|appelez/.test(lex)
+      ) {
+        continue;
+      }
+
+      const role = inferReferenceRole(text, norm.normalizedReference, "formReference");
+      const entry = lookup.entry;
+      // possible match → faible confiance, pas identité forte
+      const matchKind = lookup.matchKind;
+      let confidence = lookup.confidence * (0.5 + Math.max(0, Math.min(ctx, 0.5)));
+      if (role === "documentIdentity") confidence = Math.min(0.95, confidence + 0.15);
+      if (role === "mentionedDocument") confidence = Math.min(0.75, confidence);
+      if (matchKind === "possible") confidence = Math.min(confidence, 0.4);
+
       pushUnique(out, {
         raw,
-        normalized,
+        normalized: norm.normalizedReference,
         kind: "formReference",
-        role: fiscalContext ? role : "unknown",
-        registryId: entry?.id || null,
+        role: ctx >= 0.35 ? role : "unknown",
+        registryId: entry && matchKind !== "possible" ? entry.id : entry?.id || null,
         family: entry?.family || null,
         evidence: evidenceFor(block),
-        confidence: entry
-          ? role === "documentIdentity"
-            ? 0.85
-            : role === "mentionedDocument"
-              ? 0.7
-              : 0.55
-          : fiscalContext
-            ? 0.4
-            : 0.15,
+        confidence,
         reasons: [
-          entry ? `registry:${entry.id}` : "registry:miss",
+          `match:${matchKind}`,
           `role:${role}`,
-          fiscalContext ? "context:fiscal" : "context:weak"
-        ]
+          `context:${ctx.toFixed(2)}`,
+          normalizationReason || "norm:standard"
+        ],
+        rawText: raw,
+        normalizedCandidate,
+        normalizationReason,
+        matchKind
       });
     }
 
-    // 2) Taxpayer identifier (13 digits)
+    // 2) Cerfa
+    CERFA_RE.lastIndex = 0;
+    while ((m = CERFA_RE.exec(text)) !== null) {
+      const raw = m[1].replace(/\s+/g, "");
+      const lookup = lookupRegistry(index, raw);
+      pushUnique(out, {
+        raw,
+        normalized: raw.toUpperCase(),
+        kind: "cerfaNumber",
+        role: "unknown",
+        registryId: lookup.entry?.id || null,
+        family: lookup.entry?.family || null,
+        evidence: evidenceFor(block),
+        confidence: lookup.confidence,
+        reasons: [`match:${lookup.matchKind}`, "kind:cerfaNumber", "not:formReference"],
+        matchKind: lookup.matchKind
+      });
+    }
+
+    // 3) Taxpayer ID
     TAXPAYER_ID_RE.lastIndex = 0;
     while ((m = TAXPAYER_ID_RE.exec(text)) !== null) {
       const raw = m[1];
@@ -180,19 +283,14 @@ export function detectFiscalReferences(
         family: null,
         evidence: evidenceFor(block),
         confidence: labeled ? 0.9 : 0.55,
-        reasons: [
-          "kind:taxpayerIdentifier",
-          labeled ? "label:numeroFiscal" : "shape:13digits",
-          "not:formReference"
-        ]
+        reasons: ["kind:taxpayerIdentifier", "not:formReference"]
       });
     }
 
-    // 3) Notice reference
+    // 4) Notice reference
     NOTICE_REF_RE.lastIndex = 0;
     while ((m = NOTICE_REF_RE.exec(text)) !== null) {
       const raw = m[1];
-      // Ne pas reprendre un formReference
       if (/^204[0-9]/.test(raw)) continue;
       pushUnique(out, {
         raw,
@@ -207,7 +305,7 @@ export function detectFiscalReferences(
       });
     }
 
-    // 4) Fiscal year (weak — never formReference)
+    // 5) Fiscal year
     if (/annee|revenus\s+de|impot\s+sur\s+les\s+revenus|fiscal/.test(lex)) {
       YEAR_RE.lastIndex = 0;
       while ((m = YEAR_RE.exec(text)) !== null) {
@@ -238,16 +336,38 @@ export function classifyNumericToken(
   const lex = normalizeLex(contextLine);
   const digits = raw.replace(/\D/g, "");
   if (/^\d{13}$/.test(digits)) return "taxpayerIdentifier";
+  if (/cerfa/i.test(lex) && /^\d{5}/.test(digits)) return "cerfaNumber";
   if (/siren|siret/.test(lex) || /^\d{9}$/.test(digits) || /^\d{14}$/.test(digits)) {
     return "businessIdentifier";
   }
   if (/^20[2-3]\d$/.test(raw) && /annee|revenus|fiscal/.test(lex)) {
     return "fiscalYear";
   }
-  if (FORM_REF_RE.test(raw)) return "formReference";
+  if (/\d{3,4}/.test(raw) && /formulaire|declaration|cerfa|n[°o]/.test(lex)) {
+    return "formReference";
+  }
   if (/r[eé]f[eé]rence\s+(de\s+l['’]?avis|avis)|n[°o]\s*avis/.test(lex)) {
     return "noticeReference";
   }
   if (/€|eur|montant/.test(lex)) return "amount";
   return "unknownNumericIdentifier";
+}
+
+/** Choisit une identité principale parmi plusieurs refs — structure > fréquence. */
+export function selectPrimaryIdentity(
+  refs: readonly DetectedFiscalReference[]
+): DetectedFiscalReference | null {
+  const identities = refs.filter(
+    (r) =>
+      r.kind === "formReference" &&
+      r.role === "documentIdentity" &&
+      r.matchKind !== "possible" &&
+      (r.confidence || 0) >= 0.55
+  );
+  if (identities.length === 0) return null;
+  if (identities.length === 1) return identities[0]!;
+  // Ambigu : plusieurs identités distinctes
+  const norms = new Set(identities.map((i) => i.normalized));
+  if (norms.size > 1) return null;
+  return identities.sort((a, b) => b.confidence - a.confidence)[0]!;
 }

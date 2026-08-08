@@ -24,11 +24,14 @@
     "test:v4-robustness": "tsx scripts/test-v4-robustness.mjs",
     "test:v4-preview-integration": "tsx scripts/test-v4-preview-integration.mjs",
     "test:v4-fiscal-knowledge": "tsx scripts/test-v4-fiscal-knowledge.mjs",
+    "test:v4-fiscal-registry": "tsx scripts/test-v4-fiscal-registry.mjs",
     "test:v4-typecheck": "tsc -p tsconfig.v4.json --noEmit",
+    "knowledge:tax:discover": "tsx scripts/discover-french-tax-knowledge.mjs",
     "knowledge:tax:update": "tsx scripts/update-french-tax-knowledge.mjs",
     "knowledge:tax:update:fetch": "tsx scripts/update-french-tax-knowledge.mjs --fetch-official",
+    "knowledge:tax:audit": "tsx scripts/audit-french-tax-knowledge.mjs",
     "build:v4-preview": "esbuild lib/v4/integration/index.ts --bundle --platform=node --format=esm --outfile=lib/v4Preview.bundle.mjs --legal-comments=none",
-    "test:v4": "npm run test:v4-typecheck && npm run test:v4-types && npm run test:v4-candidates && npm run test:v4-consistency && npm run test:v4-classification && npm run test:v4-profiles && npm run test:v4-understanding && npm run test:v4-explanation && npm run test:v4-presentation && npm run test:v4-end-to-end && npm run test:v4-robustness && npm run test:v4-fiscal-knowledge && npm run test:v4-preview-integration"
+    "test:v4": "npm run test:v4-typecheck && npm run test:v4-types && npm run test:v4-candidates && npm run test:v4-consistency && npm run test:v4-classification && npm run test:v4-profiles && npm run test:v4-understanding && npm run test:v4-explanation && npm run test:v4-presentation && npm run test:v4-end-to-end && npm run test:v4-robustness && npm run test:v4-fiscal-knowledge && npm run test:v4-fiscal-registry && npm run test:v4-preview-integration"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",

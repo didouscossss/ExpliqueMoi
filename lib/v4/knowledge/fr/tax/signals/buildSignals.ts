@@ -109,6 +109,21 @@ export function buildFiscalKnowledgeSignals(
       family: "withholdingTax",
       re: /prelevement\s+a\s+la\s+source|taux\s+de\s+prelevement/,
       w: 0.25
+    },
+    {
+      family: "corporateTax",
+      re: /impot\s+sur\s+les\s+societes|2065/,
+      w: 0.4
+    },
+    {
+      family: "vatDeclaration",
+      re: /declaration\s+de\s+tva|3310|ca3/,
+      w: 0.4
+    },
+    {
+      family: "rentalIncomeDeclaration",
+      re: /revenus\s+fonciers|formulaire\s+n[°o]?\s*2044/,
+      w: 0.4
     }
   ];
 

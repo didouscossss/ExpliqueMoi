@@ -1,47 +1,68 @@
 {
-  "generatedAt": "2026-08-08T18:59:37.784Z",
-  "previousVersion": null,
-  "nextVersion": "2026.08.08-v4l1",
-  "entryCount": 13,
+  "generatedAt": "2026-08-08T19:16:32.846Z",
+  "previousVersion": "2026.08.08-v4m1",
+  "nextVersion": "2026.08.08-v4m1",
+  "entryCount": 372,
   "diff": {
     "added": [
-      "fr-tax-2042",
       "fr-tax-2042-c",
       "fr-tax-2042-c-pro",
       "fr-tax-2042-rici",
-      "fr-tax-2044",
-      "fr-tax-2047",
-      "fr-tax-income-notice",
-      "fr-tax-property-notice",
-      "fr-tax-2065-sd",
-      "fr-tax-3310-ca3",
-      "fr-tax-2572-sd",
-      "fr-tax-1330-cvae",
-      "fr-tax-unknown"
+      "fr-tax-2777"
     ],
     "removed": [],
-    "changed": [],
-    "newVersion": "2026.08.08-v4l1",
+    "changed": [
+      {
+        "id": "fr-tax-2042",
+        "fields": [
+          "relatedDocuments"
+        ]
+      },
+      {
+        "id": "fr-tax-2047",
+        "fields": [
+          "officialSources"
+        ]
+      },
+      {
+        "id": "fr-tax-2074",
+        "fields": [
+          "officialSources"
+        ]
+      },
+      {
+        "id": "fr-tax-2561",
+        "fields": [
+          "officialSources"
+        ]
+      },
+      {
+        "id": "fr-tax-2735",
+        "fields": [
+          "officialSources"
+        ]
+      },
+      {
+        "id": "fr-tax-3916",
+        "fields": [
+          "officialSources"
+        ]
+      }
+    ],
+    "newVersion": null,
     "sourceChanged": [
-      "fr-tax-2042",
-      "fr-tax-2042-c",
-      "fr-tax-2042-c-pro",
-      "fr-tax-2042-rici",
-      "fr-tax-2044",
       "fr-tax-2047",
-      "fr-tax-income-notice",
-      "fr-tax-property-notice",
-      "fr-tax-2065-sd",
-      "fr-tax-3310-ca3",
-      "fr-tax-2572-sd",
-      "fr-tax-1330-cvae",
-      "fr-tax-unknown"
-    ]
-  },
-  "fetch": {
-    "attempted": false,
-    "reason": "offline-curated-default",
-    "pages": []
+      "fr-tax-2074",
+      "fr-tax-2561",
+      "fr-tax-2735",
+      "fr-tax-3916"
+    ],
+    "titleChanged": [],
+    "cerfaChanged": [],
+    "relationshipChanged": [
+      "fr-tax-2042"
+    ],
+    "yearCoverageChanged": []
   },
   "sources": [
     {
@@ -53,8 +74,8 @@
       "redistributionAllowed": true,
       "commercialUseAllowed": true,
       "localBundlingAllowed": true,
-      "retrievalMethod": "manual-curation + optional build refresh of public HTML form pages; no PDF bulk scrape; no iframe embedding; graphics excluded",
-      "notes": "Identité visuelle / éléments graphiques DGFiP exclus. Métadonnées structurées (titres, n° formulaires, descriptions) uniquement."
+      "retrievalMethod": "sitemap.xml form URLs + recherche-de-formulaire catalog list + curated enrichments; optional limited /recherche/{ref} for Cerfa samples; no PDF bulk scrape; graphics excluded",
+      "notes": "Identité visuelle / éléments graphiques DGFiP exclus. Métadonnées uniquement (référence, titre via slug/page, URL, Cerfa lorsque vérifié). robots.txt : /search/ interdit — /recherche/ et /formulaire/ autorisés."
     },
     {
       "id": "service-public-fr",

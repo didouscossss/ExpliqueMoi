@@ -1,5 +1,5 @@
 /**
- * V4-L — Knowledge types.
+ * V4-L / V4-M — Knowledge types.
  * KnowledgeFact ≠ DocumentFact (faits utilisateur).
  */
 
@@ -9,11 +9,15 @@ import type { DocumentTypeId } from "./documentClassification.js";
 /** Pays supportés pour les registres de connaissance. */
 export type KnowledgeCountry = "FR";
 
-/** Familles fiscales françaises (extensible, non exhaustive). */
+/**
+ * Familles fiscales françaises (extensible, non exhaustive).
+ * Guidées par les sources officielles découvertes — pas une liste marketing.
+ */
 export type FrenchTaxFamily =
   | "incomeTaxReturn"
   | "incomeTaxNotice"
   | "propertyTax"
+  | "housingTax"
   | "withholdingTax"
   | "taxCreditReduction"
   | "taxRefund"
@@ -21,6 +25,11 @@ export type FrenchTaxFamily =
   | "foreignIncomeDeclaration"
   | "rentalIncomeDeclaration"
   | "professionalIncomeDeclaration"
+  | "professionalBenefits"
+  | "capitalGainsDeclaration"
+  | "wealthTax"
+  | "inheritanceDonation"
+  | "foreignAccountsDeclaration"
   | "corporateTax"
   | "vatDeclaration"
   | "businessTax"
@@ -28,6 +37,7 @@ export type FrenchTaxFamily =
   | "taxAdministrativeLetter"
   | "taxForm"
   | "taxNotice"
+  | "taxInstruction"
   | "unknownTaxDocument";
 
 /**
@@ -60,9 +70,55 @@ export type KnowledgeRelationType =
   | "relatedDeclaration"
   | "instruction"
   | "replacement"
-  | "yearVariant";
+  | "yearVariant"
+  | "supplementOf"
+  | "annexOf"
+  | "instructionFor"
+  | "replaces"
+  | "replacedBy"
+  | "relatedTo"
+  | "requiredWith"
+  | "optionalWith"
+  | "yearVariantOf";
+
+/** Nature du document indexé (formulaire ≠ notice). */
+export type TaxDocumentKind =
+  | "form"
+  | "notice"
+  | "instruction"
+  | "taxNotice"
+  | "certificate"
+  | "administrativeLetter"
+  | "other";
+
+export type TaxVariantKind =
+  | "base"
+  | "complement"
+  | "pro"
+  | "rici"
+  | "sd"
+  | "nr"
+  | "ifi"
+  | "iom"
+  | "other"
+  | "unknown";
 
 export type KnowledgeSourceType = "official" | "derived" | "curated";
+
+export type RegistryEntryStatus =
+  | "integrated"
+  | "discovered"
+  | "validated"
+  | "rejected"
+  | "needsReview";
+
+export type RegistryLookupMatchKind =
+  | "exact"
+  | "normalized"
+  | "cerfa"
+  | "alias"
+  | "possible"
+  | "none";
 
 export interface KnowledgeProvenance {
   sourceType: KnowledgeSourceType;
@@ -108,6 +164,19 @@ export interface TaxDocumentRelation {
   confidence: number;
 }
 
+export interface MetadataQualityScore {
+  score: number;
+  hasOfficialReference: boolean;
+  hasOfficialTitle: boolean;
+  hasOfficialSource: boolean;
+  hasAuthority: boolean;
+  hasYearInformation: boolean;
+  hasCerfa: boolean;
+  hasRelations: boolean;
+  /** Cerfa non attendu pour ce type → ne pénalise pas. */
+  cerfaApplicable: boolean;
+}
+
 export interface FrenchTaxDocumentEntry {
   id: string;
   country: KnowledgeCountry;
@@ -115,8 +184,16 @@ export interface FrenchTaxDocumentEntry {
   family: FrenchTaxFamily;
   /** Type V4 associé (signal, pas décision absolue). */
   documentType: DocumentTypeId;
+  /** form vs notice vs instruction… */
+  documentKind: TaxDocumentKind;
   referenceNumbers: string[];
+  /** Référence brute telle que découverte (typo source). */
+  rawReference?: string | null;
+  normalizedReference: string;
+  baseReference?: string | null;
+  variantKind?: TaxVariantKind | null;
   cerfaNumbers: string[];
+  cerfaVersion?: string | null;
   aliases: string[];
   officialTitle: string;
   description: string;
@@ -133,14 +210,25 @@ export interface FrenchTaxDocumentEntry {
   officialSources: KnowledgeProvenance[];
   provenance: KnowledgeProvenance[];
   confidence: number;
+  quality?: MetadataQualityScore;
+  status?: RegistryEntryStatus;
+  metadataHash?: string | null;
 }
 
 export interface FrenchTaxDocumentRegistry {
   version: string;
   country: KnowledgeCountry;
   generatedAt: string;
-  sourceMode: "curated-official" | "auto-refresh";
+  sourceMode: "curated-official" | "auto-refresh" | "discovery+curated";
   entries: FrenchTaxDocumentEntry[];
+  /** Compteurs discovery (build). */
+  discoveryStats?: {
+    discovered: number;
+    validated: number;
+    integrated: number;
+    rejected: number;
+    needsReview: number;
+  };
 }
 
 export interface DetectedFiscalReference {
@@ -153,6 +241,11 @@ export interface DetectedFiscalReference {
   evidence: EvidenceSpan[];
   confidence: number;
   reasons: string[];
+  /** V4-M OCR / normalisation. */
+  rawText?: string;
+  normalizedCandidate?: string;
+  normalizationReason?: string | null;
+  matchKind?: RegistryLookupMatchKind;
 }
 
 export interface FiscalKnowledgeSignal {
@@ -173,6 +266,8 @@ export interface FiscalKnowledgeAnalysis {
   suggestedDocumentType: DocumentTypeId | null;
   suggestedProfileId: string | null;
   knowledgeFacts: KnowledgeFact[];
+  /** Identité principale si non ambiguë. */
+  primaryIdentity?: DetectedFiscalReference | null;
   /** Invariants knowledge. */
   invariants: {
     knowledgeAsDocumentFact: number;
@@ -192,4 +287,19 @@ export interface ExternalSourceRecord {
   localBundlingAllowed: boolean | "UNKNOWN";
   retrievalMethod: string;
   notes?: string;
+}
+
+/** Candidat uniforme produit par les source adapters (build-time). */
+export interface OfficialDocumentCandidate {
+  rawReference: string;
+  reference: string;
+  title: string;
+  url: string;
+  authority: string;
+  cerfa?: string | null;
+  year?: number | null;
+  source: string;
+  retrievedAt: string;
+  documentKindGuess?: TaxDocumentKind;
+  metadataHash?: string;
 }
