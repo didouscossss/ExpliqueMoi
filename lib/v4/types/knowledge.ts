@@ -175,6 +175,107 @@ export interface MetadataQualityScore {
   hasRelations: boolean;
   /** Cerfa non attendu pour ce type → ne pénalise pas. */
   cerfaApplicable: boolean;
+  /** V4-N — explication sémantique vérifiée (pas slug). */
+  hasVerifiedSemanticExplanation?: boolean;
+}
+
+/** Qualité sémantique V4-N — distincte du statut discovery. */
+export type TaxKnowledgeQualityStatus =
+  | "verified"
+  | "partiallyVerified"
+  | "discovered"
+  | "needsReview";
+
+/** Rôles d’année — ne pas confondre millésimes. */
+export type FiscalYearRole =
+  | "documentYear"
+  | "incomeYear"
+  | "applicableYear"
+  | "paymentYear"
+  | "issueYear"
+  | "unknown";
+
+export interface TaxKnowledgeSection {
+  concept: string;
+  label: string;
+}
+
+export interface TaxCerfaInfo {
+  number: string;
+  version?: string | null;
+  verified: boolean;
+  source?: string | null;
+}
+
+/**
+ * Couche sémantique V4-N — connaissance générale officielle.
+ * Jamais une valeur utilisateur.
+ */
+export interface TaxDocumentSemanticKnowledge {
+  reference: string;
+  normalizedReference: string;
+  officialTitle: string;
+  shortTitle: string;
+  family: FrenchTaxFamily;
+  documentKind: TaxDocumentKind;
+  description: string;
+  purpose: string;
+  audience: string[];
+  commonSituations: string[];
+  userQuestionsAnswered: string[];
+  importantSections: TaxKnowledgeSection[];
+  relatedDocumentRefs: string[];
+  officialSources: KnowledgeProvenance[];
+  cerfa?: TaxCerfaInfo | null;
+  applicableYears: number[];
+  confidence: number;
+  provenance: KnowledgeProvenance[];
+  lastVerifiedAt?: string | null;
+  qualityStatus: TaxKnowledgeQualityStatus;
+  /** Reformulation courte FR pour utilisateur (déterministe). */
+  plainLanguageWhat: string;
+  plainLanguagePurpose: string;
+  /** Actions générales possibles du TYPE — pas obligations utilisateur. */
+  generalPossibleActions: string[];
+  /** Ce qu’il est pertinent de regarder EN GÉNÉRAL sur ce type. */
+  generalWhatToCheck: string[];
+}
+
+/**
+ * Explication fiscale structurée = Knowledge + DocumentFacts séparés.
+ */
+export interface TaxDocumentExplanation {
+  identity: {
+    reference: string | null;
+    officialTitle: string | null;
+    family: FrenchTaxFamily | null;
+    documentKind: TaxDocumentKind | null;
+    qualityStatus: TaxKnowledgeQualityStatus | null;
+  };
+  whatIsIt: string | null;
+  purpose: string | null;
+  whoIsConcerned: string | null;
+  whatToCheck: string[];
+  /** Infos générales sur le type — jamais inventées depuis Knowledge comme actions dues. */
+  possibleActions: string[];
+  /** Faits réellement présents dans le document utilisateur. */
+  importantDocumentFacts: DocumentFactRef[];
+  relatedDocuments: Array<{
+    reference: string;
+    title: string;
+    relationType?: string;
+  }>;
+  warnings: string[];
+  confidence: number;
+  knowledgeFacts: KnowledgeFact[];
+  sourceFacts: DocumentFactRef[];
+  invariants: {
+    documentFactsFromKnowledge: number;
+    inventedTaxObligations: number;
+    inventedTaxDates: number;
+    inventedTaxAmounts: number;
+    unsupportedKnowledgeClaims: number;
+  };
 }
 
 export interface FrenchTaxDocumentEntry {
@@ -194,6 +295,8 @@ export interface FrenchTaxDocumentEntry {
   variantKind?: TaxVariantKind | null;
   cerfaNumbers: string[];
   cerfaVersion?: string | null;
+  /** V4-N — Cerfa vérifié officiellement (sinon absent). */
+  cerfaVerified?: boolean;
   aliases: string[];
   officialTitle: string;
   description: string;
@@ -212,7 +315,11 @@ export interface FrenchTaxDocumentEntry {
   confidence: number;
   quality?: MetadataQualityScore;
   status?: RegistryEntryStatus;
+  /** V4-N qualité sémantique. */
+  qualityStatus?: TaxKnowledgeQualityStatus;
   metadataHash?: string | null;
+  /** Pack sémantique si enrichi (priorité). */
+  semantic?: TaxDocumentSemanticKnowledge | null;
 }
 
 export interface FrenchTaxDocumentRegistry {
@@ -246,6 +353,8 @@ export interface DetectedFiscalReference {
   normalizedCandidate?: string;
   normalizationReason?: string | null;
   matchKind?: RegistryLookupMatchKind;
+  /** V4-N — rôle d'année distinct (ne pas confondre millésimes). */
+  yearRole?: FiscalYearRole | null;
 }
 
 export interface FiscalKnowledgeSignal {
@@ -268,11 +377,20 @@ export interface FiscalKnowledgeAnalysis {
   knowledgeFacts: KnowledgeFact[];
   /** Identité principale si non ambiguë. */
   primaryIdentity?: DetectedFiscalReference | null;
+  /** V4-N — explication sémantique structurée (Knowledge ≠ DocumentFacts). */
+  taxExplanation?: TaxDocumentExplanation | null;
   /** Invariants knowledge. */
   invariants: {
     knowledgeAsDocumentFact: number;
     personalIdAsFormReference: number;
     mentionedAsIdentity: number;
+    /** V4-N */
+    documentFactsFromKnowledge?: number;
+    inventedTaxObligations?: number;
+    inventedTaxDates?: number;
+    inventedTaxAmounts?: number;
+    unsupportedKnowledgeClaims?: number;
+    knowledgeWithoutProvenance?: number;
   };
 }
 

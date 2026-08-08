@@ -55,6 +55,32 @@ export function checkFiscalKnowledgeSafety(
   if (analysis.invariants.mentionedAsIdentity > 0) {
     violations.push("mentionedDocument traité comme documentIdentity");
   }
+  if ((analysis.invariants.documentFactsFromKnowledge || 0) > 0) {
+    violations.push("documentFactsFromKnowledge");
+  }
+  if ((analysis.invariants.inventedTaxObligations || 0) > 0) {
+    violations.push("inventedTaxObligations");
+  }
+  if ((analysis.invariants.inventedTaxDates || 0) > 0) {
+    violations.push("inventedTaxDates");
+  }
+  if ((analysis.invariants.inventedTaxAmounts || 0) > 0) {
+    violations.push("inventedTaxAmounts");
+  }
+  if ((analysis.invariants.unsupportedKnowledgeClaims || 0) > 0) {
+    violations.push("unsupportedKnowledgeClaims");
+  }
+  if ((analysis.invariants.knowledgeWithoutProvenance || 0) > 0) {
+    // Uniquement bloquant si des knowledgeFacts verified sans provenance
+    const verifiedSansProv = (analysis.taxExplanation?.knowledgeFacts || []).filter(
+      (kf) =>
+        !kf.provenance?.length &&
+        analysis.taxExplanation?.identity.qualityStatus === "verified"
+    );
+    if (verifiedSansProv.length > 0) {
+      violations.push("knowledgeWithoutProvenance");
+    }
+  }
 
   return { ok: violations.length === 0, violations };
 }

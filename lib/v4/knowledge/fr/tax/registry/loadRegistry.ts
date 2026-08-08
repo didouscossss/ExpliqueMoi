@@ -18,6 +18,7 @@ import {
 import { buildRegistryIndex, type FrenchTaxRegistryIndex } from "./indexes.js";
 import { lookupRegistry, type RegistryLookupResult } from "./lookup.js";
 import { normalizeTaxReference } from "../normalize/normalizeReference.js";
+import { enrichRegistryWithSemantics } from "../semantic/applySemantics.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ARTIFACT_CANDIDATES = [
@@ -31,7 +32,7 @@ let cachedIndex: FrenchTaxRegistryIndex | null = null;
 export function buildRegistryFromSeed(
   generatedAt: string = new Date().toISOString()
 ): FrenchTaxDocumentRegistry {
-  return buildSeedRegistry(generatedAt);
+  return enrichRegistryWithSemantics(buildSeedRegistry(generatedAt));
 }
 
 export function loadFrenchTaxRegistry(): FrenchTaxDocumentRegistry {
@@ -41,8 +42,9 @@ export function loadFrenchTaxRegistry(): FrenchTaxDocumentRegistry {
     try {
       const raw = JSON.parse(readFileSync(path, "utf8")) as FrenchTaxDocumentRegistry;
       if (raw?.entries?.length) {
-        cached = raw;
-        cachedIndex = buildRegistryIndex(raw);
+        // V4-N — packs sémantiques prioritaires appliqués offline au chargement
+        cached = enrichRegistryWithSemantics(raw);
+        cachedIndex = buildRegistryIndex(cached);
         return cached;
       }
     } catch {

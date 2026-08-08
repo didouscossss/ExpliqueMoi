@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-08-08T19:28:55.593Z",
+  "registryVersion": "2026.08.08-v4m1+v4n",
+  "totalEntries": 372,
+  "verifiedEntries": 18,
+  "partiallyVerified": 4,
+  "discovered": 350,
+  "needsReview": 0,
+  "withOfficialTitle": 372,
+  "withVerifiedCerfa": 13,
+  "withPurpose": 22,
+  "withDescription": 22,
+  "withApplicableYears": 21,
+  "withRelations": 6,
+  "withSemanticExplanation": 21,
+  "priorityDocumentsCoverage": {
+    "totalPriority": 21,
+    "presentInRegistry": 21,
+    "enriched": 21,
+    "missingFromRegistry": [],
+    "notEnriched": []
+  },
+  "missingProvenance": [],
+  "invalidRelations": [],
+  "duplicateReferences": [],
+  "conflictingCerfa": [],
+  "knowledgeWithoutProvenanceVerified": [],
+  "slugOnlyDescriptions": 350,
+  "ok": true
+}

@@ -120,7 +120,15 @@ function inferReferenceRole(
     return "attachmentReference";
   }
   if (
-    /voir\s+(votre\s+)?declaration|reportez|reporter|conformement\s+a\s+votre|selon\s+votre\s+declaration|mentionne/.test(
+    /voir\s+(aussi\s+)?(votre\s+)?(declaration|formulaire)|reportez|reporter|conformement\s+a\s+votre|selon\s+votre\s+declaration|mentionne|hors\s+sujet|pour\s+vos\s+impots/.test(
+      lex
+    )
+  ) {
+    return "mentionedDocument";
+  }
+  // Guides / baux / factures qui citent un formulaire ≠ identité du document courant
+  if (
+    /guide\s+pratique|bail\s+d|locataire|facture\s+n|bon\s+de\s+commande|contrat\s+\d/.test(
       lex
     )
   ) {
@@ -250,22 +258,57 @@ export function detectFiscalReferences(
       });
     }
 
-    // 2) Cerfa
+    // 2) Cerfa — fort seulement si registry + contexte fiscal (+ titre cohérent)
     CERFA_RE.lastIndex = 0;
     while ((m = CERFA_RE.exec(text)) !== null) {
-      const raw = m[1].replace(/\s+/g, "");
+      const raw = m[1].replace(/\s+/g, "").replace(/[*#].*$/, "");
+      // Ne jamais traiter SIRET/SIREN comme Cerfa même si voisin
+      if (/^\d{9}$/.test(raw) || /^\d{14}$/.test(raw)) continue;
       const lookup = lookupRegistry(index, raw);
+      const titleHit = Boolean(
+        lookup.entry &&
+          lookup.entry.officialTitle &&
+          lex.includes(
+            normalizeLex(lookup.entry.officialTitle).slice(0, 24)
+          )
+      );
+      const verified =
+        lookup.matchKind === "cerfa" &&
+        Boolean(lookup.entry) &&
+        (lookup.entry!.cerfaVerified ||
+          (lookup.entry!.cerfaNumbers || []).includes(raw));
+      let confidence = 0.25;
+      let role: FiscalReferenceRole = "unknown";
+      let matchKind = lookup.matchKind;
+      const reasons = [`match:${lookup.matchKind}`, "kind:cerfaNumber", "not:formReference"];
+
+      if (verified && ctx >= 0.4) {
+        confidence = titleHit ? 0.92 : 0.78;
+        role = titleHit || ctx >= 0.55 ? "documentIdentity" : "relatedDocument";
+        reasons.push("cerfa:verified+context");
+        if (titleHit) reasons.push("cerfa:titleCoherent");
+      } else if (lookup.matchKind === "cerfa" && ctx < 0.35) {
+        // Numéro type Cerfa isolé / hors contexte → ne pas classer
+        confidence = 0.2;
+        matchKind = "possible";
+        reasons.push("cerfa:weakContext");
+      } else if (lookup.matchKind === "none") {
+        confidence = ctx >= 0.45 ? 0.35 : 0.15;
+        matchKind = "possible";
+        reasons.push("cerfa:unknownNumber");
+      }
+
       pushUnique(out, {
         raw,
         normalized: raw.toUpperCase(),
         kind: "cerfaNumber",
-        role: "unknown",
-        registryId: lookup.entry?.id || null,
-        family: lookup.entry?.family || null,
+        role,
+        registryId: verified ? lookup.entry?.id || null : null,
+        family: verified ? lookup.entry?.family || null : null,
         evidence: evidenceFor(block),
-        confidence: lookup.confidence,
-        reasons: [`match:${lookup.matchKind}`, "kind:cerfaNumber", "not:formReference"],
-        matchKind: lookup.matchKind
+        confidence,
+        reasons,
+        matchKind
       });
     }
 
@@ -305,12 +348,37 @@ export function detectFiscalReferences(
       });
     }
 
-    // 5) Fiscal year
-    if (/annee|revenus\s+de|impot\s+sur\s+les\s+revenus|fiscal/.test(lex)) {
+    // 5) Fiscal year — rôles distincts, jamais d'inférence N↔N-1 automatique
+    if (
+      /annee|revenus\s+de|impot\s+sur\s+les\s+revenus|fiscal|imposition|exercice|paiement|avis/.test(
+        lex
+      )
+    ) {
       YEAR_RE.lastIndex = 0;
       while ((m = YEAR_RE.exec(text)) !== null) {
         const year = Number(m[1]);
         if (year < 2020 || year > 2035) continue;
+        const around = text
+          .slice(Math.max(0, m.index - 40), Math.min(text.length, m.index + 40))
+          .toLowerCase();
+        let yearRole:
+          | "incomeYear"
+          | "issueYear"
+          | "paymentYear"
+          | "documentYear"
+          | "applicableYear"
+          | "unknown" = "unknown";
+        if (/revenus\s+(de\s+l['’]?ann[eé]e|au\s+titre)|au\s+titre\s+des\s+revenus/.test(around)) {
+          yearRole = "incomeYear";
+        } else if (/date\s+limite|paiement|échéance|a\s+payer/.test(around)) {
+          yearRole = "paymentYear";
+        } else if (/ann[eé]e\s+d['’]?imposition|imposition/.test(around)) {
+          yearRole = "issueYear";
+        } else if (/exercice|applicable|mill[eé]sime/.test(around)) {
+          yearRole = "applicableYear";
+        } else if (/formulaire|d[eé]claration|document/.test(around)) {
+          yearRole = "documentYear";
+        }
         pushUnique(out, {
           raw: m[1],
           normalized: m[1],
@@ -319,8 +387,9 @@ export function detectFiscalReferences(
           registryId: null,
           family: null,
           evidence: evidenceFor(block),
-          confidence: 0.45,
-          reasons: ["kind:fiscalYear", "not:formReference"]
+          confidence: yearRole === "unknown" ? 0.35 : 0.55,
+          reasons: ["kind:fiscalYear", `yearRole:${yearRole}`, "not:formReference"],
+          yearRole
         });
       }
     }
@@ -357,17 +426,29 @@ export function classifyNumericToken(
 export function selectPrimaryIdentity(
   refs: readonly DetectedFiscalReference[]
 ): DetectedFiscalReference | null {
-  const identities = refs.filter(
+  const formIdentities = refs.filter(
     (r) =>
       r.kind === "formReference" &&
       r.role === "documentIdentity" &&
       r.matchKind !== "possible" &&
       (r.confidence || 0) >= 0.55
   );
-  if (identities.length === 0) return null;
-  if (identities.length === 1) return identities[0]!;
-  // Ambigu : plusieurs identités distinctes
-  const norms = new Set(identities.map((i) => i.normalized));
-  if (norms.size > 1) return null;
-  return identities.sort((a, b) => b.confidence - a.confidence)[0]!;
+  if (formIdentities.length === 1) return formIdentities[0]!;
+  if (formIdentities.length > 1) {
+    const norms = new Set(formIdentities.map((i) => i.normalized));
+    if (norms.size > 1) return null;
+    return formIdentities.sort((a, b) => b.confidence - a.confidence)[0]!;
+  }
+
+  // V4-N — Cerfa vérifié + contexte peut servir d'identité si aucun formReference
+  const cerfaIdentities = refs.filter(
+    (r) =>
+      r.kind === "cerfaNumber" &&
+      r.role === "documentIdentity" &&
+      r.matchKind === "cerfa" &&
+      r.registryId &&
+      (r.confidence || 0) >= 0.75
+  );
+  if (cerfaIdentities.length === 1) return cerfaIdentities[0]!;
+  return null;
 }

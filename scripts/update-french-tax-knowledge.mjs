@@ -11,6 +11,7 @@ import {
   validateFrenchTaxRegistry,
   diffFrenchTaxRegistries,
   buildRegistryIndex,
+  enrichRegistryWithSemantics,
   FISCAL_EXTERNAL_SOURCES,
   FRENCH_TAX_REGISTRY_VERSION
 } from "../lib/v4/knowledge/index.ts";
@@ -33,14 +34,15 @@ function loadPrevious() {
 }
 
 function main() {
-  console.log("=== knowledge:tax:update (V4-M) ===");
+  console.log("=== knowledge:tax:update (V4-M/N) ===");
   console.log("version:", FRENCH_TAX_REGISTRY_VERSION);
 
   const result = runDiscoveryPipeline({
     generatedAt: new Date().toISOString(),
     version: FRENCH_TAX_REGISTRY_VERSION
   });
-  const { registry } = result;
+  // V4-N — packs sémantiques prioritaires + qualityStatus
+  const registry = enrichRegistryWithSemantics(result.registry);
 
   const issues = validateFrenchTaxRegistry(registry);
   const errors = issues.filter((i) => i.level === "error");

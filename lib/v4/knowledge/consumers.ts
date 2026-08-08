@@ -13,6 +13,7 @@ export interface FreeLocalKnowledgeConsumer {
     "registryLookup",
     "profileSelection",
     "structuredExplanation",
+    "taxDocumentExplanation",
     "evidence",
     "deterministicPresentation"
   ];
@@ -51,6 +52,7 @@ export const FREE_LOCAL_KNOWLEDGE_CONSUMER: FreeLocalKnowledgeConsumer = {
     "registryLookup",
     "profileSelection",
     "structuredExplanation",
+    "taxDocumentExplanation",
     "evidence",
     "deterministicPresentation"
   ]

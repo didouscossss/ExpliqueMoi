@@ -1,5 +1,5 @@
 /**
- * V4-L / V4-M — French Fiscal Knowledge
+ * V4-L / V4-M / V4-N — French Fiscal Knowledge
  * BUILD : sources officielles autorisées
  * RUNTIME : artefact local, 0 fetch / 0 LLM
  */
@@ -26,7 +26,13 @@ export type {
   RegistryEntryStatus,
   RegistryLookupMatchKind,
   OfficialDocumentCandidate,
-  MetadataQualityScore
+  MetadataQualityScore,
+  TaxKnowledgeQualityStatus,
+  FiscalYearRole,
+  TaxKnowledgeSection,
+  TaxCerfaInfo,
+  TaxDocumentSemanticKnowledge,
+  TaxDocumentExplanation
 } from "../types/knowledge.js";
 
 export { FISCAL_EXTERNAL_SOURCES } from "./sources/licenses.js";
@@ -81,3 +87,30 @@ export {
 export { runDiscoveryPipeline } from "./fr/tax/discovery/pipeline.js";
 export { lookupRegistry } from "./fr/tax/registry/lookup.js";
 export { buildRegistryIndex } from "./fr/tax/registry/indexes.js";
+export {
+  PRIORITY_SEMANTIC_PACKS,
+  PRIORITY_SEMANTIC_BY_REF,
+  getPrioritySemantic
+} from "./fr/tax/semantic/prioritySemantics.js";
+export {
+  enrichEntryWithSemantics,
+  enrichRegistryWithSemantics
+} from "./fr/tax/semantic/applySemantics.js";
+export {
+  deriveQualityStatus,
+  applyQualityToEntry,
+  hasVerifiedSemantic,
+  isGenericPurpose,
+  isGenericDescription
+} from "./fr/tax/semantic/qualityStatus.js";
+export {
+  findByReference,
+  findByCerfa,
+  lookupTaxDocumentKnowledge,
+  findRelatedDocuments
+} from "./fr/tax/semantic/lookup.js";
+export {
+  explainTaxDocument,
+  explainTaxDocumentType
+} from "./fr/tax/semantic/explainTaxDocument.js";
+export { auditTaxKnowledgeQuality } from "./fr/tax/semantic/qualityAudit.js";

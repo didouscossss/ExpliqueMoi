@@ -138,5 +138,11 @@ export type {
   RegistryEntryStatus,
   RegistryLookupMatchKind,
   OfficialDocumentCandidate,
-  MetadataQualityScore
+  MetadataQualityScore,
+  TaxKnowledgeQualityStatus,
+  FiscalYearRole,
+  TaxKnowledgeSection,
+  TaxCerfaInfo,
+  TaxDocumentSemanticKnowledge,
+  TaxDocumentExplanation
 } from "./knowledge.js";

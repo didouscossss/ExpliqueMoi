@@ -6,7 +6,7 @@
 
 import { runDiscoveryPipeline } from "../discovery/pipeline.js";
 
-export const FRENCH_TAX_REGISTRY_VERSION = "2026.08.08-v4m1";
+export const FRENCH_TAX_REGISTRY_VERSION = "2026.08.08-v4n1";
 
 /** Construit le registre depuis le snapshot offline + enrichissements. */
 export function buildSeedRegistry(generatedAt: string = "seed-runtime") {

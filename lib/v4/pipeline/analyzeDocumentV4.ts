@@ -5,7 +5,9 @@
  * TextBlocks → candidats → relations → classification → profile/fields
  * → understanding → explanation → presentation
  *
- * V4-L : fiscalKnowledge opt-in (défaut false) — pas de changement Preview.
+ * V4-L/N : fiscalKnowledge opt-in (défaut false) — pas de changement Preview.
+ * V4-N expose taxExplanation sur fiscalKnowledge (structures prêtes).
+ * Branchement UI Preview reporté à V4-O (pas de refonte visuelle ici).
  */
 
 import type { DocumentClassification } from "../types/documentClassification.js";
@@ -20,6 +22,7 @@ import type { ConsistencyResult, Relation } from "../types/relation.js";
 import type { TextBlock } from "../types/textBlock.js";
 import type { DocumentUnderstanding } from "../types/documentUnderstanding.js";
 import type { UserPresentation } from "../types/userPresentation.js";
+import { explainTaxDocument } from "../knowledge/fr/tax/semantic/explainTaxDocument.js";
 import { ExplanationPipeline } from "../explanation/pipeline.js";
 import { PresentationPipeline } from "../presentation/pipeline.js";
 import { ProfilePipeline } from "../profiles/pipeline.js";
@@ -92,6 +95,37 @@ export function analyzeDocumentV4(
       presentationInvariantErrors: presentation.presentationInvariantErrors
     });
 
+    let fiscalKnowledge = profileResult.fiscalKnowledge ?? null;
+    if (fiscalKnowledge) {
+      const taxExplanation = explainTaxDocument({
+        identity: presentation.understanding.identity,
+        explanation: presentation.explanation,
+        fiscalKnowledge,
+        referenceHint: fiscalKnowledge.primaryIdentity?.normalized ?? null
+      });
+      fiscalKnowledge = {
+        ...fiscalKnowledge,
+        taxExplanation,
+        invariants: {
+          ...fiscalKnowledge.invariants,
+          knowledgeAsDocumentFact:
+            fiscalKnowledge.invariants.knowledgeAsDocumentFact +
+            taxExplanation.invariants.documentFactsFromKnowledge,
+          documentFactsFromKnowledge:
+            taxExplanation.invariants.documentFactsFromKnowledge,
+          inventedTaxObligations:
+            taxExplanation.invariants.inventedTaxObligations,
+          inventedTaxDates: taxExplanation.invariants.inventedTaxDates,
+          inventedTaxAmounts: taxExplanation.invariants.inventedTaxAmounts,
+          unsupportedKnowledgeClaims:
+            taxExplanation.invariants.unsupportedKnowledgeClaims,
+          knowledgeWithoutProvenance: taxExplanation.knowledgeFacts.filter(
+            (kf) => !kf.provenance?.length
+          ).length
+        }
+      };
+    }
+
     return {
       blocks: presentation.blocks,
       candidates: presentation.candidates,
@@ -104,7 +138,7 @@ export function analyzeDocumentV4(
       explanation: presentation.explanation,
       presentation: presentation.presentation,
       diagnostics,
-      fiscalKnowledge: profileResult.fiscalKnowledge ?? null
+      fiscalKnowledge
     };
   }
 
