@@ -10,7 +10,6 @@ import {
 } from "../lib/pdfProcessing.js";
 import {
   callGeminiForAnalysis,
-  parseGeminiJson,
   parseAndValidateGeminiJson
 } from "../lib/geminiAnalysis.js";
 import {
