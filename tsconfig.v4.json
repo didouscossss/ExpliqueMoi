@@ -16,6 +16,7 @@
   },
   "include": [
     "lib/v4/**/*.ts",
+    "lib/pdfProcessing.d.ts",
     "scripts/test-v4-*.mts",
     "scripts/test-v4-*.ts"
   ]

@@ -30,3 +30,4 @@ export * from "./knowledge/index.js";
 export * from "./localExplanation/index.js";
 export * from "./generic/index.js";
 export * from "./documentInput/index.js";
+export * from "./localExtraction/index.js";

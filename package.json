@@ -38,6 +38,7 @@
     "test:v4-local-explanation": "tsx scripts/test-v4-local-explanation.mjs",
     "test:v4-generic-document": "tsx scripts/test-v4-generic-document.mjs",
     "test:v4-document-input": "tsx scripts/test-v4-document-input.mjs",
+    "test:v4-local-extraction": "tsx scripts/test-v4-local-extraction.mjs",
     "test:v4-typecheck": "tsc -p tsconfig.v4.json --noEmit",
     "knowledge:tax:discover": "tsx scripts/discover-french-tax-knowledge.mjs",
     "knowledge:tax:update": "tsx scripts/update-french-tax-knowledge.mjs",
@@ -56,7 +57,7 @@
     "knowledge:tax:local-explanation:audit": "tsx scripts/audit-french-tax-local-explanation.mjs",
     "knowledge:generic:audit": "tsx scripts/audit-generic-document.mjs",
     "build:v4-preview": "esbuild lib/v4/integration/index.ts --bundle --platform=node --format=esm --outfile=lib/v4Preview.bundle.mjs --legal-comments=none",
-    "test:v4": "npm run test:v4-typecheck && npm run test:v4-types && npm run test:v4-candidates && npm run test:v4-consistency && npm run test:v4-classification && npm run test:v4-profiles && npm run test:v4-understanding && npm run test:v4-explanation && npm run test:v4-presentation && npm run test:v4-end-to-end && npm run test:v4-robustness && npm run test:v4-fiscal-knowledge && npm run test:v4-fiscal-registry && npm run test:v4-fiscal-semantic && npm run test:v4-fiscal-preview && npm run test:v4-fiscal-fields && npm run test:v4-fiscal-requirements && npm run test:v4-document-case && npm run test:v4-tax-clarification && npm run knowledge:tax:clarification:audit && npm run test:v4-tax-applicability && npm run knowledge:tax:applicability:audit && npm run test:v4-tax-calculation && npm run knowledge:tax:calculation:audit && npm run test:v4-first-tax-formula && npm run test:v4-tax-rule-registry && npm run knowledge:tax:rule-registry:audit && npm run test:v4-local-explanation && npm run knowledge:tax:local-explanation:audit && npm run test:v4-generic-document && npm run knowledge:generic:audit && npm run test:v4-document-input && npm run test:v4-preview-integration"
+    "test:v4": "npm run test:v4-typecheck && npm run test:v4-types && npm run test:v4-candidates && npm run test:v4-consistency && npm run test:v4-classification && npm run test:v4-profiles && npm run test:v4-understanding && npm run test:v4-explanation && npm run test:v4-presentation && npm run test:v4-end-to-end && npm run test:v4-robustness && npm run test:v4-fiscal-knowledge && npm run test:v4-fiscal-registry && npm run test:v4-fiscal-semantic && npm run test:v4-fiscal-preview && npm run test:v4-fiscal-fields && npm run test:v4-fiscal-requirements && npm run test:v4-document-case && npm run test:v4-tax-clarification && npm run knowledge:tax:clarification:audit && npm run test:v4-tax-applicability && npm run knowledge:tax:applicability:audit && npm run test:v4-tax-calculation && npm run knowledge:tax:calculation:audit && npm run test:v4-first-tax-formula && npm run test:v4-tax-rule-registry && npm run knowledge:tax:rule-registry:audit && npm run test:v4-local-explanation && npm run knowledge:tax:local-explanation:audit && npm run test:v4-generic-document && npm run knowledge:generic:audit && npm run test:v4-document-input && npm run test:v4-local-extraction && npm run test:v4-preview-integration"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",
