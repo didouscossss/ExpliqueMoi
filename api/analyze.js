@@ -10,7 +10,8 @@ import {
 } from "../lib/pdfProcessing.js";
 import {
   callGeminiForAnalysis,
-  parseGeminiJson
+  parseGeminiJson,
+  parseAndValidateGeminiJson
 } from "../lib/geminiAnalysis.js";
 import {
   normalizeTables
@@ -464,22 +465,25 @@ export default async function handler(request, response) {
       );
     }
 
-    let result;
+    let result = analysisResult.parsed || null;
 
-    try {
-      result = parseGeminiJson(analysisResult.rawText);
-    } catch {
-      return response.status(502).json(
-        fail(
-          ErrorCode.INVALID_AI_RESPONSE,
-          "La réponse du service d’analyse est illisible.",
-          {
-            mode: pdfProcessing.mode,
-            model: analysisResult.model || null,
-            rawPreview: String(analysisResult.rawText || "").slice(0, 180)
-          }
-        )
-      );
+    if (!result) {
+      try {
+        result = parseAndValidateGeminiJson(analysisResult.rawText);
+      } catch {
+        return response.status(502).json(
+          fail(
+            ErrorCode.INVALID_AI_RESPONSE,
+            "La réponse du service d’analyse est illisible.",
+            {
+              mode: pdfProcessing.mode,
+              model: analysisResult.model || null,
+              invalidJson: Boolean(analysisResult.detail?.invalidJson),
+              rawPreview: String(analysisResult.rawText || "").slice(0, 180)
+            }
+          )
+        );
+      }
     }
 
     const validated = validateResult(
@@ -905,18 +909,27 @@ async function analyzeWithParts(parts, options, requestContext) {
     };
   }
 
-  let parsed = null;
+  // parseAndValidate déjà fait dans callGeminiForAnalysis (retry/fallback inclus)
+  let parsed = geminiResult.parsed || null;
 
-  try {
-    parsed = parseGeminiJson(geminiResult.rawText);
-  } catch {
-    return {
-      ok: true,
-      emptyOrUnusable: false,
-      rawText: geminiResult.rawText,
-      model: geminiResult.model,
-      parseDeferred: true
-    };
+  if (!parsed) {
+    try {
+      parsed = parseAndValidateGeminiJson(geminiResult.rawText);
+    } catch (error) {
+      // Ne plus masquer un JSON invalide comme succès (parseDeferred)
+      return {
+        ok: false,
+        emptyOrUnusable: true,
+        detail: {
+          invalidJson: true,
+          message: String(error?.message || "JSON invalide").slice(0, 240),
+          model: geminiResult.model,
+          rawPreview: String(geminiResult.rawText || "").slice(0, 180)
+        },
+        model: geminiResult.model,
+        rawText: geminiResult.rawText
+      };
+    }
   }
 
   const provisional = validateResult(parsed, [], [], false);
@@ -926,8 +939,10 @@ async function analyzeWithParts(parts, options, requestContext) {
     ok: true,
     emptyOrUnusable: !usable,
     rawText: geminiResult.rawText,
+    parsed,
     model: geminiResult.model,
-    provisional
+    provisional,
+    detail: geminiResult.detail
   };
 }
 
@@ -1016,6 +1031,23 @@ function respondGeminiFailure(
           pageCount: pdfProcessing.pageCount,
           upstreamStatus: detail.httpStatus || 429,
           upstreamMessage: upstreamMessage.slice(0, 240)
+        }
+      )
+    );
+  }
+
+  if (detail.invalidJson) {
+    return response.status(502).json(
+      fail(
+        ErrorCode.INVALID_AI_RESPONSE,
+        "La réponse du service d’analyse est illisible.",
+        {
+          mode: pdfProcessing.mode,
+          pageCount: pdfProcessing.pageCount,
+          invalidJson: true,
+          model: analysisResult.model || detail.model || null,
+          upstreamMessage: upstreamMessage.slice(0, 240),
+          rawPreview: String(detail.rawPreview || "").slice(0, 180)
         }
       )
     );

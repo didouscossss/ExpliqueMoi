@@ -9,10 +9,17 @@ import {
   deriveReadingQuality,
   normalizeDateType,
   normalizeAmountKind,
-  inferRefType
+  inferRefType,
+  sanitizeDocumentType,
+  normalizeDateKey
 } from "../lib/analysisEnrichment.js";
 import { buildAnalysisPrompt } from "../lib/analysisPrompt.js";
-import { ANALYSIS_SCHEMA } from "../lib/geminiAnalysis.js";
+import {
+  ANALYSIS_SCHEMA,
+  parseAndValidateGeminiJson,
+  validateAnalysisPayload,
+  parseGeminiJson
+} from "../lib/geminiAnalysis.js";
 
 function pass(id, detail = "") {
   console.log(JSON.stringify({ id, result: "PASS", detail }));
@@ -655,13 +662,17 @@ const fixtures = {
 // --- Prompt ---
 try {
   const prompt = buildAnalysisPrompt("", 2, false, "direct");
-  assert.ok(/PRIORITÉ D’ANALYSE/i.test(prompt));
-  assert.ok(/actions à effectuer/i.test(prompt));
+  assert.ok(/ÉTAPE A — FAMILLE DU DOCUMENT/i.test(prompt));
+  assert.ok(/TYPE ≠ RUBRIQUE/i.test(prompt));
+  assert.ok(/user_summary/i.test(prompt));
+  assert.ok(/quittance de loyer/i.test(prompt));
+  assert.ok(/2031-SD/i.test(prompt));
   assert.ok(/deadlines/i.test(prompt));
   assert.ok(/requiredDocuments/i.test(prompt));
   assert.ok(/contradictions/i.test(prompt));
   assert.ok(/reading_quality = "full"/i.test(prompt));
-  pass("PROMPT", "priorités conseiller administratif présentes");
+  assert.ok(/N’invente jamais/i.test(prompt) || /N'invente jamais/i.test(prompt));
+  pass("PROMPT", "identification + synthèse utilisateur présentes");
 } catch (error) {
   fail("PROMPT", error.message);
 }
@@ -679,11 +690,21 @@ try {
     "requiredDocuments",
     "risks",
     "actions",
-    "contradictions"
+    "contradictions",
+    "user_summary",
+    "document_family",
+    "identification_level"
   ]) {
     assert.ok(props[key], `schema missing ${key}`);
   }
-  pass("SCHEMA", "structure JSON enrichie présente");
+  assert.deepStrictEqual(ANALYSIS_SCHEMA.required, [
+    "document_type",
+    "plain_summary",
+    "request",
+    "confidence",
+    "reading_quality"
+  ]);
+  pass("SCHEMA", "structure JSON enrichie + user_summary");
 } catch (error) {
   fail("SCHEMA", error.message);
 }
@@ -860,6 +881,275 @@ try {
   pass("AMOUNT_CONTEXT", `principal=${enriched.amount.value} (${enriched.amount.meaning})`);
 } catch (error) {
   fail("AMOUNT_CONTEXT", error.message);
+}
+
+// Quittance : type + montant payé + pas de bruit
+try {
+  const enriched = enrichAnalysisResult(
+    baseDoc({
+      document_family: "logement",
+      identification_level: "strong",
+      document_type: "Quittance de loyer",
+      issuer: "SCI Les Lilas",
+      plain_summary:
+        "C’est une quittance de loyer qui atteste le paiement du loyer de juillet 2026.",
+      request: "Aucune action particulière n’est demandée.",
+      why_received: "Attestation de paiement du loyer",
+      user_summary: {
+        document_label: "Quittance de loyer",
+        one_sentence:
+          "C’est une quittance qui confirme le paiement du loyer de juillet 2026.",
+        important_points: [
+          "Période : juillet 2026",
+          "Montant quittancé : 370,97 €",
+          "Paiement attesté par le bailleur"
+        ],
+        main_date: {
+          date: "juillet 2026",
+          label: "Période de loyer",
+          meaning: "Mois concerné par la quittance"
+        },
+        main_amount: {
+          value: "370,97 €",
+          label: "Montant quittancé",
+          meaning: "Loyer payé pour la période"
+        },
+        main_action: null
+      },
+      dates: [
+        {
+          date: "01/07/2026",
+          type: "period",
+          label: "Début de période",
+          page: "Page 1",
+          context: "Période du 01/07/2026",
+          confidence: 90
+        },
+        {
+          date: "23/07/2026",
+          type: "issue_date",
+          label: "Date d’émission",
+          page: "Page 1",
+          context: "Émise le",
+          confidence: 70
+        },
+        {
+          date: "01/07/2026",
+          type: "other",
+          label: "Date trouvée",
+          meaning: "rôle non déterminé",
+          page: "Page 1",
+          context: "Date trouvée",
+          confidence: 40
+        }
+      ],
+      amounts: [
+        {
+          value: "370,97 €",
+          label: "Montant quittancé",
+          kind: "paid",
+          page: "Page 1",
+          context: "Loyer perçu",
+          confidence: 95
+        },
+        {
+          value: "370,97 €",
+          label: "Montant trouvé",
+          kind: "other",
+          page: "Page 1",
+          context: "Le document contient le montant mais son rôle n’est pas suffisamment clair.",
+          confidence: 40
+        }
+      ],
+      actions: [],
+      urgency: { level: "none", message: "Aucune urgence" }
+    })
+  );
+
+  assert.ok(/quittance/i.test(enriched.document_type));
+  assert.ok(!/non identifié/i.test(enriched.document_type));
+  assert.equal(enriched.amount.value, "370,97 €");
+  assert.ok(/quittanc|payé|loyer/i.test(enriched.amount.meaning));
+  assert.ok(enriched.user_summary?.main_date);
+  assert.ok(
+    !enriched.dates.some((item) =>
+      /rôle non|date trouvée/i.test(`${item.label} ${item.meaning}`)
+    )
+  );
+  assert.ok(
+    !enriched.amounts_detail.some((item) =>
+      /montant trouvé|non suffisamment clair/i.test(item.label)
+    )
+  );
+  pass("QUITTANCE", enriched.document_type);
+} catch (error) {
+  fail("QUITTANCE", error.message);
+}
+
+// Liasse fiscale : type ≠ rubrique, pas de dump montants
+try {
+  const enriched = enrichAnalysisResult(
+    baseDoc({
+      document_family: "fiscal",
+      identification_level: "strong",
+      document_type: "Bénéfices professionnels",
+      issuer: "Direction générale des Finances publiques",
+      plain_summary:
+        "C’est une liasse fiscale (formulaire 2031-SD) relative aux bénéfices industriels et commerciaux.",
+      user_summary: {
+        document_label: "Liasse fiscale — formulaire 2031-SD",
+        one_sentence:
+          "C’est une liasse fiscale 2031-SD (déclaration de résultats BIC).",
+        important_points: [
+          "Formulaire 2031-SD",
+          "Déclaration de résultats — bénéfices industriels et commerciaux"
+        ],
+        main_date: {
+          date: "2025",
+          label: "Exercice",
+          meaning: "Période fiscale concernée"
+        },
+        main_amount: null,
+        main_action: null
+      },
+      amounts: [
+        { value: "3000 €", label: "Ligne tableau", kind: "table_value", page: "Page 1", context: "case", confidence: 60 },
+        { value: "6100 €", label: "Ligne tableau", kind: "table_value", page: "Page 1", context: "case", confidence: 60 },
+        { value: "300000 €", label: "Ligne tableau", kind: "historical", page: "Page 2", context: "case", confidence: 55 },
+        { value: "188700 €", label: "Ligne tableau", kind: "table_value", page: "Page 2", context: "case", confidence: 55 }
+      ],
+      dates: [
+        { date: "01/01/2020", type: "historical", label: "Date historique", page: "Page 1", context: "mention", confidence: 50 },
+        { date: "31/12/2025", type: "period", label: "Fin d’exercice", page: "Page 1", context: "exercice", confidence: 80 }
+      ]
+    })
+  );
+
+  assert.ok(
+    /liasse|2031|déclaration|fiscal/i.test(enriched.document_type),
+    `type inattendu: ${enriched.document_type}`
+  );
+  assert.ok(!/^bénéfices professionnels$/i.test(enriched.document_type));
+  assert.ok(enriched.amounts_detail.length <= 3);
+  assert.ok(
+    /non trouvée|non trouvé|incertitude/i.test(enriched.amount.value) ||
+      enriched.amounts_detail.length <= 2
+  );
+  pass("LIASSE", enriched.document_type);
+} catch (error) {
+  fail("LIASSE", error.message);
+}
+
+// Convocation AG : date AG prioritaire
+try {
+  const enriched = enrichAnalysisResult(
+    baseDoc({
+      document_family: "copropriété",
+      identification_level: "strong",
+      document_type: "Convocation à une assemblée générale de copropriété",
+      issuer: "Syndic Habitat Plus",
+      plain_summary:
+        "C’est une convocation à l’assemblée générale de copropriété du 12/09/2026.",
+      user_summary: {
+        document_label: "Convocation à une AG de copropriété",
+        one_sentence:
+          "C’est une convocation à l’AG de copropriété du 12/09/2026 à 18h.",
+        important_points: [
+          "Date de l’AG : 12/09/2026",
+          "Heure : 18h00",
+          "Possibilité de voter par procuration"
+        ],
+        main_date: {
+          date: "12/09/2026",
+          label: "Date de l’assemblée",
+          meaning: "Date de l’AG"
+        },
+        main_amount: null,
+        main_action: {
+          action: "Participer ou donner procuration",
+          how: "Selon les modalités indiquées"
+        }
+      },
+      dates: [
+        {
+          date: "01/01/2018",
+          type: "historical",
+          label: "Date historique",
+          page: "Page 2",
+          context: "règlement",
+          confidence: 40
+        },
+        {
+          date: "12/09/2026",
+          type: "meeting_date",
+          label: "Date de l’assemblée",
+          page: "Page 1",
+          context: "AG le 12/09/2026",
+          confidence: 95
+        }
+      ],
+      actions: [
+        {
+          action: "Participer ou donner procuration",
+          how: "Retourner le pouvoir",
+          page: "Page 1",
+          context: "vote",
+          confidence: 90
+        }
+      ]
+    })
+  );
+
+  assert.ok(/assemblée|convocation|copropriété/i.test(enriched.document_type));
+  assert.equal(enriched.user_summary.main_date.date, "12/09/2026");
+  assert.ok(enriched.dates[0]?.date === "12/09/2026");
+  pass("AG", enriched.document_type);
+} catch (error) {
+  fail("AG", error.message);
+}
+
+// Helpers identification / dates
+try {
+  assert.ok(
+    /liasse|fiscal|déclaration/i.test(
+      sanitizeDocumentType(
+        "Bénéfices professionnels",
+        "strong",
+        "fiscal",
+        { document_label: "Liasse fiscale — formulaire 2031-SD" }
+      )
+    )
+  );
+  assert.equal(
+    normalizeDateKey("01/07/2026"),
+    normalizeDateKey("1 juillet 2026")
+  );
+  assert.equal(normalizeAmountKind("Montant quittancé"), "paid");
+  assert.equal(normalizeDateType("assemblée générale"), "meeting_date");
+  pass("HELPERS_V2", "identification + normalisation avancées");
+} catch (error) {
+  fail("HELPERS_V2", error.message);
+}
+
+// JSON Gemini : valide / invalide / fence
+try {
+  const ok = parseAndValidateGeminiJson(`\`\`\`json
+{"document_type":"Facture Free","plain_summary":"C’est une facture Free.","request":"Payer","confidence":90,"reading_quality":"full"}
+\`\`\``);
+  assert.equal(ok.document_type, "Facture Free");
+
+  assert.throws(() => parseAndValidateGeminiJson("{not json"), /JSON|illisible|malform/i);
+  assert.throws(
+    () => parseAndValidateGeminiJson('{"foo":1}'),
+    /essentiels|incohérent|absents/i
+  );
+
+  const truncated = validateAnalysisPayload(parseGeminiJson('{"document_type":"X","plain_summary":"C’est un test assez long.","request":"","confidence":10,"reading_quality":"full"}'));
+  assert.equal(truncated.ok, true);
+
+  pass("GEMINI_JSON", "parse + validation structurée");
+} catch (error) {
+  fail("GEMINI_JSON", error.message);
 }
 
 if (process.exitCode) {
