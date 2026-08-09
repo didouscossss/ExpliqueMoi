@@ -1,10 +1,12 @@
 /**
- * Calcul de valeurs fiscales dérivées — V4-U.
+ * Calcul de valeurs fiscales dérivées — V4-U / V4-W.
  * DerivedTaxValue ≠ suggestedDeclaredAmount ≠ eligibility.
+ * Sélection de formule via ruleRegistry (versionnée, déterministe).
  */
 
 import type {
   CalculationResult,
+  CalculationRuleProvenance,
   CandidateDocumentFact,
   DerivedTaxValue,
   DocumentCase,
@@ -13,6 +15,7 @@ import type {
   TaxCalculationInvariants,
   TaxCalculationMetrics,
   TaxFormula,
+  TaxRuleRegistryEntry,
   TaxValueUnit,
   UserProvidedFact
 } from "../../../../types/knowledge.js";
@@ -21,6 +24,10 @@ import { resolveFormulaInputs } from "./resolveInputs.js";
 import { getFormulasForField } from "./formulas.js";
 import { explainTaxCalculation } from "./explainCalculation.js";
 import { evaluateFormulaConditions } from "./formulaConditions.js";
+import {
+  formulaVersion,
+  resolveTaxFormula
+} from "../ruleRegistry/index.js";
 
 export function emptyCalculationInvariants(): TaxCalculationInvariants {
   return {
@@ -41,7 +48,10 @@ export function emptyCalculationInvariants(): TaxCalculationInvariants {
     calculationPromotedToEligibility: 0,
     calculationPromotedToObligation: 0,
     uploadOrderChangesCalculation: 0,
-    automaticUnsafeAggregation: 0
+    automaticUnsafeAggregation: 0,
+    implicitRuleSelection: 0,
+    unsourcedVerifiedRules: 0,
+    ambiguousRuleAutoResolution: 0
   };
 }
 
@@ -70,7 +80,20 @@ export function calculateDerivedValue(options: CalculateOptions): {
   const fieldCode = options.fieldCode.toUpperCase();
   const formulas = getFormulasForField(fieldCode, options.extraFormulas || []);
 
-  if (!formulas.length) {
+  // V4-W — résolution versionnée (pas de .find() / last-wins)
+  const formulaResolution = resolveTaxFormula({
+    fieldCode,
+    taxYear: options.targetYear ?? null,
+    extraFormulas: options.extraFormulas || []
+  });
+  invariants.implicitRuleSelection +=
+    formulaResolution.invariants.implicitRuleSelection;
+  invariants.unsourcedVerifiedRules +=
+    formulaResolution.invariants.unsourcedVerifiedRules;
+  invariants.ambiguousRuleAutoResolution +=
+    formulaResolution.invariants.ambiguousRuleAutoResolution;
+
+  if (!formulas.length || formulaResolution.status === "unsupported") {
     // Guard: multiple amounts must NOT be summed
     const amountCount = options.facts.filter(
       (f) =>
@@ -79,14 +102,55 @@ export function calculateDerivedValue(options: CalculateOptions): {
           (f.displayValue != null && /\d/.test(String(f.displayValue))))
     ).length;
     if (amountCount > 1) {
-      // presence alone is fine; we just don't aggregate
       invariants.implicitAmountAggregation += 0;
     }
     return {
       invariants,
       result: unsupportedResult(
         fieldCode,
-        "Les règles actuellement modélisées ne permettent pas de calculer cette valeur de façon fiable."
+        formulaResolution.reason ||
+          "Les règles actuellement modélisées ne permettent pas de calculer cette valeur de façon fiable."
+      )
+    };
+  }
+
+  if (formulaResolution.status === "ambiguous") {
+    // Refus correct — jamais de choix arbitraire
+    invariants.ambiguousRuleAutoResolution += 0;
+    return {
+      invariants,
+      result: {
+        fieldCode,
+        status: "conflicted",
+        value: null,
+        unit: null,
+        formulaId: null,
+        inputs: [],
+        missingInputs: [],
+        conflicts: [formulaResolution.reason],
+        evidence: [],
+        explanation:
+          "Cette valeur ne peut pas être calculée car plusieurs versions de formule également valides existent pour ce périmètre.",
+        sources: [],
+        limits: [
+          "Cette valeur calculée n’est pas une valeur officielle de déclaration."
+        ],
+        derivedValue: null,
+        rule: null
+      }
+    };
+  }
+
+  if (
+    formulaResolution.status === "experimentalOnly" ||
+    !formulaResolution.formula
+  ) {
+    return {
+      invariants,
+      result: unsupportedResult(
+        fieldCode,
+        formulaResolution.reason ||
+          "Aucune formule verified exécutable pour ce périmètre."
       )
     };
   }
@@ -179,37 +243,39 @@ export function calculateDerivedValue(options: CalculateOptions): {
   // - si la formule exige un gate V4-T → traiter comme unknown (pas de calcul)
   // - sinon → le calcul peut procéder
 
-  // Evaluate first verified formula with complete provenance
-  const formula = formulas.find(
-    (f) =>
-      f.verificationStatus === "verified" &&
-      f.provenance?.length &&
-      f.sourceExcerpt &&
-      f.formulaId
+  const formula = formulaResolution.formula;
+  const registryEntry = formulaResolution.entry;
+  const ruleProv = buildRuleProvenance(
+    formula,
+    registryEntry,
+    options.targetYear ?? null
   );
-  if (!formula) {
+
+  if (
+    formula.verificationStatus !== "verified" ||
+    !formula.provenance?.length ||
+    !formula.sourceExcerpt ||
+    !formula.formulaId
+  ) {
     invariants.calculationWithoutVerifiedFormula += 0;
-    const any = formulas[0];
-    if (any && (!any.provenance?.length || any.verificationStatus !== "verified")) {
-      return {
-        invariants,
-        result: unsupportedResult(
-          fieldCode,
-          "Formule sans provenance / vérification insuffisante — calcul refusé."
-        )
-      };
-    }
     return {
       invariants,
-      result: unsupportedResult(fieldCode, "Aucune formule vérifiée disponible.")
+      result: unsupportedResult(
+        fieldCode,
+        "Formule sans provenance / vérification insuffisante — calcul refusé.",
+        ruleProv
+      )
     };
   }
 
   if (!formula.provenance.length) {
-    // Refus correct — ne pas incrémenter (invariant = calculs illégaux réussis)
     return {
       invariants,
-      result: unsupportedResult(fieldCode, "Provenance de formule incomplète.")
+      result: unsupportedResult(
+        fieldCode,
+        "Provenance de formule incomplète.",
+        ruleProv
+      )
     };
   }
 
@@ -287,7 +353,8 @@ export function calculateDerivedValue(options: CalculateOptions): {
         limits: [
           "Cette valeur calculée n’est pas une valeur officielle de déclaration."
         ],
-        derivedValue: null
+        derivedValue: null,
+        rule: ruleProv
       }
     };
   }
@@ -311,7 +378,8 @@ export function calculateDerivedValue(options: CalculateOptions): {
         limits: [
           "Cette valeur calculée n’est pas une valeur officielle de déclaration."
         ],
-        derivedValue: null
+        derivedValue: null,
+        rule: ruleProv
       }
     };
   }
@@ -341,7 +409,8 @@ export function calculateDerivedValue(options: CalculateOptions): {
           formula.resultLabel ||
             "Ce calcul ne constitue ni une obligation ni une décision d’avantage fiscal."
         ],
-        derivedValue: null
+        derivedValue: null,
+        rule: ruleProv
       }
     };
   }
@@ -370,7 +439,8 @@ export function calculateDerivedValue(options: CalculateOptions): {
           limits: [
             "Cette valeur calculée n’est pas une valeur officielle de déclaration."
           ],
-          derivedValue: null
+          derivedValue: null,
+          rule: ruleProv
         }
       };
     }
@@ -461,7 +531,8 @@ export function calculateDerivedValue(options: CalculateOptions): {
         "Ce calcul ne constitue ni une obligation ni une décision d’avantage fiscal.",
       "Ce calcul ne constitue ni une obligation ni une décision d’avantage fiscal."
     ],
-    derivedValue: derived
+    derivedValue: derived,
+    rule: ruleProv
   };
   result.explanation = explainTaxCalculation(result, formula).headline;
 
@@ -557,7 +628,7 @@ export function assertCalculationOrderStable(
   b: CalculationResult[]
 ): { ok: boolean; uploadOrderChangesCalculation: number } {
   const key = (r: CalculationResult) =>
-    `${r.fieldCode}|${r.status}|${r.formulaId}|${r.value}|${r.missingInputs.join(",")}`;
+    `${r.fieldCode}|${r.status}|${r.formulaId}|${r.rule?.version || ""}|${r.value}|${r.missingInputs.join(",")}`;
   const sa = [...a].map(key).sort();
   const sb = [...b].map(key).sort();
   const ok = JSON.stringify(sa) === JSON.stringify(sb);
@@ -566,24 +637,41 @@ export function assertCalculationOrderStable(
 
 function unsupportedResult(
   fieldCode: string,
-  explanation: string
+  explanation: string,
+  rule: CalculationRuleProvenance | null = null
 ): CalculationResult {
   return {
     fieldCode,
     status: "unsupported",
     value: null,
     unit: null,
-    formulaId: null,
+    formulaId: rule?.formulaId || null,
     inputs: [],
     missingInputs: [],
     conflicts: [],
     evidence: [],
     explanation,
-    sources: [],
+    sources: rule?.sources || [],
     limits: [
       "Cette valeur calculée n’est pas une valeur officielle de déclaration."
     ],
-    derivedValue: null
+    derivedValue: null,
+    rule
+  };
+}
+
+function buildRuleProvenance(
+  formula: TaxFormula,
+  entry: TaxRuleRegistryEntry | null,
+  taxYear: number | null
+): CalculationRuleProvenance {
+  return {
+    ruleId: entry?.ruleId || `calc:${formula.formulaId}`,
+    formulaId: formula.formulaId,
+    version: entry?.version || formulaVersion(formula),
+    taxYear,
+    status: entry?.status || "verified",
+    sources: sourcesOf(formula)
   };
 }
 

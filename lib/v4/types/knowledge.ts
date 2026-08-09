@@ -1103,6 +1103,8 @@ export interface TaxApplicabilityRule {
   requiredRole?: TaxFieldDeclarantRole | null;
   /** Si true, une absence de fait → needsInformation (jamais false). */
   absenceIsUnknown: boolean;
+  /** Version déterministe (V4-W) — défaut "1" si absent. */
+  version?: string;
 }
 
 export interface TaxApplicabilityEvidence {
@@ -1278,6 +1280,68 @@ export type TaxFormulaCondition =
       message: string;
     };
 
+/* ─── V4-W — Registre versionné des règles / formules sourcées ─── */
+
+export type TaxRuleKind = "applicability" | "calculation" | "informational";
+
+/**
+ * Statut registre.
+ * "verified" = provenance/sourcing requis présents — pas une vérité inventée.
+ */
+export type TaxRuleRegistryStatus =
+  | "verified"
+  | "experimental"
+  | "unsupported"
+  | "deprecated";
+
+export type TaxRuleResolutionStatus =
+  | "resolved"
+  | "unsupported"
+  | "ambiguous"
+  | "experimentalOnly";
+
+export interface TaxRuleRegistryEntry {
+  ruleId: string;
+  kind: TaxRuleKind;
+  fieldCodes: string[];
+  taxYears: number[];
+  effectiveFrom?: number | null;
+  effectiveTo?: number | null;
+  version: string;
+  status: TaxRuleRegistryStatus;
+  sourceRefs: string[];
+  provenance: KnowledgeProvenance[];
+  sourceExcerpt?: string | null;
+  formulaId?: string | null;
+  applicabilityRuleId?: string | null;
+}
+
+export interface TaxRuleResolution {
+  status: TaxRuleResolutionStatus;
+  entry: TaxRuleRegistryEntry | null;
+  candidates: TaxRuleRegistryEntry[];
+  reason: string;
+  taxYear: number | null;
+}
+
+export interface TaxFormulaResolution {
+  status: TaxRuleResolutionStatus;
+  formula: TaxFormula | null;
+  entry: TaxRuleRegistryEntry | null;
+  candidates: TaxRuleRegistryEntry[];
+  reason: string;
+  taxYear: number | null;
+}
+
+export interface TaxRuleRegistryInvariants {
+  implicitRuleSelection: number;
+  unsourcedVerifiedRules: number;
+  ambiguousRuleAutoResolution: number;
+  derivedValuePromotedToDeclaredAmount: number;
+  calculationPromotedToEligibility: number;
+  implicitAmountAggregation: number;
+}
+
 export interface TaxFormula {
   formulaId: string;
   targetFieldCode: string;
@@ -1303,6 +1367,15 @@ export interface TaxFormula {
   provenance: KnowledgeProvenance[];
   sourceExcerpt: string;
   verificationStatus: "verified" | "partial" | "unverified";
+  /**
+   * Version déterministe (V4-W).
+   * Identifie une révision sourcée ; défaut "1" si absent.
+   */
+  version?: string;
+  effectiveFrom?: number | null;
+  effectiveTo?: number | null;
+  /** Statut registre (si absent : dérivé de verificationStatus). */
+  registryStatus?: TaxRuleRegistryStatus;
 }
 
 export interface ResolvedFormulaInput {
@@ -1339,6 +1412,16 @@ export interface DerivedTaxValue {
   provenance: KnowledgeProvenance[];
 }
 
+/** Provenance registre attachée à un calcul (V4-W). */
+export interface CalculationRuleProvenance {
+  ruleId: string;
+  formulaId: string;
+  version: string;
+  taxYear: number | null;
+  status: TaxRuleRegistryStatus;
+  sources: Array<{ title: string; url: string }>;
+}
+
 export interface CalculationResult {
   fieldCode: string;
   status: TaxCalculationStatus;
@@ -1353,6 +1436,8 @@ export interface CalculationResult {
   sources: Array<{ title: string; url: string }>;
   limits: string[];
   derivedValue?: DerivedTaxValue | null;
+  /** V4-W — règle/formule/version/source ayant produit le résultat. */
+  rule?: CalculationRuleProvenance | null;
 }
 
 export interface CalculationExplanation {
@@ -1389,6 +1474,10 @@ export interface TaxCalculationInvariants {
   calculationPromotedToObligation: number;
   uploadOrderChangesCalculation: number;
   automaticUnsafeAggregation: number;
+  /** V4-W */
+  implicitRuleSelection: number;
+  unsourcedVerifiedRules: number;
+  ambiguousRuleAutoResolution: number;
 }
 
 export interface TaxCalculationMetrics {

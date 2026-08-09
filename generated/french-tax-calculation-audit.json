@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-08T21:32:00.924Z",
+  "generatedAt": "2026-08-09T06:26:38.150Z",
   "caseId": "case-1fcea53b658d232b",
   "formulaIds": [
     "4be-micro-foncier-revenu-imposable"
@@ -124,7 +124,10 @@
     "calculationPromotedToEligibility": 0,
     "calculationPromotedToObligation": 0,
     "uploadOrderChangesCalculation": 0,
-    "automaticUnsafeAggregation": 0
+    "automaticUnsafeAggregation": 0,
+    "implicitRuleSelection": 0,
+    "unsourcedVerifiedRules": 0,
+    "ambiguousRuleAutoResolution": 0
   },
   "calculatedCount": 0,
   "unsupportedCount": 7

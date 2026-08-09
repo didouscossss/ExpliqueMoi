@@ -1,5 +1,5 @@
 /**
- * Pack de formules fiscales — V4-U / V4-V.
+ * Pack de formules fiscales — V4-U / V4-V / V4-W.
  *
  * QUALITÉ > QUANTITÉ.
  * Aucune formule inventée. Taux / plafonds uniquement s’ils figurent
@@ -7,6 +7,8 @@
  *
  * V4-V : première formule réelle —
  * revenu imposable micro-foncier = recettes 4BE × (100% − abattement 30%).
+ *
+ * V4-W : enregistrée dans ruleRegistry (version + millésimes + provenance).
  */
 
 import type {
@@ -54,9 +56,13 @@ const SRC_FONCIERS_BROCHURE = src(
 export const TAX_FORMULAS: readonly TaxFormula[] = [
   {
     formulaId: "4be-micro-foncier-revenu-imposable",
+    version: "1",
+    registryStatus: "verified",
     targetFieldCode: "4BE",
     documentRef: "2042",
     taxYears: [2024, 2025, 2026],
+    effectiveFrom: 2024,
+    effectiveTo: 2026,
     yearPolicy: "verifiedStable",
     rolePolicy: "household",
     operation: "percentage",

@@ -41,6 +41,9 @@ export function auditTaxCalculation(
       if (!r.sources?.length) {
         violations.push(`calculatedWithoutSources:${r.fieldCode}`);
       }
+      if (!r.rule?.version || !r.rule?.formulaId) {
+        violations.push(`calculatedWithoutRuleProvenance:${r.fieldCode}`);
+      }
       if (r.missingInputs.length) {
         violations.push(`calculatedWithMissing:${r.fieldCode}`);
         invariants.calculationWithMissingInput += 1;

@@ -6643,7 +6643,19 @@
             calc.formula_id
               ? `<p style="color:var(--muted);font-size:0.88rem">Formule : ${escapeHtml(
                   calc.formula_id
-                )}</p>`
+                )}${
+                  calc.rule?.version
+                    ? ` · v${escapeHtml(String(calc.rule.version))}`
+                    : ""
+                }${
+                  calc.rule?.tax_year != null
+                    ? ` · année ${escapeHtml(String(calc.rule.tax_year))}`
+                    : ""
+                }${
+                  calc.rule?.status && calc.rule.status !== "verified"
+                    ? ` · ${escapeHtml(String(calc.rule.status))}`
+                    : ""
+                }</p>`
               : ""
           }
           ${

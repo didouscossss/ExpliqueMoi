@@ -1,0 +1,189 @@
+{
+  "generatedAt": "2026-08-09T06:26:39.374Z",
+  "ruleIds": [
+    "app:1aj-declarant1-scope",
+    "app:1bj-declarant2-scope",
+    "app:4ba-regime-reel",
+    "app:4bb-regime-reel",
+    "app:4bc-regime-reel",
+    "app:4be-micro-foncier-scope",
+    "app:7db-no-aids-only-unknown",
+    "app:7dr-aids-scope",
+    "calc:4be-micro-foncier-revenu-imposable"
+  ],
+  "formulasCount": 1,
+  "firstFormula": {
+    "formulaId": "4be-micro-foncier-revenu-imposable",
+    "version": "1",
+    "taxYears": [
+      2024,
+      2025,
+      2026
+    ],
+    "status": "verified"
+  },
+  "entries": [
+    {
+      "ruleId": "app:1aj-declarant1-scope",
+      "kind": "applicability",
+      "version": "1",
+      "status": "verified",
+      "fieldCodes": [
+        "1AJ"
+      ],
+      "taxYears": [
+        2024,
+        2025,
+        2026
+      ],
+      "formulaId": null,
+      "sourceRefs": 2
+    },
+    {
+      "ruleId": "app:1bj-declarant2-scope",
+      "kind": "applicability",
+      "version": "1",
+      "status": "verified",
+      "fieldCodes": [
+        "1BJ"
+      ],
+      "taxYears": [
+        2024,
+        2025,
+        2026
+      ],
+      "formulaId": null,
+      "sourceRefs": 2
+    },
+    {
+      "ruleId": "app:4ba-regime-reel",
+      "kind": "applicability",
+      "version": "1",
+      "status": "verified",
+      "fieldCodes": [
+        "4BA"
+      ],
+      "taxYears": [
+        2024,
+        2025,
+        2026
+      ],
+      "formulaId": null,
+      "sourceRefs": 4
+    },
+    {
+      "ruleId": "app:4bb-regime-reel",
+      "kind": "applicability",
+      "version": "1",
+      "status": "verified",
+      "fieldCodes": [
+        "4BB"
+      ],
+      "taxYears": [
+        2024,
+        2025,
+        2026
+      ],
+      "formulaId": null,
+      "sourceRefs": 2
+    },
+    {
+      "ruleId": "app:4bc-regime-reel",
+      "kind": "applicability",
+      "version": "1",
+      "status": "verified",
+      "fieldCodes": [
+        "4BC"
+      ],
+      "taxYears": [
+        2024,
+        2025,
+        2026
+      ],
+      "formulaId": null,
+      "sourceRefs": 2
+    },
+    {
+      "ruleId": "app:4be-micro-foncier-scope",
+      "kind": "applicability",
+      "version": "1",
+      "status": "verified",
+      "fieldCodes": [
+        "4BE"
+      ],
+      "taxYears": [
+        2024,
+        2025,
+        2026
+      ],
+      "formulaId": null,
+      "sourceRefs": 3
+    },
+    {
+      "ruleId": "app:7db-no-aids-only-unknown",
+      "kind": "applicability",
+      "version": "1",
+      "status": "verified",
+      "fieldCodes": [
+        "7DB"
+      ],
+      "taxYears": [
+        2024,
+        2025,
+        2026
+      ],
+      "formulaId": null,
+      "sourceRefs": 1
+    },
+    {
+      "ruleId": "app:7dr-aids-scope",
+      "kind": "applicability",
+      "version": "1",
+      "status": "verified",
+      "fieldCodes": [
+        "7DR"
+      ],
+      "taxYears": [
+        2024,
+        2025,
+        2026
+      ],
+      "formulaId": null,
+      "sourceRefs": 1
+    },
+    {
+      "ruleId": "calc:4be-micro-foncier-revenu-imposable",
+      "kind": "calculation",
+      "version": "1",
+      "status": "verified",
+      "fieldCodes": [
+        "4BE"
+      ],
+      "taxYears": [
+        2024,
+        2025,
+        2026
+      ],
+      "formulaId": "4be-micro-foncier-revenu-imposable",
+      "sourceRefs": 3
+    }
+  ],
+  "notes": [
+    "Distinct du catalogue de formulaires fr/tax/registry (V4-M).",
+    "verified = provenance présente — pas une vérité inventée.",
+    "Pas de sélection last-wins ; overlap → ambiguous."
+  ],
+  "ok": true,
+  "issues": [],
+  "invariants": {
+    "implicitRuleSelection": 0,
+    "unsourcedVerifiedRules": 0,
+    "ambiguousRuleAutoResolution": 0,
+    "derivedValuePromotedToDeclaredAmount": 0,
+    "calculationPromotedToEligibility": 0,
+    "implicitAmountAggregation": 0
+  },
+  "entryCount": 9,
+  "calculationCount": 1,
+  "applicabilityCount": 8
+}

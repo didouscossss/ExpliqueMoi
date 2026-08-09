@@ -268,3 +268,21 @@ export {
   auditTaxCalculation,
   type CalculationAuditReport
 } from "./fr/tax/calculation/index.js";
+export {
+  buildTaxRuleRegistry,
+  listRegistryRuleIds,
+  entryFromFormula,
+  entryFromApplicabilityRule,
+  sortRegistryEntries,
+  formulaVersion,
+  resolveTaxRule,
+  resolveTaxFormula,
+  entryCoversYear,
+  emptyRuleRegistryInvariants,
+  auditTaxRuleRegistry,
+  type TaxRuleRegistryAuditReport,
+  type TaxRuleRegistryAuditIssue,
+  type BuildTaxRuleRegistryOptions,
+  type ResolveTaxRuleOptions,
+  type ResolveTaxFormulaOptions
+} from "./fr/tax/ruleRegistry/index.js";

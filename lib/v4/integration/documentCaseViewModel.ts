@@ -114,7 +114,17 @@ export function documentCaseToPreviewJson(
             missing_inputs: v.calculation.missingInputs,
             conflicts: v.calculation.conflicts,
             explanation: v.calculation.explanation,
-            sources: v.calculation.sources
+            sources: v.calculation.sources,
+            rule: v.calculation.rule
+              ? {
+                  rule_id: v.calculation.rule.ruleId,
+                  formula_id: v.calculation.rule.formulaId,
+                  version: v.calculation.rule.version,
+                  tax_year: v.calculation.rule.taxYear,
+                  status: v.calculation.rule.status,
+                  sources: v.calculation.rule.sources
+                }
+              : null
           }
         : null,
       suggested_declared_amount: null
