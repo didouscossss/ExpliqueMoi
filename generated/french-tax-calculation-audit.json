@@ -1,0 +1,134 @@
+{
+  "generatedAt": "2026-08-09T09:37:32.814Z",
+  "caseId": "case-1fcea53b658d232b",
+  "formulaIds": [
+    "4be-micro-foncier-revenu-imposable"
+  ],
+  "formulasCount": 1,
+  "nonModeledNotes": [
+    "1AJ/1BJ : montants directement lus — DocumentFact, pas formule identity.",
+    "4BA/4BB/4BC : report / déficit décrits, mais pas de formule arithmétique 2044 complète (lignes → cases) sourcée pour un calcul dérivé.",
+    "7DB/7DR : séparation aides/dépenses décrite ; taux/plafonds du crédit d’impôt non modélisés — pas de calcul d’avantage.",
+    "Micro-foncier : abattement 30 % modélisé (V4-V) ; exclusions officielles restent un gate needsInformation jusqu’à confirmation.",
+    "Somme multi-documents : interdite sans TaxFormula explicite (refuseUnsafeAggregation)."
+  ],
+  "calculationResults": [
+    {
+      "fieldCode": "1AJ",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "1BJ",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "4BA",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "4BB",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "4BC",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "4BE",
+      "status": "needsInformation",
+      "formulaId": "4be-micro-foncier-revenu-imposable",
+      "value": null,
+      "unit": "EUR",
+      "missingInputs": [
+        "4be-micro-exclusions-ok"
+      ],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "7DB",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    },
+    {
+      "fieldCode": "7DR",
+      "status": "unsupported",
+      "formulaId": null,
+      "value": null,
+      "unit": null,
+      "missingInputs": [],
+      "conflicts": 0
+    }
+  ],
+  "metrics": {
+    "formulasEvaluated": 8,
+    "inputsResolved": 2,
+    "calculationsProduced": 0,
+    "calculationsBlocked": 8,
+    "conflicts": 0,
+    "durationMs": 2
+  },
+  "suggestedDeclaredAmount": null,
+  "eligibilityDecision": null,
+  "boundaries": {
+    "derivedValuePromotedToDeclaredAmount": 0,
+    "calculationPromotedToEligibility": 0,
+    "packIsEmptyByDesign": false,
+    "firstProductionFormulaId": "4be-micro-foncier-revenu-imposable"
+  },
+  "ok": true,
+  "violations": [],
+  "invariants": {
+    "implicitAmountAggregation": 0,
+    "calculationWithoutVerifiedFormula": 0,
+    "calculationWithoutFormulaProvenance": 0,
+    "calculationWithMissingInput": 0,
+    "calculationWithConflictedInput": 0,
+    "calculationWithUnknownApplicability": 0,
+    "calculationWithNeedsInformationApplicability": 0,
+    "crossYearCalculation": 0,
+    "crossRoleCalculation": 0,
+    "incompatibleUnitsCalculated": 0,
+    "duplicateAmountDoubleCount": 0,
+    "versionAmountAutoSelected": 0,
+    "unsupportedRounding": 0,
+    "derivedValuePromotedToDeclaredAmount": 0,
+    "calculationPromotedToEligibility": 0,
+    "calculationPromotedToObligation": 0,
+    "uploadOrderChangesCalculation": 0,
+    "automaticUnsafeAggregation": 0,
+    "implicitRuleSelection": 0,
+    "unsourcedVerifiedRules": 0,
+    "ambiguousRuleAutoResolution": 0
+  },
+  "calculatedCount": 0,
+  "unsupportedCount": 7
+}

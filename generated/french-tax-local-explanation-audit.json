@@ -1,0 +1,106 @@
+{
+  "generatedAt": "2026-08-09T09:37:34.936Z",
+  "caseId": "case-421f9361ebf6ea6f",
+  "explanationCount": 8,
+  "explanations": [
+    {
+      "subject": "1AJ",
+      "status": "explained",
+      "title": "Traitements et salaires",
+      "summary": "Le document indique 32 450 € dans la case 1AJ. ExpliqueMoi ne dispose pas encore d’une règle suffisamment vérifiée pour expliquer ce point.",
+      "hasCalculation": false,
+      "missing": 0,
+      "sources": 2,
+      "rules": 1
+    },
+    {
+      "subject": "1BJ",
+      "status": "needsInformation",
+      "title": "Traitements et salaires",
+      "summary": "Une information supplémentaire est nécessaire pour déterminer si cette règle s’applique ou pour calculer une valeur.",
+      "hasCalculation": false,
+      "missing": 2,
+      "sources": 2,
+      "rules": 1
+    },
+    {
+      "subject": "4BA",
+      "status": "notApplicable",
+      "title": "Revenus fonciers imposables",
+      "summary": "Selon les informations disponibles et la règle modélisée, ce point n’est pas pertinent pour ce dossier.",
+      "hasCalculation": false,
+      "missing": 0,
+      "sources": 4,
+      "rules": 1
+    },
+    {
+      "subject": "4BB",
+      "status": "notApplicable",
+      "title": "Déficit imputable sur les revenus fonciers",
+      "summary": "Selon les informations disponibles et la règle modélisée, ce point n’est pas pertinent pour ce dossier.",
+      "hasCalculation": false,
+      "missing": 0,
+      "sources": 3,
+      "rules": 1
+    },
+    {
+      "subject": "4BC",
+      "status": "notApplicable",
+      "title": "Déficit imputable sur le revenu global",
+      "summary": "Selon les informations disponibles et la règle modélisée, ce point n’est pas pertinent pour ce dossier.",
+      "hasCalculation": false,
+      "missing": 0,
+      "sources": 3,
+      "rules": 1
+    },
+    {
+      "subject": "4BE",
+      "status": "needsInformation",
+      "title": "Revenus fonciers (micro-foncier)",
+      "summary": "Une information supplémentaire est nécessaire pour déterminer si cette règle s’applique ou pour calculer une valeur.",
+      "hasCalculation": true,
+      "missing": 1,
+      "sources": 3,
+      "rules": 2
+    },
+    {
+      "subject": "7DB",
+      "status": "needsInformation",
+      "title": "Dépenses d’emploi à domicile",
+      "summary": "Une information supplémentaire est nécessaire pour déterminer si cette règle s’applique ou pour calculer une valeur.",
+      "hasCalculation": false,
+      "missing": 1,
+      "sources": 1,
+      "rules": 1
+    },
+    {
+      "subject": "7DR",
+      "status": "needsInformation",
+      "title": "Aides perçues pour l’emploi à domicile",
+      "summary": "Une information supplémentaire est nécessaire pour déterminer si cette règle s’applique ou pour calculer une valeur.",
+      "hasCalculation": false,
+      "missing": 1,
+      "sources": 1,
+      "rules": 1
+    }
+  ],
+  "premiumBoundary": {
+    "selectedSubjects": [
+      "1AJ"
+    ],
+    "note": "Contexte Premium structuré — aucun appel réseau/LLM en V4-X. Sélection explicite uniquement ; pas de document brut."
+  },
+  "suggestedDeclaredAmount": null,
+  "eligibilityDecision": null,
+  "ok": true,
+  "violations": [],
+  "invariants": {
+    "unsupportedExplanationPromoted": 0,
+    "unknownExplanationPromoted": 0,
+    "unsourcedExplanation": 0,
+    "explanationChangedFacts": 0,
+    "explanationPromotedToDeclaration": 0,
+    "explanationPromotedToEligibility": 0,
+    "implicitExplanationAggregation": 0
+  }
+}

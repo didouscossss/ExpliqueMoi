@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-08-08T20:46:58.754Z",
+  "caseId": "case-0ffd367629d03035",
+  "metrics": {
+    "documents": 4,
+    "facts": 15,
+    "requirements": 24,
+    "candidateMatches": 0,
+    "strongMatches": 5,
+    "ambiguousMatches": 16,
+    "rejectedMatches": 3,
+    "relations": 12,
+    "conflicts": 0
+  },
+  "ok": true,
+  "documentsWithoutId": [],
+  "factsWithoutDocumentId": [],
+  "relationsWithoutEvidence": [],
+  "matchesWithoutReason": [],
+  "lostProvenance": [],
+  "duplicateDoubleCount": [],
+  "yearIncompatibleStrong": [],
+  "roleIncompatibleStrong": [],
+  "invalidRelations": [],
+  "orphanFacts": [],
+  "orphanRelations": [],
+  "unsafeAggregation": [],
+  "unsupportedCertainty": [],
+  "invariantViolations": []
+}

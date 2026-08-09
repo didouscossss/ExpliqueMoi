@@ -1,0 +1,244 @@
+{
+  "2042": {
+    "cerfa": [
+      "14220*14",
+      "11942*22",
+      "10330*28",
+      "11222*26",
+      "10330*30"
+    ],
+    "years": [
+      "2024",
+      "2026",
+      "2025"
+    ],
+    "titles": [
+      "Déclaration des revenus »",
+      "Déclaration des revenus",
+      "NR - Déclaration des revenus complémentaire »"
+    ]
+  },
+  "2042-C": {
+    "cerfa": [
+      "11222*26",
+      "11222*27",
+      "11222*28",
+      "11942*22",
+      "11942*23"
+    ],
+    "years": [
+      "2024",
+      "2025",
+      "2026"
+    ],
+    "titles": [
+      "Déclaration de revenus complémentaire - Millesime 2024 - N° CERFA 11222*26 »",
+      "Déclaration de revenus complémentaire - Millesime 2024 - N° CERFA 11222*26 - PDF - 727.43 KB",
+      "Déclaration de revenus complémentaire - Millesime 2025 - N° CERFA 11222*27 »"
+    ]
+  },
+  "2042-RICI": {
+    "cerfa": [
+      "15637*10",
+      "15637*08",
+      "15637*09",
+      "10330*28",
+      "14220*14"
+    ],
+    "years": [
+      "2026",
+      "2024",
+      "2025"
+    ],
+    "titles": [
+      "Déclaration des réductions et crédits d'impôt - Millesime 2026 - N° CERFA 15637*10 »",
+      "Déclaration des réductions et crédits d&#039;impôt - Millesime 2026 - N° CERFA 15637*10 - PDF - 963.",
+      "Déclaration des réductions et crédits d'impôt - Millesime 2024 - N° CERFA 15637*08 »"
+    ]
+  },
+  "2044": {
+    "cerfa": [
+      "11639*24",
+      "11639*26",
+      "10334*28",
+      "10334*30",
+      "11639*25"
+    ],
+    "years": [
+      "2024",
+      "2026",
+      "2025"
+    ],
+    "titles": [
+      "Déclaration des revenus fonciers »",
+      "Déclaration des revenus fonciers",
+      "EB : Engagement de location - Millesime 2024 - N° CERFA 11639*24 »"
+    ]
+  },
+  "2047": {
+    "cerfa": [
+      "11226*27",
+      "11226*26",
+      "50545#27",
+      "11226*28",
+      "50545#26"
+    ],
+    "years": [
+      "2025",
+      "2024",
+      "2026"
+    ],
+    "titles": [
+      "Déclaration des revenus encaissés à l'étranger »",
+      "Déclaration des revenus encaissés à l&#039;étranger",
+      "SUISSE : Annexe de la 2047 spécifique aux salaires suisses - Millesime 2025 - N° CERFA »"
+    ]
+  },
+  "2042-IFI": {
+    "cerfa": [
+      "15798*07"
+    ],
+    "years": [
+      "2024"
+    ],
+    "titles": [
+      "Déclaration d'impôt sur la fortune immobilière »",
+      "Déclaration d&#039;impôt sur la fortune immobilière",
+      "Déclaration d'impôt sur la fortune immobilière 2024 - Millesime 2024 - N° CERFA 15798*07 »"
+    ]
+  },
+  "2074": {
+    "cerfa": [
+      "51171#19",
+      "51171#18",
+      "51171#20",
+      "51307#16",
+      "50789#25"
+    ],
+    "years": [
+      "2025",
+      "2024",
+      "2026"
+    ],
+    "titles": [
+      "Déclaration des plus ou moins values. »",
+      "Déclaration des plus ou moins values.",
+      "NR - Déclaration des plus ou moins values réalisées. »"
+    ]
+  },
+  "3916": {
+    "cerfa": [
+      "11916*13"
+    ],
+    "years": [
+      "2025",
+      "2026",
+      "2024"
+    ],
+    "titles": [
+      "3916 BIS : Déclaration par un résident d'un compte ouvert, détenu, utilisé ou clos à l'étranger ou d",
+      "3916 BIS : Déclaration par un résident d&#039;un compte ouvert, détenu, utilisé ou clos à l&#039;étr",
+      "éclaration par un résident d'un compte ouvert hors de France - Millesime 2026 - N° CERFA 11916*13 »"
+    ]
+  },
+  "2735": {
+    "cerfa": [
+      "50586#19",
+      "11278*18"
+    ],
+    "years": [
+      "2025"
+    ],
+    "titles": [
+      "Déclaration de dons manuels et de sommes d'argent »",
+      "Déclaration de dons manuels et de sommes d&#039;argent",
+      "SD : Déclaration de dons manuels et de sommes d'argent - Millesime 2025 - N° CERFA 11278*18 »"
+    ]
+  },
+  "2065-SD": {
+    "cerfa": [],
+    "years": [],
+    "titles": [
+      "Impôt sur les sociétés »",
+      "Impôt sur les sociétés"
+    ]
+  },
+  "3310-CA3-SD": {
+    "cerfa": [
+      "10960*36",
+      "10963*30",
+      "10963*29",
+      "50449#29",
+      "50449#28"
+    ],
+    "years": [
+      "2026",
+      "2025",
+      "2024"
+    ],
+    "titles": [
+      "Taxes assimilées - Millesime 2026 - N° CERFA 10960*36 »",
+      "Taxes assimilées - Millesime 2026 - N° CERFA 10960*36 - PDF - 363.97 KB",
+      "TVA et taxes assimilées régime du réel normal - Mini réel - Millesime 2025 - N° CERFA 10963*30 »"
+    ]
+  },
+  "2035-SD": {
+    "cerfa": [
+      "50498#26",
+      "51513#15"
+    ],
+    "years": [
+      "2025"
+    ],
+    "titles": []
+  },
+  "2031-SD": {
+    "cerfa": [
+      "11194*07"
+    ],
+    "years": [
+      "2026"
+    ],
+    "titles": [
+      "Impôt sur le revenu »",
+      "Impôt sur le revenu"
+    ]
+  },
+  "2561": {
+    "cerfa": [
+      "11428*27",
+      "11428*26",
+      "11429*26",
+      "11428*25",
+      "11429*27"
+    ],
+    "years": [
+      "2025",
+      "2024",
+      "2023"
+    ],
+    "titles": [
+      "Déclaration récapitulative des opérations sur valeurs mobilières et revenus de capitaux mobiliers -",
+      "Déclaration récapitulative des opérations sur valeurs mobilières et revenus de capitaux mobiliers -",
+      "Déclaration récapitulative des opérations sur valeurs mobilières et revenus de capitaux mobiliers -"
+    ]
+  },
+  "2777": {
+    "cerfa": [
+      "10024*35",
+      "10024*34",
+      "10024*33",
+      "50302#26"
+    ],
+    "years": [
+      "2026",
+      "2025",
+      "2024"
+    ],
+    "titles": [
+      "SD - Revenus de Capitaux Mobiliers - Prélèvement et retenue à la source »",
+      "SD - Revenus de Capitaux Mobiliers - Prélèvement et retenue à la source",
+      "SD : Revenus de capitaux mobiliers - Millesime 2026 - N° CERFA 10024*35 »"
+    ]
+  }
+}

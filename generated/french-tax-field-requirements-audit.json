@@ -1,0 +1,19 @@
+{
+  "generatedAt": "2026-08-08T20:36:32.160Z",
+  "version": "2026.08.08-v4q1",
+  "totalEntries": 7,
+  "verified": 7,
+  "partiallyVerified": 0,
+  "needsReview": 0,
+  "missingProvenance": [],
+  "missingDocumentRef": [],
+  "missingFieldCode": [],
+  "emptyRequirements": [],
+  "duplicateKeys": [],
+  "unsupportedSupportingDocuments": [],
+  "unsupportedConditions": [],
+  "questionsWithoutRequirement": [],
+  "yearCollisions": [],
+  "invalidRelatedFields": [],
+  "ok": true
+}

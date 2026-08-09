@@ -1,0 +1,1764 @@
+/**
+ * V4-L / V4-M — Knowledge types.
+ * KnowledgeFact ≠ DocumentFact (faits utilisateur).
+ */
+
+import type { EvidenceSpan } from "./evidence.js";
+import type { DocumentTypeId } from "./documentClassification.js";
+
+/** Pays supportés pour les registres de connaissance. */
+export type KnowledgeCountry = "FR";
+
+/**
+ * Familles fiscales françaises (extensible, non exhaustive).
+ * Guidées par les sources officielles découvertes — pas une liste marketing.
+ */
+export type FrenchTaxFamily =
+  | "incomeTaxReturn"
+  | "incomeTaxNotice"
+  | "propertyTax"
+  | "housingTax"
+  | "withholdingTax"
+  | "taxCreditReduction"
+  | "taxRefund"
+  | "taxPayment"
+  | "foreignIncomeDeclaration"
+  | "rentalIncomeDeclaration"
+  | "professionalIncomeDeclaration"
+  | "professionalBenefits"
+  | "capitalGainsDeclaration"
+  | "wealthTax"
+  | "inheritanceDonation"
+  | "foreignAccountsDeclaration"
+  | "corporateTax"
+  | "vatDeclaration"
+  | "businessTax"
+  | "taxCertificate"
+  | "taxAdministrativeLetter"
+  | "taxForm"
+  | "taxNotice"
+  | "taxInstruction"
+  | "unknownTaxDocument";
+
+/**
+ * Taxonomie des nombres / identifiants fiscaux.
+ * Critiquer : ne jamais traiter tout nombre comme formReference.
+ */
+export type FiscalNumericKind =
+  | "formReference"
+  | "cerfaNumber"
+  | "documentReference"
+  | "taxpayerIdentifier"
+  | "noticeReference"
+  | "businessIdentifier"
+  | "fiscalYear"
+  | "amount"
+  | "date"
+  | "unknownNumericIdentifier";
+
+/** Rôle d’une référence dans le document courant. */
+export type FiscalReferenceRole =
+  | "documentIdentity"
+  | "relatedDocument"
+  | "mentionedDocument"
+  | "attachmentReference"
+  | "unknown";
+
+export type KnowledgeRelationType =
+  | "supplement"
+  | "annex"
+  | "relatedDeclaration"
+  | "instruction"
+  | "replacement"
+  | "yearVariant"
+  | "supplementOf"
+  | "annexOf"
+  | "instructionFor"
+  | "replaces"
+  | "replacedBy"
+  | "relatedTo"
+  | "requiredWith"
+  | "optionalWith"
+  | "yearVariantOf";
+
+/** Nature du document indexé (formulaire ≠ notice). */
+export type TaxDocumentKind =
+  | "form"
+  | "notice"
+  | "instruction"
+  | "taxNotice"
+  | "certificate"
+  | "administrativeLetter"
+  | "other";
+
+export type TaxVariantKind =
+  | "base"
+  | "complement"
+  | "pro"
+  | "rici"
+  | "sd"
+  | "nr"
+  | "ifi"
+  | "iom"
+  | "other"
+  | "unknown";
+
+export type KnowledgeSourceType = "official" | "derived" | "curated";
+
+export type RegistryEntryStatus =
+  | "integrated"
+  | "discovered"
+  | "validated"
+  | "rejected"
+  | "needsReview";
+
+export type RegistryLookupMatchKind =
+  | "exact"
+  | "normalized"
+  | "cerfa"
+  | "alias"
+  | "possible"
+  | "none";
+
+export interface KnowledgeProvenance {
+  sourceType: KnowledgeSourceType;
+  authority: string;
+  url: string;
+  retrievedAt: string;
+  title: string;
+  supports: string[];
+  licenseId?: string;
+}
+
+/**
+ * Fait de connaissance générale (registre / officialité).
+ * Ne contient JAMAIS une valeur utilisateur extraite d’un document.
+ */
+export interface KnowledgeFact {
+  kind: "knowledge";
+  id: string;
+  country: KnowledgeCountry;
+  statement: string;
+  subjectId: string;
+  fields: string[];
+  provenance: KnowledgeProvenance[];
+  confidence: number;
+}
+
+/**
+ * Fait documentaire utilisateur — doit provenir du document.
+ * Séparé explicitement de KnowledgeFact.
+ */
+export interface DocumentFactRef {
+  kind: "document";
+  field: string;
+  value: unknown;
+  evidence: EvidenceSpan[];
+  derivedFrom: string[];
+}
+
+export interface TaxDocumentRelation {
+  targetId: string;
+  relationType: KnowledgeRelationType;
+  source: string;
+  confidence: number;
+}
+
+export interface MetadataQualityScore {
+  score: number;
+  hasOfficialReference: boolean;
+  hasOfficialTitle: boolean;
+  hasOfficialSource: boolean;
+  hasAuthority: boolean;
+  hasYearInformation: boolean;
+  hasCerfa: boolean;
+  hasRelations: boolean;
+  /** Cerfa non attendu pour ce type → ne pénalise pas. */
+  cerfaApplicable: boolean;
+  /** V4-N — explication sémantique vérifiée (pas slug). */
+  hasVerifiedSemanticExplanation?: boolean;
+}
+
+/** Qualité sémantique V4-N — distincte du statut discovery. */
+export type TaxKnowledgeQualityStatus =
+  | "verified"
+  | "partiallyVerified"
+  | "discovered"
+  | "needsReview";
+
+/** Rôles d’année — ne pas confondre millésimes. */
+export type FiscalYearRole =
+  | "documentYear"
+  | "incomeYear"
+  | "applicableYear"
+  | "paymentYear"
+  | "issueYear"
+  | "unknown";
+
+export interface TaxKnowledgeSection {
+  concept: string;
+  label: string;
+}
+
+export interface TaxCerfaInfo {
+  number: string;
+  version?: string | null;
+  verified: boolean;
+  source?: string | null;
+}
+
+/**
+ * Couche sémantique V4-N — connaissance générale officielle.
+ * Jamais une valeur utilisateur.
+ */
+export interface TaxDocumentSemanticKnowledge {
+  reference: string;
+  normalizedReference: string;
+  officialTitle: string;
+  shortTitle: string;
+  family: FrenchTaxFamily;
+  documentKind: TaxDocumentKind;
+  description: string;
+  purpose: string;
+  audience: string[];
+  commonSituations: string[];
+  userQuestionsAnswered: string[];
+  importantSections: TaxKnowledgeSection[];
+  relatedDocumentRefs: string[];
+  officialSources: KnowledgeProvenance[];
+  cerfa?: TaxCerfaInfo | null;
+  applicableYears: number[];
+  confidence: number;
+  provenance: KnowledgeProvenance[];
+  lastVerifiedAt?: string | null;
+  qualityStatus: TaxKnowledgeQualityStatus;
+  /** Reformulation courte FR pour utilisateur (déterministe). */
+  plainLanguageWhat: string;
+  plainLanguagePurpose: string;
+  /** Actions générales possibles du TYPE — pas obligations utilisateur. */
+  generalPossibleActions: string[];
+  /** Ce qu’il est pertinent de regarder EN GÉNÉRAL sur ce type. */
+  generalWhatToCheck: string[];
+}
+
+/**
+ * Explication fiscale structurée = Knowledge + DocumentFacts séparés.
+ */
+export interface TaxDocumentExplanation {
+  identity: {
+    reference: string | null;
+    officialTitle: string | null;
+    family: FrenchTaxFamily | null;
+    documentKind: TaxDocumentKind | null;
+    qualityStatus: TaxKnowledgeQualityStatus | null;
+  };
+  whatIsIt: string | null;
+  purpose: string | null;
+  whoIsConcerned: string | null;
+  whatToCheck: string[];
+  /** Infos générales sur le type — jamais inventées depuis Knowledge comme actions dues. */
+  possibleActions: string[];
+  /** Faits réellement présents dans le document utilisateur. */
+  importantDocumentFacts: DocumentFactRef[];
+  relatedDocuments: Array<{
+    reference: string;
+    title: string;
+    relationType?: string;
+  }>;
+  warnings: string[];
+  confidence: number;
+  knowledgeFacts: KnowledgeFact[];
+  sourceFacts: DocumentFactRef[];
+  invariants: {
+    documentFactsFromKnowledge: number;
+    inventedTaxObligations: number;
+    inventedTaxDates: number;
+    inventedTaxAmounts: number;
+    unsupportedKnowledgeClaims: number;
+  };
+}
+
+export interface FrenchTaxDocumentEntry {
+  id: string;
+  country: KnowledgeCountry;
+  authority: string;
+  family: FrenchTaxFamily;
+  /** Type V4 associé (signal, pas décision absolue). */
+  documentType: DocumentTypeId;
+  /** form vs notice vs instruction… */
+  documentKind: TaxDocumentKind;
+  referenceNumbers: string[];
+  /** Référence brute telle que découverte (typo source). */
+  rawReference?: string | null;
+  normalizedReference: string;
+  baseReference?: string | null;
+  variantKind?: TaxVariantKind | null;
+  cerfaNumbers: string[];
+  cerfaVersion?: string | null;
+  /** V4-N — Cerfa vérifié officiellement (sinon absent). */
+  cerfaVerified?: boolean;
+  aliases: string[];
+  officialTitle: string;
+  description: string;
+  purpose: string;
+  applicableYears: number[];
+  documentVersion?: string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  expectedSignals: string[];
+  negativeSignals: string[];
+  relatedDocuments: TaxDocumentRelation[];
+  profileId?: string | null;
+  expectedFields: string[];
+  officialSources: KnowledgeProvenance[];
+  provenance: KnowledgeProvenance[];
+  confidence: number;
+  quality?: MetadataQualityScore;
+  status?: RegistryEntryStatus;
+  /** V4-N qualité sémantique. */
+  qualityStatus?: TaxKnowledgeQualityStatus;
+  metadataHash?: string | null;
+  /** Pack sémantique si enrichi (priorité). */
+  semantic?: TaxDocumentSemanticKnowledge | null;
+}
+
+export interface FrenchTaxDocumentRegistry {
+  version: string;
+  country: KnowledgeCountry;
+  generatedAt: string;
+  sourceMode: "curated-official" | "auto-refresh" | "discovery+curated";
+  entries: FrenchTaxDocumentEntry[];
+  /** Compteurs discovery (build). */
+  discoveryStats?: {
+    discovered: number;
+    validated: number;
+    integrated: number;
+    rejected: number;
+    needsReview: number;
+  };
+}
+
+export interface DetectedFiscalReference {
+  raw: string;
+  normalized: string;
+  kind: FiscalNumericKind;
+  role: FiscalReferenceRole;
+  registryId: string | null;
+  family: FrenchTaxFamily | null;
+  evidence: EvidenceSpan[];
+  confidence: number;
+  reasons: string[];
+  /** V4-M OCR / normalisation. */
+  rawText?: string;
+  normalizedCandidate?: string;
+  normalizationReason?: string | null;
+  matchKind?: RegistryLookupMatchKind;
+  /** V4-N — rôle d'année distinct (ne pas confondre millésimes). */
+  yearRole?: FiscalYearRole | null;
+}
+
+export interface FiscalKnowledgeSignal {
+  signal: string;
+  family: FrenchTaxFamily | "tax" | "negative";
+  weight: number;
+  registryId?: string | null;
+  referenceRole?: FiscalReferenceRole;
+  evidence: EvidenceSpan[];
+}
+
+export interface FiscalKnowledgeAnalysis {
+  enabled: true;
+  registryVersion: string;
+  detectedReferences: DetectedFiscalReference[];
+  signals: FiscalKnowledgeSignal[];
+  suggestedFamily: FrenchTaxFamily | null;
+  suggestedDocumentType: DocumentTypeId | null;
+  suggestedProfileId: string | null;
+  knowledgeFacts: KnowledgeFact[];
+  /** Identité principale si non ambiguë. */
+  primaryIdentity?: DetectedFiscalReference | null;
+  /** V4-N — explication sémantique structurée (Knowledge ≠ DocumentFacts). */
+  taxExplanation?: TaxDocumentExplanation | null;
+  /** V4-P — cases/rubriques détectées + explications. */
+  detectedFields?: DetectedTaxField[];
+  fieldExplanations?: TaxFieldExplanation[];
+  fieldRegistryVersion?: string | null;
+  /** V4-Q — aide à la compréhension (requirements + gaps). */
+  fieldAssistance?: TaxFieldAssistance[];
+  requirementsRegistryVersion?: string | null;
+  /** Invariants knowledge. */
+  invariants: {
+    knowledgeAsDocumentFact: number;
+    personalIdAsFormReference: number;
+    mentionedAsIdentity: number;
+    /** V4-N */
+    documentFactsFromKnowledge?: number;
+    inventedTaxObligations?: number;
+    inventedTaxDates?: number;
+    inventedTaxAmounts?: number;
+    unsupportedKnowledgeClaims?: number;
+    knowledgeWithoutProvenance?: number;
+    /** V4-P */
+    taxFieldKnowledgePromotedToFact?: number;
+    unsupportedFieldValues?: number;
+    emptyFieldConvertedToZero?: number;
+    unverifiedFieldDefinitionPresentedAsVerified?: number;
+    fieldFalsePositiveCritical?: number;
+    /** V4-Q */
+    knowledgePromotedToUserFact?: number;
+    requirementPromotedToObligation?: number;
+    candidateFactPromotedToCertain?: number;
+    unsupportedEligibilityDecision?: number;
+    unsupportedTaxAmount?: number;
+    automaticUnsafeAggregation?: number;
+    missingPresentedAsUserDoesNotHave?: number;
+  };
+}
+
+/** V4-P — type de valeur attendue pour une case. */
+export type TaxFieldValueType =
+  | "amount"
+  | "boolean"
+  | "text"
+  | "date"
+  | "count"
+  | "unknown";
+
+/** Rôle déclarant générique — jamais une identité personnelle. */
+export type TaxFieldDeclarantRole =
+  | "declarant1"
+  | "declarant2"
+  | "dependent1"
+  | "dependent2"
+  | "household"
+  | "unknown";
+
+export type TaxFieldPresence =
+  | "presentWithValue"
+  | "presentEmpty"
+  | "notDetected"
+  | "valueUnknown"
+  | "ambiguous";
+
+export type TaxFieldCheckboxState =
+  | "checked"
+  | "unchecked"
+  | "ambiguous"
+  | "notDetected";
+
+/**
+ * Connaissance générale d’une case fiscale (registre).
+ * Jamais une valeur utilisateur.
+ */
+export interface FrenchTaxFieldEntry {
+  id: string;
+  country: KnowledgeCountry;
+  fieldCode: string;
+  normalizedCode: string;
+  documentRefs: string[];
+  section: string;
+  subsection?: string | null;
+  label: string;
+  explanation: string;
+  plainLanguageWhat: string;
+  declarantRole: TaxFieldDeclarantRole;
+  valueType: TaxFieldValueType;
+  applicableYears: number[];
+  /** true si la définition est stable sur les années listées (vérifié). */
+  yearStable?: boolean;
+  aliases: string[];
+  relatedFields: string[];
+  officialSources: KnowledgeProvenance[];
+  provenance: KnowledgeProvenance[];
+  confidence: number;
+  qualityStatus: TaxKnowledgeQualityStatus;
+  lastVerifiedAt?: string | null;
+}
+
+export interface FrenchTaxFieldRegistry {
+  version: string;
+  country: KnowledgeCountry;
+  generatedAt: string;
+  sourceMode: "curated-official" | "discovery+curated";
+  entries: FrenchTaxFieldEntry[];
+}
+
+/** Case détectée dans LE document utilisateur. */
+export interface DetectedTaxField {
+  fieldCode: string;
+  normalizedCode: string;
+  page: number | null;
+  presence: TaxFieldPresence;
+  checkboxState?: TaxFieldCheckboxState | null;
+  /** Valeur documentaire uniquement — null si vide/ambiguous/absente. */
+  detectedValue: string | null;
+  detectedNumericValue?: number | null;
+  candidateValues?: Array<{ value: string; confidence: number }>;
+  confidence: number;
+  evidence: EvidenceSpan[];
+  registryId: string | null;
+  documentRefHint: string | null;
+  yearHint: number | null;
+  reasons: string[];
+}
+
+/** Explication case = Knowledge + DocumentFacts séparés. */
+export interface TaxFieldExplanation {
+  fieldCode: string;
+  label: string | null;
+  section: string | null;
+  whatIsIt: string | null;
+  plainLanguageWhat: string | null;
+  declarantRoleLabel: string | null;
+  documentValue: string | null;
+  presence: TaxFieldPresence;
+  page: number | null;
+  qualityStatus: TaxKnowledgeQualityStatus | null;
+  provenance: KnowledgeProvenance[];
+  confidence: number;
+  warnings: string[];
+  invariants: {
+    taxFieldKnowledgePromotedToFact: number;
+    unsupportedFieldValues: number;
+    emptyFieldConvertedToZero: number;
+    unverifiedFieldDefinitionPresentedAsVerified: number;
+  };
+}
+
+/* ─── V4-Q — Field requirements (aide à la compréhension, pas au remplissage) ─── */
+
+/**
+ * Statut d’une information requise face aux éléments analysés.
+ * `missing` = non retrouvée dans les éléments analysés (≠ « l’utilisateur ne l’a pas »).
+ */
+export type RequirementStatus =
+  | "found"
+  | "missing"
+  | "ambiguous"
+  | "notChecked"
+  | "notApplicableKnown"
+  | "unknown";
+
+/** Indicateur NON normatif — qualité d’information, pas conformité fiscale. */
+export type FieldInformationStatus =
+  | "sufficientForExplanation"
+  | "missingInformation"
+  | "ambiguousInformation"
+  | "requiresVerification";
+
+export type RequirementPriority =
+  | "blocking"
+  | "ambiguity"
+  | "yearUnknown"
+  | "declarantUnknown"
+  | "supportingDocument"
+  | "secondary";
+
+export type InformationRequirementKind =
+  | "amount"
+  | "year"
+  | "declarantRole"
+  | "documentPresence"
+  | "boolean"
+  | "text"
+  | "conditionAwareness";
+
+export type RequirementAnswerType =
+  | "yesNo"
+  | "amount"
+  | "year"
+  | "declarant"
+  | "text"
+  | "document";
+
+export type RequirementEvidenceMatchStatus =
+  | "candidate"
+  | "strong"
+  | "ambiguous";
+
+/** Critères déterministes pour chercher des faits candidats (pas de similarité opaque). */
+export interface RequirementFactMatcher {
+  factTypes: string[];
+  documentTypeHints?: string[];
+  fieldCodeHints?: string[];
+  yearRequired?: boolean;
+  declarantRoleHints?: TaxFieldDeclarantRole[];
+  keywords?: string[];
+  rejectKeywords?: string[];
+  rejectDocumentTypes?: string[];
+}
+
+export interface InformationRequirement {
+  id: string;
+  kind: InformationRequirementKind;
+  label: string;
+  description: string;
+  priority: RequirementPriority;
+  expectedValueType: TaxFieldValueType;
+  blocking: boolean;
+  factMatchers: RequirementFactMatcher[];
+  provenance: KnowledgeProvenance[];
+  questionTemplate?: string;
+  expectedAnswerType?: RequirementAnswerType;
+}
+
+export interface SupportingDocumentHint {
+  id: string;
+  label: string;
+  description: string;
+  documentTypeHints: string[];
+  /** false = suggestion générique non normative, clairement distinguée. */
+  normative: boolean;
+  provenance: KnowledgeProvenance[];
+}
+
+export interface GeneralFieldCondition {
+  id: string;
+  statement: string;
+  provenance: KnowledgeProvenance[];
+}
+
+/**
+ * Couche Knowledge : informations généralement nécessaires pour comprendre une case.
+ * Jamais une obligation personnelle ni une éligibilité.
+ */
+export interface FrenchTaxFieldRequirements {
+  id: string;
+  documentRef: string;
+  documentRefs: string[];
+  fieldCode: string;
+  normalizedCode: string;
+  applicableYears: number[];
+  yearStable?: boolean;
+  expectedValueType: TaxFieldValueType;
+  informationRequirements: InformationRequirement[];
+  possibleSupportingDocuments: SupportingDocumentHint[];
+  generalConditions: GeneralFieldCondition[];
+  relatedFields: string[];
+  provenance: KnowledgeProvenance[];
+  qualityStatus: TaxKnowledgeQualityStatus;
+  lastVerifiedAt?: string | null;
+}
+
+export interface FrenchTaxFieldRequirementsRegistry {
+  version: string;
+  country: KnowledgeCountry;
+  generatedAt: string;
+  sourceMode: "curated-official";
+  entries: FrenchTaxFieldRequirements[];
+}
+
+/** Fait documentaire candidat pour un requirement (cross-document possible). */
+export interface CandidateDocumentFact {
+  factId: string;
+  sourceDocumentId: string | null;
+  sourceDocumentLabel: string | null;
+  documentType: string | null;
+  factType: string;
+  value: unknown;
+  displayValue: string | null;
+  year: number | null;
+  declarantRole: TaxFieldDeclarantRole | null;
+  fieldCode: string | null;
+  confidence: number;
+  evidence: EvidenceSpan[];
+  provenanceNote: string;
+}
+
+export interface RequirementEvidenceLink {
+  requirementId: string;
+  factId: string;
+  confidence: number;
+  evidence: EvidenceSpan[];
+  matchReason: string;
+  status: RequirementEvidenceMatchStatus;
+}
+
+export interface EvaluatedRequirement {
+  requirementId: string;
+  label: string;
+  description: string;
+  kind: InformationRequirementKind;
+  priority: RequirementPriority;
+  status: RequirementStatus;
+  /** Formulation prudente pour l’UI. */
+  statusLabel: string;
+  candidateFacts: CandidateDocumentFact[];
+  evidenceLinks: RequirementEvidenceLink[];
+  /** Toujours null en V4-Q — aucune agrégation automatique. */
+  aggregatedValue: null;
+  provenance: KnowledgeProvenance[];
+}
+
+export interface TaxFieldQuestion {
+  requirementId: string;
+  question: string;
+  expectedAnswerType: RequirementAnswerType;
+  reason: string;
+  priority: RequirementPriority;
+  provenance: KnowledgeProvenance[];
+}
+
+/**
+ * Aide à la compréhension d’une case = Knowledge + DocumentFacts + gaps.
+ * Ne conclut PAS l’applicabilité utilisateur (couche C).
+ */
+export interface TaxFieldAssistance {
+  fieldCode: string;
+  documentRef: string | null;
+  year: number | null;
+  yearMatch: "exact" | "stable" | "mismatch" | "unknown";
+  knowledge: {
+    label: string | null;
+    whatIsIt: string | null;
+    plainLanguageWhat: string | null;
+    expectedValueType: TaxFieldValueType | null;
+    qualityStatus: TaxKnowledgeQualityStatus | null;
+  };
+  documentFactsSummary: Array<{
+    label: string;
+    value: string;
+    status: string;
+  }>;
+  evaluatedRequirements: EvaluatedRequirement[];
+  supportingDocuments: SupportingDocumentHint[];
+  generalConditions: GeneralFieldCondition[];
+  missingRequirements: EvaluatedRequirement[];
+  ambiguousRequirements: EvaluatedRequirement[];
+  questions: TaxFieldQuestion[];
+  /** Max 3 pour UI initiale. */
+  priorityQuestions: TaxFieldQuestion[];
+  informationStatus: FieldInformationStatus;
+  candidateFacts: CandidateDocumentFact[];
+  relatedFields: string[];
+  provenance: KnowledgeProvenance[];
+  /** Toujours null — V4-Q n’invente pas de montant à déclarer. */
+  suggestedDeclaredAmount: null;
+  /** Toujours null — pas de décision d’éligibilité. */
+  eligibilityDecision: null;
+  invariants: {
+    knowledgePromotedToUserFact: number;
+    requirementPromotedToObligation: number;
+    candidateFactPromotedToCertain: number;
+    unsupportedEligibilityDecision: number;
+    unsupportedTaxAmount: number;
+    automaticUnsafeAggregation: number;
+    missingPresentedAsUserDoesNotHave: number;
+  };
+}
+
+/**
+ * Contexte futur Premium — structure seule, aucun appel LLM en V4-Q/R.
+ * Étendu V4-R pour le dossier multi-documents.
+ */
+export interface TaxAssistanceContext {
+  caseId?: string | null;
+  targetField?: string | null;
+  fieldKnowledge: FrenchTaxFieldEntry | null;
+  fieldRequirements: FrenchTaxFieldRequirements | null;
+  relevantDocuments?: DocumentInstance[];
+  relevantDocumentFacts: CandidateDocumentFact[];
+  evidenceLinks?: RequirementEvidenceLink[];
+  conflicts?: FactConflict[];
+  missingRequirements: EvaluatedRequirement[];
+  ambiguities: EvaluatedRequirement[];
+  deterministicQuestions?: TaxFieldQuestion[];
+  userAnswers: UserProvidedFact[] | Array<{ requirementId: string; answer: string }>;
+  clarificationSession?: ClarificationSession | null;
+  currentQuestion?: ClarificationQuestion | null;
+  unresolvedConflicts?: FactConflict[];
+  changeHistory?: ClarificationChangeSet[];
+  /** V4-T — évaluations d’applicabilité déterministes. */
+  applicabilityEvaluations?: TaxApplicabilityEvaluation[];
+  applicabilityEvidence?: TaxApplicabilityEvidence[];
+  unresolvedApplicabilityQuestions?: TaxApplicabilityMissingInformation[];
+  /** V4-U — résultats de calcul déterministes. */
+  calculationResults?: CalculationResult[];
+  derivedValues?: DerivedTaxValue[];
+  unresolvedCalculationInputs?: string[];
+  /** V4-X — explications locales (structure seule pour Premium futur). */
+  localExplanations?: LocalExplanation[];
+  provenance: KnowledgeProvenance[];
+  informationStatus: FieldInformationStatus;
+  questions: TaxFieldQuestion[];
+}
+
+/* ─── V4-R — Dossier multi-documents ─── */
+
+export type CaseYearRelation =
+  | "sameYear"
+  | "yearStable"
+  | "yearMismatch"
+  | "yearUnknown";
+
+export type DocumentRelationType =
+  | "sameFiscalYear"
+  | "possibleSupportingDocument"
+  | "relatedTaxForm"
+  | "sameDeclarant"
+  | "possibleFieldEvidence"
+  | "unknown";
+
+export type DuplicateStatus =
+  | "possibleDuplicate"
+  | "possibleVersion"
+  | "distinct";
+
+export type CrossMatchVerdict =
+  | "strong"
+  | "candidate"
+  | "ambiguous"
+  | "rejected";
+
+export type FactConflictKind =
+  | "year"
+  | "amount"
+  | "role"
+  | "identity"
+  | "emptyVsValue"
+  | "userVsDocument"
+  | "userVsUser"
+  | "other";
+
+/** Source d’evidence pour un requirement — document ≠ utilisateur. */
+export type RequirementEvidenceSource =
+  | "foundInDocument"
+  | "providedByUser"
+  | "ambiguous"
+  | "missing"
+  | "unknown"
+  | "refused"
+  | "notApplicableKnown";
+
+/** Instance stable d’un document dans un dossier — jamais le seul fileName. */
+export interface DocumentInstance {
+  documentId: string;
+  fileName: string | null;
+  contentHash: string;
+  detectedType: string | null;
+  detectedReference: string | null;
+  fiscalYear: number | null;
+  documentYear: number | null;
+  confidence: number;
+  recognitionLabel: string;
+  text: string;
+  /** Faits indexés — chaque entrée conserve documentId. */
+  facts: CandidateDocumentFact[];
+  detectedFields: DetectedTaxField[];
+  fieldExplanations: TaxFieldExplanation[];
+  duplicateOf: string | null;
+  duplicateStatus: DuplicateStatus;
+  isPrimaryCopy: boolean;
+  provenance: KnowledgeProvenance[];
+}
+
+export interface DocumentRelation {
+  relationId: string;
+  fromDocumentId: string;
+  toDocumentId: string;
+  relationType: DocumentRelationType;
+  confidence: number;
+  evidence: EvidenceSpan[];
+  reason: string;
+  fieldCodeHint?: string | null;
+  yearRelation?: CaseYearRelation | null;
+}
+
+export interface FactConflict {
+  conflictId: string;
+  kind: FactConflictKind;
+  documentIds: string[];
+  factIds: string[];
+  description: string;
+  evidence: EvidenceSpan[];
+  /** V4-S — faits utilisateur impliqués (jamais fusionnés aux DocumentFacts). */
+  userFactIds?: string[];
+  resolution?: "unresolved" | "acknowledged" | "superseded";
+}
+
+/**
+ * Réponse utilisateur explicite — UserProvidedFact ≠ OfficialKnowledge ≠ DocumentFact.
+ * V4-S : provenance clarification, normalisation séparée du brut.
+ */
+export interface UserProvidedFact {
+  kind: "user";
+  factId?: string;
+  questionId: string;
+  requirementId: string;
+  fieldCode?: string | null;
+  answer: string;
+  rawAnswer?: string;
+  normalizedValue?: string | number | boolean | null;
+  valueType?: ClarificationAnswerType | null;
+  answerStatus?: ClarificationAnswerStatus | null;
+  role?: TaxFieldDeclarantRole | null;
+  year?: number | null;
+  documentRef?: string | null;
+  answeredAt: string | null;
+  /** logical sequence — déterministe, pas Date.now() */
+  sequence?: number;
+  active?: boolean;
+  supersededBy?: string | null;
+  source: "user" | "clarification";
+}
+
+/* ─── V4-S — Boucle de clarification déterministe ─── */
+
+export type ClarificationAnswerType =
+  | "amount"
+  | "integer"
+  | "decimal"
+  | "year"
+  | "date"
+  | "boolean"
+  | "choice"
+  | "text"
+  | "declarant"
+  | "document"
+  | "yesNo"
+  | "unknown"
+  | "refused"
+  | "notApplicable";
+
+export type ClarificationAnswerStatus =
+  | "accepted"
+  | "unknown"
+  | "refused"
+  | "invalid"
+  | "ambiguous"
+  | "unanswered";
+
+export type ClarificationQuestionStatus =
+  | "unasked"
+  | "asked"
+  | "answered"
+  | "unknown"
+  | "refused"
+  | "invalid"
+  | "ambiguous"
+  | "resolved"
+  | "superseded"
+  | "notApplicable";
+
+export interface ClarificationQuestion {
+  questionId: string;
+  caseId: string;
+  requirementId: string;
+  fieldCode: string | null;
+  documentRef: string | null;
+  declarantRole: TaxFieldDeclarantRole | null;
+  question: string;
+  expectedAnswerType: ClarificationAnswerType;
+  reason: string;
+  priority: RequirementPriority;
+  provenance: KnowledgeProvenance[];
+  evidenceRefs: string[];
+  status: ClarificationQuestionStatus;
+  askedCount: number;
+  firstAskedSequence: number | null;
+  lastAskedSequence: number | null;
+  priorityScore: number;
+  priorityReasons: string[];
+  choices?: string[];
+  dependsOnQuestionId?: string | null;
+  maxAskedCount: number;
+}
+
+export interface ClarificationAnswer {
+  answerId: string;
+  questionId: string;
+  requirementId: string;
+  rawAnswer: string;
+  normalizedValue: string | number | boolean | null;
+  valueType: ClarificationAnswerType;
+  status: ClarificationAnswerStatus;
+  sequence: number;
+  parseNotes: string[];
+}
+
+export interface ClarificationChangeSet {
+  factsAdded: string[];
+  factsSuperseded: string[];
+  conflictsAdded: string[];
+  conflictsResolved: string[];
+  requirementsChanged: Array<{
+    requirementId: string;
+    from: string;
+    to: string;
+    evidenceSource?: RequirementEvidenceSource;
+  }>;
+  questionsResolved: string[];
+  questionsAdded: string[];
+  documentsAffected: string[];
+  caseStatusChanges: string[];
+  explanations: string[];
+}
+
+export interface ClarificationSession {
+  sessionId: string;
+  caseId: string;
+  sequence: number;
+  questions: ClarificationQuestion[];
+  answers: ClarificationAnswer[];
+  activeUserFacts: UserProvidedFact[];
+  historicalUserFacts: UserProvidedFact[];
+  currentQuestionId: string | null;
+  changeHistory: ClarificationChangeSet[];
+  invariants: ClarificationInvariants;
+}
+
+export interface ClarificationInvariants {
+  userFactPromotedToDocumentFact: number;
+  userFactPromotedToOfficialKnowledge: number;
+  unknownPromotedToKnown: number;
+  refusedPromotedToNegative: number;
+  invalidAnswerAccepted: number;
+  ambiguousAnswerPromotedToCertain: number;
+  userDocumentConflictAutoResolved: number;
+  userUserConflictLost: number;
+  crossYearAnswerPromoted: number;
+  crossRoleAnswerPromoted: number;
+  clarificationLoopDetected: number;
+  questionRepeatedAfterRefusal: number;
+  questionRepeatedAfterUnknownImmediately: number;
+  uploadOrderChangesQuestion: number;
+  automaticUnsafeAggregation: number;
+  unsupportedEligibilityDecision: number;
+  missingProvenance: number;
+}
+
+export interface ClarificationState {
+  session: ClarificationSession;
+  documentCase: DocumentCase;
+  currentQuestion: ClarificationQuestion | null;
+  lastChangeSet: ClarificationChangeSet | null;
+}
+
+/* ─── V4-T — Applicabilité fiscale déterministe ─── */
+
+export type TaxApplicabilityStatus =
+  | "applicable"
+  | "notApplicable"
+  | "unknown"
+  | "needsInformation"
+  | "conflicted";
+
+export type TaxApplicabilityConditionResult =
+  | "true"
+  | "false"
+  | "unknown"
+  | "conflicted";
+
+export type TaxApplicabilityEvidenceSourceKind =
+  | "document"
+  | "user"
+  | "officialKnowledge";
+
+export type TaxApplicabilityYearPolicy = "exact" | "verifiedStable";
+
+export type TaxApplicabilityPredicate =
+  | "factExists"
+  | "factEquals"
+  | "factIn"
+  | "booleanIs"
+  | "roleIs"
+  | "yearIs"
+  | "documentTypePresent"
+  | "fieldPresent"
+  | "userFactEquals"
+  | "regimeIs"
+  | "amountPresent";
+
+export interface TaxApplicabilityConditionNode {
+  op?: "allOf" | "anyOf" | "not";
+  /** Sous-conditions pour allOf / anyOf / not */
+  conditions?: TaxApplicabilityConditionNode[];
+  predicate?: TaxApplicabilityPredicate;
+  fieldCode?: string | null;
+  value?: string | number | boolean | null;
+  values?: Array<string | number | boolean>;
+  documentType?: string | null;
+  role?: TaxFieldDeclarantRole | null;
+  year?: number | null;
+  /** Autorise explicitement l’usage d’un UserProvidedFact pour ce prédicat. */
+  allowUserFact?: boolean;
+  /** Identifiant d’information manquante pour bridge clarification. */
+  missingInformationId?: string | null;
+  missingQuestion?: string | null;
+  expectedAnswerType?: ClarificationAnswerType | null;
+}
+
+export interface TaxApplicabilityRule {
+  ruleId: string;
+  fieldCode: string;
+  documentRef: string | null;
+  taxYears: number[];
+  yearPolicy: TaxApplicabilityYearPolicy;
+  conditions: TaxApplicabilityConditionNode;
+  /** Effet si conditions = true */
+  effectWhenTrue: "applicable" | "notApplicable";
+  /** Effet si conditions = false (souvent notApplicable ou unknown) */
+  effectWhenFalse: "applicable" | "notApplicable" | "unknown" | "needsInformation";
+  provenance: KnowledgeProvenance[];
+  sourceExcerpt: string;
+  verificationStatus: "verified" | "partial" | "unverified";
+  requiredRole?: TaxFieldDeclarantRole | null;
+  /** Si true, une absence de fait → needsInformation (jamais false). */
+  absenceIsUnknown: boolean;
+  /** Version déterministe (V4-W) — défaut "1" si absent. */
+  version?: string;
+}
+
+export interface TaxApplicabilityEvidence {
+  evidenceId: string;
+  sourceKind: TaxApplicabilityEvidenceSourceKind;
+  label: string;
+  detail: string;
+  factId?: string | null;
+  documentId?: string | null;
+  userFactId?: string | null;
+  ruleId?: string | null;
+  provenance?: KnowledgeProvenance[];
+}
+
+export interface TaxApplicabilityConditionEvaluation {
+  result: TaxApplicabilityConditionResult;
+  evidence: TaxApplicabilityEvidence[];
+  missingInformation: TaxApplicabilityMissingInformation[];
+  conflicts: string[];
+  trace: string;
+}
+
+export interface TaxApplicabilityMissingInformation {
+  id: string;
+  fieldCode: string;
+  question: string;
+  expectedAnswerType: ClarificationAnswerType;
+  reason: string;
+  ruleId: string;
+}
+
+export interface TaxApplicabilityEvaluation {
+  fieldCode: string;
+  status: TaxApplicabilityStatus;
+  headline: string;
+  ruleId: string | null;
+  reasons: string[];
+  satisfiedConditions: string[];
+  unsatisfiedConditions: string[];
+  missingInformation: TaxApplicabilityMissingInformation[];
+  conflicts: string[];
+  evidence: TaxApplicabilityEvidence[];
+  sources: Array<{ title: string; url: string }>;
+  yearPolicy: TaxApplicabilityYearPolicy | null;
+  yearRelation: CaseYearRelation;
+  role: TaxFieldDeclarantRole | null;
+  limits: string[];
+  clarificationQuestionCandidates: Array<{
+    requirementId: string;
+    question: string;
+    expectedAnswerType: ClarificationAnswerType;
+    reason: string;
+  }>;
+}
+
+export interface TaxApplicabilityExplanation {
+  status: TaxApplicabilityStatus;
+  headline: string;
+  why: string[];
+  conditionsSatisfied: string[];
+  conditionsNotSatisfied: string[];
+  missingInformation: string[];
+  conflicts: string[];
+  provenance: Array<{ title: string; url: string }>;
+  limits: string[];
+}
+
+export interface TaxApplicabilityInvariants {
+  knowledgePromotedToUserFact: number;
+  knowledgePromotedToDocumentFact: number;
+  documentFactPromotedToApplicabilityWithoutRule: number;
+  userFactPromotedToApplicabilityWithoutRule: number;
+  absencePromotedToNegative: number;
+  unsupportedApplicable: number;
+  unsupportedNotApplicable: number;
+  unsupportedEligibilityDecision: number;
+  supportingDocumentPromotedToEligibility: number;
+  crossYearApplicabilityPromotion: number;
+  crossRoleApplicabilityPromotion: number;
+  conflictAutoResolved: number;
+  unknownPromotedToKnown: number;
+  refusedPromotedToNegative: number;
+  automaticUnsafeAggregation: number;
+  applicabilityClarificationLoop: number;
+  uploadOrderChangesApplicability: number;
+  missingApplicabilityProvenance: number;
+}
+
+/* ─── V4-U — Valeurs fiscales dérivées / calcul déterministe ─── */
+
+export type TaxCalculationStatus =
+  | "calculated"
+  | "needsInformation"
+  | "conflicted"
+  | "notApplicable"
+  | "unsupported";
+
+export type TaxFormulaOperation =
+  | "identity"
+  | "sum"
+  | "subtract"
+  | "multiply"
+  | "divide"
+  | "min"
+  | "max"
+  | "percentage";
+
+export type TaxValueUnit = "EUR" | "percentage" | "count" | "boolean";
+
+export type TaxRoundingPolicy =
+  | "none"
+  | "nearestEuro"
+  | "floor"
+  | "ceil"
+  | "sourceDefined";
+
+export type TaxFormulaYearPolicy = "exact" | "verifiedStable";
+
+export type TaxFormulaRolePolicy =
+  | "declarant1"
+  | "declarant2"
+  | "dependent"
+  | "household"
+  | "any"
+  | "unknown";
+
+export interface TaxFormulaInput {
+  inputId: string;
+  label: string;
+  fieldCode?: string | null;
+  unit: TaxValueUnit;
+  required: boolean;
+  role?: TaxFieldDeclarantRole | null;
+  /** Autorise UserProvidedFact pour cet input. */
+  allowUserFact?: boolean;
+  /** Autorise DerivedTaxValue comme input. */
+  allowDerivedValue?: boolean;
+  /**
+   * Constante officielle sourcée (taux, etc.) — résolue depuis TaxFormula.constants,
+   * jamais inventée à l’exécution.
+   */
+  constantId?: string | null;
+}
+
+/** Constante officielle intégrée à une formule (taux, plafond…). */
+export interface TaxFormulaConstant {
+  constantId: string;
+  label: string;
+  value: number;
+  unit: TaxValueUnit;
+  /** Lien explicite avec l’extrait officiel. */
+  sourceNote: string;
+}
+
+/**
+ * Conditions déterministes propres à la formule (en plus du gate V4-T).
+ * Si non satisfaites → notApplicable / needsInformation / unsupported — jamais de calcul inventé.
+ */
+export type TaxFormulaCondition =
+  | {
+      kind: "inputAtMost";
+      inputId: string;
+      value: number;
+      unit: TaxValueUnit;
+      onFail: "notApplicable" | "needsInformation" | "unsupported";
+      message: string;
+    }
+  | {
+      kind: "userFactAccepted";
+      requirementId: string;
+      fieldCode: string;
+      missingId: string;
+      message: string;
+    };
+
+/* ─── V4-W — Registre versionné des règles / formules sourcées ─── */
+
+export type TaxRuleKind = "applicability" | "calculation" | "informational";
+
+/**
+ * Statut registre.
+ * "verified" = provenance/sourcing requis présents — pas une vérité inventée.
+ */
+export type TaxRuleRegistryStatus =
+  | "verified"
+  | "experimental"
+  | "unsupported"
+  | "deprecated";
+
+export type TaxRuleResolutionStatus =
+  | "resolved"
+  | "unsupported"
+  | "ambiguous"
+  | "experimentalOnly";
+
+export interface TaxRuleRegistryEntry {
+  ruleId: string;
+  kind: TaxRuleKind;
+  fieldCodes: string[];
+  taxYears: number[];
+  effectiveFrom?: number | null;
+  effectiveTo?: number | null;
+  version: string;
+  status: TaxRuleRegistryStatus;
+  sourceRefs: string[];
+  provenance: KnowledgeProvenance[];
+  sourceExcerpt?: string | null;
+  formulaId?: string | null;
+  applicabilityRuleId?: string | null;
+}
+
+export interface TaxRuleResolution {
+  status: TaxRuleResolutionStatus;
+  entry: TaxRuleRegistryEntry | null;
+  candidates: TaxRuleRegistryEntry[];
+  reason: string;
+  taxYear: number | null;
+}
+
+export interface TaxFormulaResolution {
+  status: TaxRuleResolutionStatus;
+  formula: TaxFormula | null;
+  entry: TaxRuleRegistryEntry | null;
+  candidates: TaxRuleRegistryEntry[];
+  reason: string;
+  taxYear: number | null;
+}
+
+export interface TaxRuleRegistryInvariants {
+  implicitRuleSelection: number;
+  unsourcedVerifiedRules: number;
+  ambiguousRuleAutoResolution: number;
+  derivedValuePromotedToDeclaredAmount: number;
+  calculationPromotedToEligibility: number;
+  implicitAmountAggregation: number;
+}
+
+export interface TaxFormula {
+  formulaId: string;
+  targetFieldCode: string;
+  documentRef?: string | null;
+  taxYears: number[];
+  yearPolicy: TaxFormulaYearPolicy;
+  rolePolicy: TaxFormulaRolePolicy;
+  operation: TaxFormulaOperation;
+  inputs: TaxFormulaInput[];
+  unit: TaxValueUnit;
+  roundingPolicy: TaxRoundingPolicy;
+  /** Conditions d’applicabilité optionnelles (fieldCode gate V4-T). */
+  requiresApplicabilityField?: string | null;
+  /** Constantes officielles (taux / plafonds) — toutes sourcées via provenance. */
+  constants?: TaxFormulaConstant[];
+  /** Conditions additionnelles avant calcul. */
+  formulaConditions?: TaxFormulaCondition[];
+  /**
+   * Sens du résultat dérivé (ex. revenu imposable après abattement),
+   * distinct du montant éventuellement porté en case.
+   */
+  resultLabel?: string | null;
+  provenance: KnowledgeProvenance[];
+  sourceExcerpt: string;
+  verificationStatus: "verified" | "partial" | "unverified";
+  /**
+   * Version déterministe (V4-W).
+   * Identifie une révision sourcée ; défaut "1" si absent.
+   */
+  version?: string;
+  effectiveFrom?: number | null;
+  effectiveTo?: number | null;
+  /** Statut registre (si absent : dérivé de verificationStatus). */
+  registryStatus?: TaxRuleRegistryStatus;
+}
+
+export interface ResolvedFormulaInput {
+  inputId: string;
+  value: number | boolean | null;
+  unit: TaxValueUnit;
+  taxYear: number | null;
+  role: TaxFieldDeclarantRole | null;
+  sourceKind: "document" | "user" | "derived" | "constant";
+  sourceId: string;
+  status: "resolved" | "missing" | "conflicted" | "incompatible";
+  provenanceNote: string;
+  documentId?: string | null;
+}
+
+export interface CalculationEvidence {
+  evidenceId: string;
+  label: string;
+  detail: string;
+  sourceKind: "document" | "user" | "derived" | "formula";
+  sourceId?: string | null;
+}
+
+export interface DerivedTaxValue {
+  derivedId: string;
+  kind: "derived";
+  fieldCode: string;
+  value: number | boolean | null;
+  unit: TaxValueUnit;
+  formulaId: string;
+  taxYear: number | null;
+  role: TaxFieldDeclarantRole | null;
+  inputs: ResolvedFormulaInput[];
+  provenance: KnowledgeProvenance[];
+}
+
+/** Provenance registre attachée à un calcul (V4-W). */
+export interface CalculationRuleProvenance {
+  ruleId: string;
+  formulaId: string;
+  version: string;
+  taxYear: number | null;
+  status: TaxRuleRegistryStatus;
+  sources: Array<{ title: string; url: string }>;
+}
+
+export interface CalculationResult {
+  fieldCode: string;
+  status: TaxCalculationStatus;
+  value: number | boolean | null;
+  unit: TaxValueUnit | null;
+  formulaId: string | null;
+  inputs: ResolvedFormulaInput[];
+  missingInputs: string[];
+  conflicts: string[];
+  evidence: CalculationEvidence[];
+  explanation: string;
+  sources: Array<{ title: string; url: string }>;
+  limits: string[];
+  derivedValue?: DerivedTaxValue | null;
+  /** V4-W — règle/formule/version/source ayant produit le résultat. */
+  rule?: CalculationRuleProvenance | null;
+}
+
+export interface CalculationExplanation {
+  status: TaxCalculationStatus;
+  headline: string;
+  formulaId: string | null;
+  operation: TaxFormulaOperation | null;
+  inputs: string[];
+  result: string | null;
+  unit: TaxValueUnit | null;
+  year: number | null;
+  role: string | null;
+  sources: Array<{ title: string; url: string }>;
+  rounding: TaxRoundingPolicy | null;
+  limits: string[];
+}
+
+export interface TaxCalculationInvariants {
+  implicitAmountAggregation: number;
+  calculationWithoutVerifiedFormula: number;
+  calculationWithoutFormulaProvenance: number;
+  calculationWithMissingInput: number;
+  calculationWithConflictedInput: number;
+  calculationWithUnknownApplicability: number;
+  calculationWithNeedsInformationApplicability: number;
+  crossYearCalculation: number;
+  crossRoleCalculation: number;
+  incompatibleUnitsCalculated: number;
+  duplicateAmountDoubleCount: number;
+  versionAmountAutoSelected: number;
+  unsupportedRounding: number;
+  derivedValuePromotedToDeclaredAmount: number;
+  calculationPromotedToEligibility: number;
+  calculationPromotedToObligation: number;
+  uploadOrderChangesCalculation: number;
+  automaticUnsafeAggregation: number;
+  /** V4-W */
+  implicitRuleSelection: number;
+  unsourcedVerifiedRules: number;
+  ambiguousRuleAutoResolution: number;
+}
+
+export interface TaxCalculationMetrics {
+  formulasEvaluated: number;
+  inputsResolved: number;
+  calculationsProduced: number;
+  calculationsBlocked: number;
+  conflicts: number;
+  durationMs: number;
+}
+
+export interface MatchScoreBreakdown {
+  documentTypeMatch: number;
+  yearMatch: number;
+  roleMatch: number;
+  factTypeMatch: number;
+  keywordMatch: number;
+  fieldEvidenceMatch: number;
+  rejectReasons: string[];
+  contributions: Array<{ key: string; value: number; note: string }>;
+}
+
+export interface CaseRequirementMatch {
+  requirementId: string;
+  fieldCode: string;
+  status: RequirementStatus;
+  statusLabel: string;
+  verdict: CrossMatchVerdict;
+  /** V4-S — distingue document vs réponse utilisateur. */
+  evidenceSource?: RequirementEvidenceSource;
+  candidateFacts: CandidateDocumentFact[];
+  evidenceLinks: RequirementEvidenceLink[];
+  scoreBreakdowns: Array<{
+    factId: string;
+    documentId: string | null;
+    breakdown: MatchScoreBreakdown;
+    verdict: CrossMatchVerdict;
+  }>;
+  aggregatedValue: null;
+  yearRelation: CaseYearRelation;
+}
+
+export interface CaseCentricFieldView {
+  fieldCode: string;
+  label: string | null;
+  whatIsIt: string | null;
+  foundByDocument: Array<{
+    documentId: string;
+    fileName: string | null;
+    notes: string[];
+  }>;
+  toVerify: string[];
+  supportingDocuments: SupportingDocumentHint[];
+  generalConditions: string[];
+  officialSources: Array<{ title: string; url: string }>;
+  informationStatus: FieldInformationStatus;
+  priorityQuestions: TaxFieldQuestion[];
+  /** V4-T — pertinence / applicabilité (≠ obligation, ≠ éligibilité). */
+  applicability?: TaxApplicabilityEvaluation | null;
+  /** V4-U — calcul déterministe (≠ montant à déclarer). */
+  calculation?: CalculationResult | null;
+  /** V4-X — explication locale déterministe (read-only). */
+  localExplanation?: LocalExplanation | null;
+  suggestedDeclaredAmount: null;
+}
+
+export interface DocumentCentricView {
+  documentId: string;
+  fileName: string | null;
+  detectedType: string | null;
+  detectedReference: string | null;
+  year: number | null;
+  recognitionLabel: string;
+  confidence: number;
+  detectedFacts: Array<{ label: string; value: string }>;
+  potentiallyLinkedTo: Array<{
+    fieldCode: string;
+    relationType: string;
+    reason: string;
+    confidence: number;
+  }>;
+  duplicateStatus: DuplicateStatus;
+  duplicateMessage: string | null;
+}
+
+export interface DocumentCaseMetrics {
+  documents: number;
+  facts: number;
+  requirements: number;
+  candidateMatches: number;
+  strongMatches: number;
+  ambiguousMatches: number;
+  rejectedMatches: number;
+  relations: number;
+  conflicts: number;
+}
+
+export interface DocumentCaseInvariants {
+  crossDocumentFactLostProvenance: number;
+  crossDocumentUnsafeMerge: number;
+  crossDocumentUnsafeAggregation: number;
+  yearMismatchPromotedToStrong: number;
+  roleMismatchPromotedToStrong: number;
+  unknownDocumentPromotedToKnown: number;
+  duplicateDocumentDoubleCounted: number;
+  uploadOrderChangesConclusion: number;
+  removedDocumentFactSurvives: number;
+  candidateRelationPresentedAsCertain: number;
+  userAnswerPromotedToOfficialKnowledge: number;
+  knowledgePromotedToUserFact: number;
+  automaticUnsafeAggregation: number;
+  missingPresentedAsUserDoesNotHave: number;
+  unsupportedTaxAmount: number;
+  unsupportedEligibilityDecision: number;
+}
+
+/**
+ * Dossier multi-documents — faits toujours rattachés à leur document source.
+ */
+export interface DocumentCase {
+  caseId: string;
+  documents: DocumentInstance[];
+  factIndex: CandidateDocumentFact[];
+  relations: DocumentRelation[];
+  ambiguities: string[];
+  conflicts: FactConflict[];
+  requirementMatches: CaseRequirementMatch[];
+  fieldAssistance: TaxFieldAssistance[];
+  caseCentricViews: CaseCentricFieldView[];
+  documentCentricViews: DocumentCentricView[];
+  userAnswers: UserProvidedFact[];
+  /** V4-S — session de clarification attachée au dossier. */
+  clarificationSession?: ClarificationSession | null;
+  /** V4-T — évaluations d’applicabilité par case. */
+  applicabilityEvaluations?: TaxApplicabilityEvaluation[];
+  applicabilityInvariants?: TaxApplicabilityInvariants;
+  /** V4-U — calculs déterministes par case. */
+  calculationResults?: CalculationResult[];
+  calculationInvariants?: TaxCalculationInvariants;
+  calculationMetrics?: TaxCalculationMetrics;
+  /** V4-X — explications locales déterministes (read-only). */
+  localExplanations?: LocalExplanation[];
+  localExplanationInvariants?: LocalExplanationInvariants;
+  metrics: DocumentCaseMetrics;
+  taxContext: {
+    primaryReferences: string[];
+    yearsPresent: number[];
+    fieldCodesPresent: string[];
+  };
+  provenance: KnowledgeProvenance[];
+  suggestedDeclaredAmount: null;
+  eligibilityDecision: null;
+  invariants: DocumentCaseInvariants;
+}
+
+export interface ExternalSourceRecord {
+  id: string;
+  source: string;
+  owner: string;
+  license: string;
+  termsUrl: string;
+  redistributionAllowed: boolean | "UNKNOWN";
+  commercialUseAllowed: boolean | "UNKNOWN";
+  localBundlingAllowed: boolean | "UNKNOWN";
+  retrievalMethod: string;
+  notes?: string;
+}
+
+/* ─── V4-X — Explication locale déterministe (générique, read-only) ─── */
+
+/**
+ * Domaines d’explication locale.
+ * V4-X : fiscal (DocumentCase).
+ * V4-Y : administrative (compréhension générique hors fiscalité).
+ */
+export type LocalExplanationDomain =
+  | "fiscal"
+  | "administrative"
+  | "banking"
+  | "insurance"
+  | "contract"
+  | "invoice"
+  | "professional"
+  | "other"
+  | "unspecified";
+
+export type LocalExplanationStatus =
+  | "explained"
+  | "needsInformation"
+  | "conflicted"
+  | "unsupported"
+  | "unknown"
+  | "notApplicable";
+
+export type LocalExplanationImportance = "primary" | "secondary" | "context";
+
+export interface LocalExplanationSourceFact {
+  kind: "document" | "user" | "derived";
+  id: string;
+  label: string;
+  value: string | null;
+  fieldCode?: string | null;
+  documentId?: string | null;
+}
+
+export interface LocalExplanationRuleRef {
+  ruleId: string;
+  version?: string | null;
+  kind?: string | null;
+  status?: string | null;
+  formulaId?: string | null;
+}
+
+export interface LocalExplanationCalculationSlice {
+  status: string;
+  value: number | boolean | null;
+  unit: string | null;
+  formulaId: string | null;
+  version: string | null;
+  summary: string;
+}
+
+/**
+ * Explication utilisateur locale — distincte de DocumentExplanation (V4-G).
+ * FACT ≠ RULE ≠ CALCULATION ≠ EXPLANATION ≠ USER ACTION.
+ */
+export interface LocalExplanation {
+  id: string;
+  domain: LocalExplanationDomain;
+  subject: string;
+  title: string;
+  summary: string;
+  details: string[];
+  importance: LocalExplanationImportance;
+  status: LocalExplanationStatus;
+  sourceFacts: LocalExplanationSourceFact[];
+  ruleRefs: LocalExplanationRuleRef[];
+  sourceRefs: Array<{ title: string; url: string }>;
+  taxYear?: number | null;
+  calculation?: LocalExplanationCalculationSlice | null;
+  calculationExplanation?: string | null;
+  sourceExplanation?: string | null;
+  missingInformation: string[];
+  /** Réponses à « Pourquoi ExpliqueMoi me dit ça ? » */
+  why: string[];
+  limits: string[];
+}
+
+export interface LocalExplanationInvariants {
+  unsupportedExplanationPromoted: number;
+  unknownExplanationPromoted: number;
+  unsourcedExplanation: number;
+  explanationChangedFacts: number;
+  explanationPromotedToDeclaration: number;
+  explanationPromotedToEligibility: number;
+  implicitExplanationAggregation: number;
+}
+
+/**
+ * Frontière Premium future — structure seule, aucun appel réseau/LLM en V4-X.
+ */
+export interface PremiumExplanationContext {
+  caseId: string | null;
+  selectedSubjects: string[];
+  explanations: LocalExplanation[];
+  note: string;
+}
+
+/** Candidat uniforme produit par les source adapters (build-time). */
+export interface OfficialDocumentCandidate {
+  rawReference: string;
+  reference: string;
+  title: string;
+  url: string;
+  authority: string;
+  cerfa?: string | null;
+  year?: number | null;
+  source: string;
+  retrievedAt: string;
+  documentKindGuess?: TaxDocumentKind;
+  metadataHash?: string;
+}

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.v4.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "lib/v4-dist",
+    "rootDir": "lib/v4",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["lib/v4/**/*.ts"],
+  "exclude": ["lib/v4/**/__fixtures__/**", "lib/v4/**/*stub*"]
+}

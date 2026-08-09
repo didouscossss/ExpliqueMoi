@@ -1,0 +1,18 @@
+{
+  "offline": true,
+  "registryVersion": "2026.08.08-v4m1+v4n",
+  "entryCount": 372,
+  "indexCounts": {
+    "references": 372,
+    "cerfa": 13,
+    "aliases": 7
+  },
+  "missingProvenance": [],
+  "missingFamily": [],
+  "unknownAuthority": [],
+  "noticesMisclassifiedAsForm": [],
+  "formEntries": 327,
+  "schemaErrors": [],
+  "schemaWarnings": [],
+  "ok": true
+}

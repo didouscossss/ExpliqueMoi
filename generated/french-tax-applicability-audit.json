@@ -1,0 +1,95 @@
+{
+  "generatedAt": "2026-08-09T09:37:31.905Z",
+  "caseId": "case-b38a0d4d3e4cb75c",
+  "ruleIds": [
+    "1aj-declarant1-scope",
+    "1bj-declarant2-scope",
+    "4ba-regime-reel",
+    "4bb-regime-reel",
+    "4bc-regime-reel",
+    "4be-micro-foncier-scope",
+    "7db-no-aids-only-unknown",
+    "7dr-aids-scope"
+  ],
+  "rulesCount": 8,
+  "evaluations": [
+    {
+      "fieldCode": "1AJ",
+      "status": "applicable",
+      "ruleId": "1aj-declarant1-scope",
+      "yearPolicy": "verifiedStable",
+      "sources": 2
+    },
+    {
+      "fieldCode": "1BJ",
+      "status": "needsInformation",
+      "ruleId": "1bj-declarant2-scope",
+      "yearPolicy": "verifiedStable",
+      "sources": 2
+    },
+    {
+      "fieldCode": "4BA",
+      "status": "applicable",
+      "ruleId": "4ba-regime-reel",
+      "yearPolicy": "verifiedStable",
+      "sources": 4
+    },
+    {
+      "fieldCode": "4BB",
+      "status": "applicable",
+      "ruleId": "4bb-regime-reel",
+      "yearPolicy": "verifiedStable",
+      "sources": 2
+    },
+    {
+      "fieldCode": "4BC",
+      "status": "applicable",
+      "ruleId": "4bc-regime-reel",
+      "yearPolicy": "verifiedStable",
+      "sources": 2
+    },
+    {
+      "fieldCode": "7DB",
+      "status": "needsInformation",
+      "ruleId": "7db-no-aids-only-unknown",
+      "yearPolicy": "verifiedStable",
+      "sources": 1
+    },
+    {
+      "fieldCode": "7DR",
+      "status": "needsInformation",
+      "ruleId": "7dr-aids-scope",
+      "yearPolicy": "verifiedStable",
+      "sources": 1
+    }
+  ],
+  "notModeledNotes": [
+    "Éligibilité crédit d’impôt 7DB/7DR non modélisée (unknown/needsInformation).",
+    "Seuils d’imputation déficit 4BB/4BC non modélisés.",
+    "Obligation de déclarer un salaire détecté hors case non modélisée."
+  ],
+  "ok": true,
+  "violations": [],
+  "invariants": {
+    "knowledgePromotedToUserFact": 0,
+    "knowledgePromotedToDocumentFact": 0,
+    "documentFactPromotedToApplicabilityWithoutRule": 0,
+    "userFactPromotedToApplicabilityWithoutRule": 0,
+    "absencePromotedToNegative": 0,
+    "unsupportedApplicable": 0,
+    "unsupportedNotApplicable": 0,
+    "unsupportedEligibilityDecision": 0,
+    "supportingDocumentPromotedToEligibility": 0,
+    "crossYearApplicabilityPromotion": 0,
+    "crossRoleApplicabilityPromotion": 0,
+    "conflictAutoResolved": 0,
+    "unknownPromotedToKnown": 0,
+    "refusedPromotedToNegative": 0,
+    "automaticUnsafeAggregation": 0,
+    "applicabilityClarificationLoop": 0,
+    "uploadOrderChangesApplicability": 0,
+    "missingApplicabilityProvenance": 0
+  },
+  "strongEvaluations": 4,
+  "unknownFields": []
+}

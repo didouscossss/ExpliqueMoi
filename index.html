@@ -1446,6 +1446,233 @@
       padding: 21px;
     }
 
+    /* V4-O — blocs fiscaux mobile-first */
+    .fiscal-card {
+      display: grid;
+      gap: 16px;
+      padding: 18px;
+      border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+      background:
+        linear-gradient(
+          160deg,
+          var(--solid),
+          color-mix(in srgb, var(--blue) 8%, var(--solid))
+        );
+    }
+
+    .fiscal-card.hidden {
+      display: none;
+    }
+
+    .fiscal-block {
+      display: grid;
+      gap: 8px;
+    }
+
+    .fiscal-block h3 {
+      margin: 0;
+      font-size: 1.02rem;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+    }
+
+    .fiscal-block p,
+    .fiscal-block li {
+      margin: 0;
+      color: var(--text);
+      line-height: 1.45;
+      font-size: 0.95rem;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .fiscal-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .fiscal-chip {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--blue) 14%, var(--solid));
+      color: var(--text);
+      font-size: 0.82rem;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .fiscal-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .fiscal-list li {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--solid);
+      border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+    }
+
+    .fiscal-list .fiscal-fact-label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 2px;
+    }
+
+    .fiscal-sources summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .fiscal-sources[open] summary {
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .fiscal-premium {
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px dashed color-mix(in srgb, var(--text) 18%, transparent);
+      background: color-mix(in srgb, var(--text) 3%, var(--solid));
+    }
+
+    .fiscal-premium .fiscal-list li {
+      opacity: 0.85;
+    }
+
+    .fiscal-field-item summary {
+      cursor: pointer;
+      font-weight: 800;
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      align-items: baseline;
+    }
+
+    .fiscal-field-item summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .fiscal-field-code {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+    }
+
+    .fiscal-field-item .fiscal-field-body {
+      margin-top: 8px;
+      display: grid;
+      gap: 6px;
+    }
+
+    body.dark .fiscal-card {
+      background:
+        linear-gradient(
+          160deg,
+          var(--solid),
+          color-mix(in srgb, var(--blue) 16%, var(--solid))
+        );
+    }
+
+    /* V4-S — boucle de clarification */
+    .fiscal-clarification {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid color-mix(in srgb, var(--blue) 28%, transparent);
+      background: color-mix(in srgb, var(--blue) 8%, var(--solid));
+    }
+
+    .fiscal-clarification.hidden {
+      display: none;
+    }
+
+    .fiscal-clarification-reason {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .fiscal-clarification-type {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .fiscal-clarification-choices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .fiscal-clarification-choices button {
+      min-height: 44px;
+      padding: 10px 14px;
+    }
+
+    .fiscal-clarification-form {
+      display: grid;
+      gap: 10px;
+    }
+
+    .fiscal-clarification-form label {
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .fiscal-clarification-form input,
+    .fiscal-clarification-form select {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+      background: var(--solid);
+      color: var(--text);
+      font: inherit;
+    }
+
+    .fiscal-clarification-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .fiscal-clarification-actions button {
+      min-height: 44px;
+      padding: 10px 14px;
+    }
+
+    .fiscal-clarification-changes,
+    .fiscal-clarification-conflict {
+      display: grid;
+      gap: 6px;
+    }
+
+    .fiscal-clarification-conflict {
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
+      background: color-mix(in srgb, var(--text) 4%, var(--solid));
+    }
+
+    .fiscal-provenance-user {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
     .actions-card {
       background:
         linear-gradient(
@@ -2162,11 +2389,11 @@
       <section class="card upload-card">
         <div class="upload-icon">↥</div>
 
-        <h2>Ajouter un document</h2>
+        <h2>Ajouter des documents</h2>
 
         <p>
-          Prenez plusieurs photos ou ajoutez des fichiers.
-          ExpliqueMoi les analysera comme un seul document.
+          Ajoutez un ou plusieurs fichiers (dossier multi-documents).
+          Chaque fichier conserve son identité ; ExpliqueMoi cherche les liens possibles entre eux, sans inventer un montant à déclarer.
         </p>
 
         <div class="upload-buttons">
@@ -2256,7 +2483,7 @@
         <div class="manual-content">
           <textarea
             id="manualText"
-            placeholder="Collez ici le texte de votre document..."
+            placeholder="Collez ici le texte d’un document…&#10;&#10;Dossier multi-documents : séparez avec&#10;---DOC:2042.pdf---&#10;…&#10;---DOC:attestation.pdf---&#10;…"
           ></textarea>
 
           <button
@@ -2267,8 +2494,41 @@
           >
             Analyser ce texte
           </button>
+
+          <button
+            id="analyzeDossierTextButton"
+            class="button primary-button"
+            type="button"
+            style="width:100%;margin-top:8px"
+          >
+            Analyser comme un dossier (multi-documents)
+          </button>
+          <p class="pages-hint" style="margin-top:8px">
+            Utilisez des séparateurs <code>---DOC:nom.pdf---</code> pour plusieurs documents.
+            Vous pourrez retirer un document puis relancer.
+          </p>
         </div>
       </details>
+
+      <section
+        id="dossierCard"
+        class="card selected-file-card hidden"
+      >
+        <div class="pages-header">
+          <strong id="dossierTitle">Documents du dossier</strong>
+          <span id="dossierCounter">0</span>
+        </div>
+        <div id="dossierList" class="pages-list"></div>
+        <button
+          id="analyzeDossierButton"
+          class="button primary-button analyze-button"
+          type="button"
+          disabled
+          style="margin-top:12px"
+        >
+          Analyser le dossier
+        </button>
+      </section>
 
       <div class="privacy">
         🔒 Votre fichier sert uniquement à produire votre explication.
@@ -2470,6 +2730,64 @@
 
         <div class="summary-illustration">
           💡
+        </div>
+      </section>
+
+      <section
+        id="genericCard"
+        class="card result-card generic-card hidden"
+        aria-label="Compréhension du document"
+      >
+        <div class="heading">
+          <div class="heading-icon">📄</div>
+          <div>
+            <span class="kicker">Ce document</span>
+            <h2 id="genericHeadline">Compréhension locale</h2>
+          </div>
+        </div>
+        <div id="genericCeDocument" class="fiscal-block"></div>
+        <div id="genericARetenir" class="fiscal-block"></div>
+        <div id="genericEmisPar" class="fiscal-block"></div>
+        <div id="genericPourquoi" class="fiscal-block"></div>
+        <div id="genericIncertain" class="fiscal-block"></div>
+      </section>
+
+      <section
+        id="fiscalCard"
+        class="card result-card fiscal-card hidden"
+        aria-label="Explication fiscale"
+      >
+        <div class="heading">
+          <div class="heading-icon">🧾</div>
+          <div>
+            <span class="kicker">Document fiscal</span>
+            <h2 id="fiscalHeadline">Explication du document</h2>
+          </div>
+        </div>
+
+        <div id="fiscalIdentity" class="fiscal-block"></div>
+        <div id="fiscalPurpose" class="fiscal-block"></div>
+        <div id="fiscalDocumentFacts" class="fiscal-block"></div>
+        <div id="fiscalActions" class="fiscal-block"></div>
+        <div id="fiscalCaseDocuments" class="fiscal-block"></div>
+        <div
+          id="fiscalClarification"
+          class="fiscal-block fiscal-clarification hidden"
+          aria-live="polite"
+        ></div>
+        <div id="fiscalFields" class="fiscal-block"></div>
+        <div id="fiscalCaseConflicts" class="fiscal-block"></div>
+        <div id="fiscalUncertainties" class="fiscal-block"></div>
+        <div id="fiscalRelated" class="fiscal-block"></div>
+
+        <details id="fiscalSources" class="fiscal-sources fiscal-block">
+          <summary>Sources de cette explication</summary>
+          <ul id="fiscalSourcesList" class="fiscal-list"></ul>
+        </details>
+
+        <div id="fiscalPremium" class="fiscal-premium fiscal-block">
+          <h3>Bientôt — aide approfondie</h3>
+          <ul id="fiscalPremiumList" class="fiscal-list"></ul>
         </div>
       </section>
 
@@ -2907,6 +3225,10 @@
       isCompressing: false,
       isAnalyzing: false,
       isBusy: false,
+      /** V4-R — documents distincts du dossier (état local Preview). */
+      dossierDocuments: [],
+      /** V4-S — réponses de clarification locales (rejouées à l’analyse). */
+      clarificationAnswers: [],
       // Sprint 3 — conversation liée UNIQUEMENT au document courant
       documentId: null,
       chatHistory: [],
@@ -3047,6 +3369,24 @@
         "click",
         analyzeText
       );
+
+      const dossierBtn = $("analyzeDossierTextButton");
+      if (dossierBtn) {
+        dossierBtn.addEventListener("click", analyzeDossierFromText);
+      }
+      const dossierAnalyzeBtn = $("analyzeDossierButton");
+      if (dossierAnalyzeBtn) {
+        dossierAnalyzeBtn.addEventListener("click", analyzeDossierState);
+      }
+      const dossierList = $("dossierList");
+      if (dossierList) {
+        dossierList.addEventListener("click", handleDossierListClick);
+      }
+      const clarEl = $("fiscalClarification");
+      if (clarEl) {
+        clarEl.addEventListener("click", handleClarificationClick);
+        clarEl.addEventListener("submit", handleClarificationSubmit);
+      }
 
       $("newDocumentButton").addEventListener(
         "click",
@@ -4676,6 +5016,37 @@
         $("proofList").innerHTML = "";
       }
 
+      if ($("fiscalCard")) {
+        $("fiscalCard").classList.add("hidden");
+      }
+      if ($("genericCard")) {
+        $("genericCard").classList.add("hidden");
+      }
+      [
+        "genericCeDocument",
+        "genericARetenir",
+        "genericEmisPar",
+        "genericPourquoi",
+        "genericIncertain"
+      ].forEach((id) => {
+        if ($(id)) $(id).innerHTML = "";
+      });
+      [
+        "fiscalIdentity",
+        "fiscalPurpose",
+        "fiscalDocumentFacts",
+        "fiscalActions",
+        "fiscalCaseDocuments",
+        "fiscalFields",
+        "fiscalCaseConflicts",
+        "fiscalUncertainties",
+        "fiscalRelated",
+        "fiscalSourcesList",
+        "fiscalPremiumList"
+      ].forEach((id) => {
+        if ($(id)) $(id).innerHTML = "";
+      });
+
       if ($("tablesList")) {
         $("tablesList").innerHTML = "";
       }
@@ -5209,10 +5580,147 @@
       };
     }
 
+    function parseDossierPaste(text) {
+      if (!/^---DOC/m.test(text || "")) {
+        return [{ fileName: "document.txt", text: text || "" }];
+      }
+      const parts = text.split(/^---DOC(?::([^\n]+))?---\s*$/m);
+      const docs = [];
+      for (let i = 1; i < parts.length; i += 2) {
+        const fileName = (parts[i] || "").trim() || `document-${docs.length + 1}.txt`;
+        const body = (parts[i + 1] || "").trim();
+        if (body.length >= 10) docs.push({ fileName, text: body });
+      }
+      return docs.length ? docs : [{ fileName: "document.txt", text }];
+    }
+
+    function renderDossierList() {
+      const list = $("dossierList");
+      const card = $("dossierCard");
+      const counter = $("dossierCounter");
+      const btn = $("analyzeDossierButton");
+      if (!list || !card) return;
+      const docs = state.dossierDocuments || [];
+      counter.textContent = String(docs.length);
+      if (!docs.length) {
+        card.classList.add("hidden");
+        if (btn) btn.disabled = true;
+        list.innerHTML = "";
+        return;
+      }
+      card.classList.remove("hidden");
+      if (btn) btn.disabled = docs.length < 1;
+      list.innerHTML = docs
+        .map(
+          (d, index) => `
+          <div class="page-item" data-dossier-index="${index}">
+            <div>
+              <strong>${escapeHtml(d.fileName || "Document")}</strong>
+              <p style="color:var(--muted);font-size:0.85rem;margin:0">
+                ${escapeHtml(String(d.text || "").slice(0, 80))}…
+              </p>
+            </div>
+            <button type="button" class="secondary-btn" data-dossier-remove="${index}">
+              Retirer
+            </button>
+          </div>`
+        )
+        .join("");
+    }
+
+    function handleDossierListClick(event) {
+      const btn = event.target.closest("[data-dossier-remove]");
+      if (!btn) return;
+      const index = Number(btn.getAttribute("data-dossier-remove"));
+      if (!Number.isFinite(index)) return;
+      state.dossierDocuments.splice(index, 1);
+      renderDossierList();
+    }
+
+    function setDossierFromPaste(text) {
+      state.dossierDocuments = parseDossierPaste(text).map((d) => ({
+        id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        fileName: d.fileName,
+        text: d.text
+      }));
+      renderDossierList();
+    }
+
+    async function analyzeDossierFromText() {
+      const text = $("manualText").value.trim();
+      if (text.length < 30) {
+        showError(
+          "Échec de l’analyse",
+          "Aucun texte exploitable n’a été détecté.",
+          {
+            keepRuntimeClean: true,
+            code: AnalysisErrorCode.NO_USABLE_CONTENT
+          }
+        );
+        return;
+      }
+      setDossierFromPaste(text);
+      await analyzeDossierState();
+    }
+
+    async function analyzeDossierState() {
+      const docs = state.dossierDocuments || [];
+      if (!docs.length) return;
+
+      if (!state.clarificationReplay) {
+        state.clarificationAnswers = [];
+      }
+      state.clarificationReplay = false;
+
+      // Envoi comme collage multi-DOC pour le chemin V4 / backend
+      const composed = docs
+        .map((d) => `---DOC:${d.fileName || "document.txt"}---\n${d.text}`)
+        .join("\n");
+
+      if (state.isAnalyzing) {
+        resetAnalysisRuntimeState({
+          clearPages: false,
+          reason: "restart-analysis"
+        });
+      }
+
+      const formData = new FormData();
+      formData.append("text", composed);
+      formData.append("dossier", "1");
+      formData.append(
+        "dossier_manifest",
+        JSON.stringify(
+          docs.map((d) => ({
+            fileName: d.fileName,
+            chars: (d.text || "").length
+          }))
+        )
+      );
+      if ((state.clarificationAnswers || []).length) {
+        formData.append(
+          "clarification_answers",
+          JSON.stringify(state.clarificationAnswers)
+        );
+      }
+
+      await sendAnalysis(formData, {
+        pagesSnapshot: [],
+        manifest: null,
+        preparedPages: null,
+        heterogeneous: false,
+        dossierDocuments: docs
+      });
+    }
+
     async function analyzeText() {
       if (state.isCompressing || state.isSelectingFile) {
         return;
       }
+
+      if (!state.clarificationReplay) {
+        state.clarificationAnswers = [];
+      }
+      state.clarificationReplay = false;
 
       if (state.isAnalyzing) {
         resetAnalysisRuntimeState({
@@ -5237,9 +5745,20 @@
         return;
       }
 
+      // Si séparateurs DOC présents, traiter comme dossier
+      if (/^---DOC/m.test(text)) {
+        setDossierFromPaste(text);
+      }
+
       const formData = new FormData();
 
       formData.append("text", text);
+      if ((state.clarificationAnswers || []).length) {
+        formData.append(
+          "clarification_answers",
+          JSON.stringify(state.clarificationAnswers)
+        );
+      }
 
       await sendAnalysis(formData, {
         pagesSnapshot: [],
@@ -5657,8 +6176,43 @@
           "Aucune demande certaine.",
 
         whyReceived:
-          cleanText(data?.why_received) ||
-          "Raison non indiquée.",
+          data?.engine === "v4"
+            ? cleanText(data?.why_received)
+            : cleanText(data?.why_received) ||
+              "Raison non indiquée.",
+
+        engine:
+          cleanText(data?.engine) || "v3",
+
+        v4Debug:
+          data?.v4_debug && typeof data.v4_debug === "object"
+            ? data.v4_debug
+            : null,
+
+        actionRequired:
+          data?.action_required === true
+            ? true
+            : data?.action_required === false
+              ? false
+              : null,
+
+        fiscalDocument:
+          data?.fiscal_document &&
+          typeof data.fiscal_document === "object"
+            ? data.fiscal_document
+            : null,
+
+        documentCase:
+          data?.document_case &&
+          typeof data.document_case === "object"
+            ? data.document_case
+            : null,
+
+        genericUnderstanding:
+          data?.generic_understanding &&
+          typeof data.generic_understanding === "object"
+            ? data.generic_understanding
+            : null,
 
         actions:
           normalizeActions(data?.actions),
@@ -5994,15 +6548,20 @@
       const hasWarnings =
         Array.isArray(analysis.warnings) &&
         analysis.warnings.length > 0;
+      const fiscal = analysis.fiscalDocument;
 
       setTextIfPresent(
         "successBannerMessage",
-        hasWarnings
-          ? "Votre document a été compris. Quelques détails secondaires restent à vérifier."
-          : "Votre document a été compris."
+        fiscal
+          ? fiscal.confidence_message ||
+            "Voici ce que je peux expliquer sur ce document fiscal."
+          : hasWarnings
+            ? "Votre document a été compris. Quelques détails secondaires restent à vérifier."
+            : "Votre document a été compris."
       );
 
       $("documentType").textContent =
+        fiscal?.identity?.public_title ||
         analysis.documentType;
 
       $("issuer").textContent =
@@ -6011,14 +6570,14 @@
           : "";
 
       $("documentCategoryTag").textContent =
-        getCategory(
-          analysis.documentType
-        );
+        fiscal
+          ? "Fiscal / administratif"
+          : getCategory(analysis.documentType);
 
       let summaryText = analysis.summary;
 
       // Avertissement discret uniquement si l’analyse est réellement exploitable
-      if (hasWarnings) {
+      if (hasWarnings && !fiscal) {
         summaryText =
           `${analysis.summary}\n\n⚠️ ${analysis.warnings[0]}`;
       }
@@ -6029,14 +6588,18 @@
       prepareSummary();
 
       $("requestTitle").textContent =
-        analysis.request;
+        fiscal
+          ? (analysis.request || "Aucune action certaine détectée.")
+          : analysis.request;
 
       renderActions(
-        analysis.actions
+        analysis.actions,
+        analysis
       );
 
       renderMainDate(
-        analysis.dates
+        analysis.dates,
+        analysis
       );
 
       $("mainAmount").textContent =
@@ -6050,11 +6613,16 @@
       );
 
       $("whyReceived").textContent =
-        analysis.whyReceived;
+        analysis.engine === "v4" && !analysis.whyReceived
+          ? "Non indiqué dans le document."
+          : analysis.whyReceived;
 
       renderEvidence(
         analysis.evidence
       );
+
+      renderFiscalDocument(fiscal, analysis.documentCase);
+      renderGenericUnderstanding(analysis.genericUnderstanding);
 
       renderTables(analysis.tables);
 
@@ -6063,6 +6631,1111 @@
       updateUnderstandingDisplay(
         analysis
       );
+
+      // Diagnostic Preview V4 — console uniquement (pas d’écran prod)
+      if (analysis.engine === "v4" || analysis.v4Debug) {
+        console.info("[ExpliqueMoi V4 Preview]", {
+          engine: analysis.engine || "v4",
+          fiscalAttached: Boolean(fiscal),
+          ...(analysis.v4Debug || {})
+        });
+      }
+    }
+
+    function renderFieldLocalExplanationHtml(lex) {
+      if (!lex || typeof lex !== "object") return "";
+      const status = lex.status || "unknown";
+      if (status === "unsupported" && !lex.summary) return "";
+      const details = Array.isArray(lex.details) ? lex.details : [];
+      const missing = Array.isArray(lex.missing_information)
+        ? lex.missing_information
+        : [];
+      const why = Array.isArray(lex.why) ? lex.why : [];
+      const sources = Array.isArray(lex.source_refs) ? lex.source_refs : [];
+      return `
+        <div class="fiscal-local-explanation" style="margin-top:0.75rem;display:grid;gap:8px">
+          <p><strong>Explication</strong></p>
+          <p class="fiscal-chip" style="justify-self:start">${escapeHtml(
+            lex.title || "Explication"
+          )}</p>
+          ${
+            lex.summary
+              ? `<p><strong>Ce que cela signifie</strong> — ${escapeHtml(
+                  lex.summary
+                )}</p>`
+              : ""
+          }
+          ${
+            details.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Ce que nous avons trouvé</strong></p>
+                 <ul class="fiscal-list">${details
+                   .slice(0, 5)
+                   .map((d) => `<li>${escapeHtml(d)}</li>`)
+                   .join("")}</ul>`
+              : ""
+          }
+          ${
+            lex.calculation_explanation
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Calcul</strong> — ${escapeHtml(
+                  lex.calculation_explanation
+                )}</p>`
+              : ""
+          }
+          ${
+            missing.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Informations manquantes</strong></p>
+                 <ul class="fiscal-list">${missing
+                   .map((m) => `<li>${escapeHtml(m)}</li>`)
+                   .join("")}</ul>`
+              : ""
+          }
+          ${
+            why.length || lex.source_explanation
+              ? `<details style="margin-top:0.25rem">
+                   <summary style="cursor:pointer;color:var(--muted);font-size:0.9rem">Pourquoi ? / Source</summary>
+                   <ul class="fiscal-list" style="margin-top:0.4rem">${why
+                     .slice(0, 4)
+                     .map((w) => `<li>${escapeHtml(w)}</li>`)
+                     .join("")}</ul>
+                   ${
+                     lex.source_explanation
+                       ? `<p class="fiscal-provenance-user">${escapeHtml(
+                           lex.source_explanation
+                         )}</p>`
+                       : ""
+                   }
+                   ${
+                     sources.length
+                       ? `<ul class="fiscal-list">${sources
+                           .slice(0, 2)
+                           .map(
+                             (s) =>
+                               `<li><a href="${escapeHtml(
+                                 s.url
+                               )}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+                                 s.title || s.url
+                               )}</a></li>`
+                           )
+                           .join("")}</ul>`
+                       : ""
+                   }
+                 </details>`
+              : ""
+          }
+        </div>`;
+    }
+
+    function renderFieldCalculationHtml(calc) {
+      if (!calc || typeof calc !== "object") return "";
+      // unsupported : pas de section bruyante — données conservées dans le view model
+      if (calc.status === "unsupported") return "";
+      const statusLabel =
+        {
+          calculated: "Valeur calculée à partir des informations disponibles",
+          needsInformation: "Calcul incomplet — information manquante",
+          conflicted: "Calcul impossible — informations contradictoires",
+          notApplicable: "Calcul non applicable"
+        }[calc.status] || "Calcul";
+      const inputs = Array.isArray(calc.inputs) ? calc.inputs : [];
+      const sources = Array.isArray(calc.sources) ? calc.sources : [];
+      const missing = Array.isArray(calc.missing_inputs)
+        ? calc.missing_inputs
+        : [];
+      return `
+        <div class="fiscal-calculation" style="margin-top:0.65rem;display:grid;gap:8px">
+          <p><strong>Calcul</strong></p>
+          <p class="fiscal-chip" style="justify-self:start">${escapeHtml(
+            statusLabel
+          )}</p>
+          ${
+            calc.status === "calculated" && calc.value != null
+              ? `<p><strong>${escapeHtml(String(calc.value))}${
+                  calc.unit === "EUR" ? " €" : calc.unit ? ` ${escapeHtml(calc.unit)}` : ""
+                }</strong></p>
+                 <p class="fiscal-provenance-user">Valeur calculée à partir des informations disponibles — pas une valeur officielle de déclaration.</p>`
+              : ""
+          }
+          ${
+            calc.explanation
+              ? `<p>${escapeHtml(calc.explanation)}</p>`
+              : ""
+          }
+          ${
+            calc.formula_id
+              ? `<p style="color:var(--muted);font-size:0.88rem">Formule : ${escapeHtml(
+                  calc.formula_id
+                )}${
+                  calc.rule?.version
+                    ? ` · v${escapeHtml(String(calc.rule.version))}`
+                    : ""
+                }${
+                  calc.rule?.tax_year != null
+                    ? ` · année ${escapeHtml(String(calc.rule.tax_year))}`
+                    : ""
+                }${
+                  calc.rule?.status && calc.rule.status !== "verified"
+                    ? ` · ${escapeHtml(String(calc.rule.status))}`
+                    : ""
+                }</p>`
+              : ""
+          }
+          ${
+            inputs.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Entrées</strong></p>
+                 <ul class="fiscal-list">${inputs
+                   .slice(0, 6)
+                   .map(
+                     (i) =>
+                       `<li><span class="fiscal-fact-label">${escapeHtml(
+                         i.input_id || ""
+                       )}</span>${escapeHtml(
+                         String(i.value ?? i.status ?? "")
+                       )} <span class="fiscal-provenance-user">(${escapeHtml(
+                         i.source_kind || ""
+                       )})</span></li>`
+                   )
+                   .join("")}</ul>`
+              : ""
+          }
+          ${
+            missing.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Information manquante pour le calcul</strong></p>
+                 <ul class="fiscal-list">${missing
+                   .map((m) => `<li>${escapeHtml(m)}</li>`)
+                   .join("")}</ul>
+                 <p class="fiscal-provenance-user">Une question peut vous être proposée pour préciser ce point.</p>`
+              : ""
+          }
+          ${
+            Array.isArray(calc.conflicts) && calc.conflicts.length
+              ? `<ul class="fiscal-list">${calc.conflicts
+                  .map((c) => `<li>${escapeHtml(c)}</li>`)
+                  .join("")}</ul>`
+              : ""
+          }
+          ${
+            sources.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Source de la formule</strong></p>
+                 <ul class="fiscal-list">${sources
+                   .slice(0, 2)
+                   .map(
+                     (s) =>
+                       `<li><a href="${escapeHtml(
+                         s.url
+                       )}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+                         s.title
+                       )}</a></li>`
+                   )
+                   .join("")}</ul>`
+              : ""
+          }
+        </div>
+      `;
+    }
+
+    function renderFieldApplicabilityHtml(app) {
+      if (!app || typeof app !== "object") return "";
+      const statusLabel =
+        app.status_label ||
+        ({
+          applicable: "Conditions satisfaites",
+          notApplicable: "Non applicable selon les informations disponibles",
+          needsInformation: "Information nécessaire",
+          conflicted: "Informations contradictoires",
+          unknown: "Impossible à déterminer"
+        }[app.status] || "Impossible à déterminer");
+      const reasons = Array.isArray(app.reasons) ? app.reasons : [];
+      const evidence = Array.isArray(app.evidence) ? app.evidence : [];
+      const missing = Array.isArray(app.missing_information)
+        ? app.missing_information
+        : [];
+      const sources = Array.isArray(app.sources) ? app.sources : [];
+      const conflicts = Array.isArray(app.conflicts) ? app.conflicts : [];
+      return `
+        <div class="fiscal-applicability" style="margin-top:0.65rem;display:grid;gap:8px">
+          <p><strong>Pertinence de cette case</strong></p>
+          <p class="fiscal-chip" style="justify-self:start">${escapeHtml(
+            statusLabel
+          )}</p>
+          ${
+            app.headline
+              ? `<p>${escapeHtml(app.headline)}</p>`
+              : ""
+          }
+          ${
+            reasons.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Pourquoi ?</strong></p>
+                 <ul class="fiscal-list">${reasons
+                   .slice(0, 4)
+                   .map((r) => `<li>${escapeHtml(r)}</li>`)
+                   .join("")}</ul>`
+              : ""
+          }
+          ${
+            evidence.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Informations utilisées</strong></p>
+                 <ul class="fiscal-list">${evidence
+                   .slice(0, 4)
+                   .map(
+                     (e) =>
+                       `<li><span class="fiscal-fact-label">${escapeHtml(
+                         e.label || e.source_kind || "Preuve"
+                       )}</span>${escapeHtml(e.detail || "")}</li>`
+                   )
+                   .join("")}</ul>`
+              : ""
+          }
+          ${
+            conflicts.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Contradictions</strong></p>
+                 <ul class="fiscal-list">${conflicts
+                   .map((c) => `<li>${escapeHtml(c)}</li>`)
+                   .join("")}</ul>`
+              : ""
+          }
+          ${
+            missing.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Information manquante</strong></p>
+                 <ul class="fiscal-list">${missing
+                   .slice(0, 3)
+                   .map(
+                     (m) =>
+                       `<li>${escapeHtml(m.question || m.reason || "")}</li>`
+                   )
+                   .join("")}</ul>
+                 <p class="fiscal-provenance-user">Une question peut vous être proposée plus haut pour préciser ce point.</p>`
+              : ""
+          }
+          ${
+            sources.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Source officielle</strong></p>
+                 <ul class="fiscal-list">${sources
+                   .slice(0, 2)
+                   .map(
+                     (s) =>
+                       `<li><a href="${escapeHtml(
+                         s.url
+                       )}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+                         s.title
+                       )}</a></li>`
+                   )
+                   .join("")}</ul>`
+              : ""
+          }
+        </div>
+      `;
+    }
+
+    function renderFiscalClarification(documentCase) {
+      const el = $("fiscalClarification");
+      if (!el) return;
+      const clar = documentCase?.clarification;
+      if (!clar || typeof clar !== "object") {
+        el.classList.add("hidden");
+        el.innerHTML = "";
+        return;
+      }
+
+      const q = clar.current_question;
+      const changes = Array.isArray(clar.last_changes) ? clar.last_changes : [];
+      const conflicts = Array.isArray(clar.user_vs_document_conflicts)
+        ? clar.user_vs_document_conflicts
+        : [];
+      const userFacts = Array.isArray(clar.user_facts) ? clar.user_facts : [];
+
+      const changesHtml =
+        changes.length || userFacts.length
+          ? `<div class="fiscal-clarification-changes">
+              <h3>Ce qui a changé</h3>
+              ${
+                userFacts.length
+                  ? `<ul class="fiscal-list">${userFacts
+                      .slice(0, 4)
+                      .map(
+                        (f) => `<li>
+                          <span class="fiscal-fact-label">${escapeHtml(
+                            f.field_code || f.requirement_id || "Information"
+                          )}</span>
+                          <strong>${escapeHtml(String(f.value ?? ""))}</strong>
+                          <p class="fiscal-provenance-user">${escapeHtml(
+                            f.source_label || "Information fournie par vous"
+                          )}</p>
+                        </li>`
+                      )
+                      .join("")}</ul>`
+                  : ""
+              }
+              ${
+                changes.length
+                  ? `<ul class="fiscal-list">${changes
+                      .slice(0, 5)
+                      .map((c) => `<li>${escapeHtml(c)}</li>`)
+                      .join("")}</ul>`
+                  : ""
+              }
+            </div>`
+          : "";
+
+      const conflictHtml = conflicts.length
+        ? `<div class="fiscal-clarification-conflict" role="status">
+            <h3>Contradiction conservée</h3>
+            <ul class="fiscal-list">${conflicts
+              .map((c) => `<li>${escapeHtml(c.description || "")}</li>`)
+              .join("")}</ul>
+            <p class="fiscal-provenance-user">Je conserve les deux informations séparément — document et réponse utilisateur.</p>
+          </div>`
+        : "";
+
+      if (!q) {
+        if (!changesHtml && !conflictHtml) {
+          el.classList.add("hidden");
+          el.innerHTML = "";
+          return;
+        }
+        el.classList.remove("hidden");
+        el.innerHTML = `${conflictHtml}${changesHtml}`;
+        return;
+      }
+
+      const choices = Array.isArray(q.choices) ? q.choices : [];
+      const choicesHtml = choices.length
+        ? `<div class="fiscal-clarification-choices" role="group" aria-label="Choix possibles">
+            ${choices
+              .map(
+                (c) =>
+                  `<button type="button" class="secondary-btn" data-clarification-choice="${escapeHtml(
+                    c
+                  )}">${escapeHtml(c)}</button>`
+              )
+              .join("")}
+          </div>`
+        : "";
+
+      el.classList.remove("hidden");
+      el.innerHTML = `
+        <h3>Une question pour continuer</h3>
+        ${
+          q.reason
+            ? `<p class="fiscal-clarification-reason">${escapeHtml(
+                q.reason
+              )}</p>`
+            : ""
+        }
+        <p><strong>${escapeHtml(q.question || "")}</strong></p>
+        ${
+          q.expected_answer_type
+            ? `<p class="fiscal-clarification-type">Type attendu : ${escapeHtml(
+                q.expected_answer_type
+              )}${
+                q.field_code
+                  ? ` · Case ${escapeHtml(q.field_code)}`
+                  : ""
+              }</p>`
+            : ""
+        }
+        ${choicesHtml}
+        <form class="fiscal-clarification-form" data-clarification-form>
+          <label for="clarificationAnswerInput">Votre réponse</label>
+          <input
+            id="clarificationAnswerInput"
+            name="clarificationAnswer"
+            type="text"
+            autocomplete="off"
+            inputmode="${
+              q.expected_answer_type === "amount" ||
+              q.expected_answer_type === "year" ||
+              q.expected_answer_type === "integer"
+                ? "decimal"
+                : "text"
+            }"
+          />
+          <div class="fiscal-clarification-actions">
+            <button type="submit" class="primary-btn">Valider</button>
+            <button type="button" class="secondary-btn" data-clarification-unknown>Je ne sais pas</button>
+            <button type="button" class="secondary-btn" data-clarification-skip>Passer</button>
+          </div>
+        </form>
+        ${conflictHtml}
+        ${changesHtml}
+      `;
+      el.dataset.questionId = q.question_id || "";
+    }
+
+    function submitClarificationAnswer(rawAnswer) {
+      const el = $("fiscalClarification");
+      const questionId = el?.dataset?.questionId || "";
+      const answer = String(rawAnswer || "").trim();
+      if (!answer) return;
+      state.clarificationAnswers = [
+        ...(state.clarificationAnswers || []),
+        questionId ? { questionId, answer } : { answer }
+      ];
+      state.clarificationReplay = true;
+      if ((state.dossierDocuments || []).length) {
+        analyzeDossierState();
+        return;
+      }
+      analyzeText();
+    }
+
+    function handleClarificationClick(event) {
+      const unknownBtn = event.target.closest("[data-clarification-unknown]");
+      if (unknownBtn) {
+        event.preventDefault();
+        submitClarificationAnswer("je ne sais pas");
+        return;
+      }
+      const skipBtn = event.target.closest("[data-clarification-skip]");
+      if (skipBtn) {
+        event.preventDefault();
+        submitClarificationAnswer("passer");
+        return;
+      }
+      const choiceBtn = event.target.closest("[data-clarification-choice]");
+      if (choiceBtn) {
+        event.preventDefault();
+        const value = choiceBtn.getAttribute("data-clarification-choice") || "";
+        const input = $("clarificationAnswerInput");
+        if (input) input.value = value;
+        submitClarificationAnswer(value);
+      }
+    }
+
+    function handleClarificationSubmit(event) {
+      const form = event.target.closest("[data-clarification-form]");
+      if (!form) return;
+      event.preventDefault();
+      const input = $("clarificationAnswerInput");
+      submitClarificationAnswer(input ? input.value : "");
+    }
+
+    function renderGenericUnderstanding(generic) {
+      const card = $("genericCard");
+      if (!card) return;
+      if (!generic || typeof generic !== "object") {
+        card.classList.add("hidden");
+        return;
+      }
+      const aRetenir = Array.isArray(generic.a_retenir)
+        ? generic.a_retenir
+        : [];
+      const pourquoi = Array.isArray(generic.pourquoi)
+        ? generic.pourquoi
+        : [];
+      const uncertain = Array.isArray(generic.information_incertaine)
+        ? generic.information_incertaine
+        : [];
+      // Afficher seulement s’il y a une compréhension utile hors carte fiscale
+      if (!generic.ce_document && !aRetenir.length && !generic.emis_par) {
+        card.classList.add("hidden");
+        return;
+      }
+      card.classList.remove("hidden");
+      setTextIfPresent(
+        "genericHeadline",
+        generic.ce_document || "Compréhension locale"
+      );
+      const ce = $("genericCeDocument");
+      if (ce) {
+        ce.innerHTML = `
+          <h3>Ce document</h3>
+          <p>${escapeHtml(String(generic.ce_document || "Document"))}</p>
+        `;
+      }
+      const hold = $("genericARetenir");
+      if (hold) {
+        hold.innerHTML = aRetenir.length
+          ? `<h3>À retenir</h3><ul class="fiscal-list">${aRetenir
+              .map((x) => `<li>${escapeHtml(String(x))}</li>`)
+              .join("")}</ul>`
+          : "";
+      }
+      const emis = $("genericEmisPar");
+      if (emis) {
+        emis.innerHTML = generic.emis_par
+          ? `<h3>Émis par</h3><p>${escapeHtml(String(generic.emis_par))}</p>`
+          : "";
+      }
+      const why = $("genericPourquoi");
+      if (why) {
+        why.innerHTML = pourquoi.length
+          ? `<details><summary style="cursor:pointer">Pourquoi ?</summary>
+             <ul class="fiscal-list">${pourquoi
+               .map(
+                 (p) =>
+                   `<li><strong>${escapeHtml(
+                     String(p.label || "")
+                   )}</strong> — « ${escapeHtml(
+                     String(p.evidence || "")
+                   )} »</li>`
+               )
+               .join("")}</ul></details>`
+          : "";
+      }
+      const inc = $("genericIncertain");
+      if (inc) {
+        inc.innerHTML = uncertain.length
+          ? `<h3>Information incertaine</h3><ul class="fiscal-list">${uncertain
+              .map((x) => `<li>${escapeHtml(String(x))}</li>`)
+              .join("")}</ul>`
+          : "";
+      }
+    }
+
+    function renderFiscalDocument(fiscal, documentCase) {
+      const card = $("fiscalCard");
+      if (!card) return;
+
+      if (
+        (!fiscal || typeof fiscal !== "object") &&
+        (!documentCase || typeof documentCase !== "object")
+      ) {
+        card.classList.add("hidden");
+        return;
+      }
+
+      card.classList.remove("hidden");
+
+      setTextIfPresent(
+        "fiscalHeadline",
+        documentCase?.documents_count > 1
+          ? `Dossier fiscal — ${documentCase.documents_count} documents`
+          : fiscal?.confidence_headline || "Explication du document"
+      );
+
+      const identity = $("fiscalIdentity");
+      const purpose = $("fiscalPurpose");
+      const facts = $("fiscalDocumentFacts");
+      const actions = $("fiscalActions");
+      const caseDocs = $("fiscalCaseDocuments");
+      const caseConflicts = $("fiscalCaseConflicts");
+      const uncertain = $("fiscalUncertainties");
+      const related = $("fiscalRelated");
+      const sourcesList = $("fiscalSourcesList");
+      const premiumList = $("fiscalPremiumList");
+
+      renderFiscalClarification(documentCase);
+
+      if (caseDocs) {
+        const docs = Array.isArray(documentCase?.documents)
+          ? documentCase.documents
+          : [];
+        if (docs.length) {
+          caseDocs.innerHTML = `
+            <h3>Documents analysés — ${escapeHtml(
+              String(documentCase.documents_count || docs.length)
+            )}</h3>
+            <ul class="fiscal-list">
+              ${docs
+                .map((d) => {
+                  const title =
+                    d.detected_reference ||
+                    d.recognition_label ||
+                    d.file_name ||
+                    "Document";
+                  const year =
+                    d.year != null ? String(d.year) : "Année non déterminée";
+                  const linked = Array.isArray(d.potentially_linked_to)
+                    ? d.potentially_linked_to
+                        .slice(0, 3)
+                        .map(
+                          (l) =>
+                            `<li>${escapeHtml(l.field_code)} — ${escapeHtml(
+                              l.reason || ""
+                            )}</li>`
+                        )
+                        .join("")
+                    : "";
+                  return `
+                    <li class="fiscal-field-item">
+                      <details>
+                        <summary>
+                          <span class="fiscal-field-code">${escapeHtml(
+                            d.detected_reference || "DOC"
+                          )}</span>
+                          <span>${escapeHtml(title)}</span>
+                        </summary>
+                        <div class="fiscal-field-body">
+                          <p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                            d.file_name || ""
+                          )}</p>
+                          <p><strong>Année :</strong> ${escapeHtml(year)}</p>
+                          <p>${escapeHtml(
+                            d.recognition_label ||
+                              "Type de document non identifié avec certitude."
+                          )}</p>
+                          ${
+                            d.duplicate_message
+                              ? `<p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                                  d.duplicate_message
+                                )}</p>`
+                              : ""
+                          }
+                          ${
+                            linked
+                              ? `<p style="margin-top:0.4rem"><strong>Potentiellement lié à</strong></p><ul class="fiscal-list">${linked}</ul>`
+                              : ""
+                          }
+                        </div>
+                      </details>
+                    </li>`;
+                })
+                .join("")}
+            </ul>`;
+        } else {
+          caseDocs.innerHTML = "";
+        }
+      }
+
+      if (caseConflicts) {
+        const conflicts = Array.isArray(documentCase?.conflicts)
+          ? documentCase.conflicts
+          : [];
+        const amb = Array.isArray(documentCase?.ambiguities)
+          ? documentCase.ambiguities
+          : [];
+        const items = [
+          ...conflicts.map((c) => c.description),
+          ...amb
+        ].filter(Boolean);
+        if (items.length) {
+          caseConflicts.innerHTML = `
+            <h3>Informations à vérifier</h3>
+            <p style="color:var(--muted);font-size:0.88rem">Plusieurs informations différentes ont été trouvées.</p>
+            <ul class="fiscal-list">
+              ${items
+                .slice(0, 8)
+                .map((t) => `<li>${escapeHtml(t)}</li>`)
+                .join("")}
+            </ul>`;
+        } else {
+          caseConflicts.innerHTML = "";
+        }
+      }
+
+      // Vue case-centric dossier prioritaire sur tax_fields mono-doc
+      fiscal =
+        fiscal && typeof fiscal === "object" ? { ...fiscal } : {};
+      if (
+        documentCase &&
+        Array.isArray(documentCase.tax_fields) &&
+        documentCase.tax_fields.length
+      ) {
+        fiscal.tax_fields = documentCase.tax_fields.map((f) => ({
+          field_code: f.field_code,
+          label: f.label,
+          explanation: f.explanation,
+          document_value: null,
+          presence_label: f.information_status || "Dossier",
+          missing_requirements: (f.to_verify || []).map((t) => ({
+            label: t,
+            status_label: "À vérifier"
+          })),
+          ambiguous_requirements: [],
+          supporting_documents: f.supporting_documents || [],
+          general_conditions: f.general_conditions || [],
+          priority_questions: f.priority_questions || [],
+          more_questions_count: 0,
+          candidate_fact_notes: (f.found_by_document || []).flatMap((d) =>
+            (d.notes || []).map(
+              (n) => `${d.file_name || "Document"} — ${n}`
+            )
+          ),
+          official_sources: f.official_sources || [],
+          understand_cta_label: "M’aider à comprendre cette case",
+          information_status_label: f.information_status,
+          applicability: f.applicability || null,
+          calculation: f.calculation || null,
+          local_explanation: f.local_explanation || null
+        }));
+      }
+
+      if (identity) {
+        const chips = [];
+        if (fiscal.identity?.show_reference && fiscal.identity?.reference) {
+          chips.push(
+            `<span class="fiscal-chip">Formulaire ${escapeHtml(fiscal.identity.reference)}</span>`
+          );
+        }
+        if (fiscal.identity?.cerfa) {
+          chips.push(
+            `<span class="fiscal-chip">Cerfa ${escapeHtml(fiscal.identity.cerfa)}</span>`
+          );
+        }
+        if (fiscal.identity?.family_label) {
+          chips.push(
+            `<span class="fiscal-chip">${escapeHtml(fiscal.identity.family_label)}</span>`
+          );
+        }
+        identity.innerHTML = `
+          <h3>Ce document est</h3>
+          <p><strong>${escapeHtml(fiscal.identity?.public_title || "Document fiscal")}</strong></p>
+          ${chips.length ? `<div class="fiscal-meta">${chips.join("")}</div>` : ""}
+        `;
+      }
+
+      if (purpose) {
+        const what = fiscal.understanding?.what_is_it;
+        const why = fiscal.understanding?.purpose;
+        const who = fiscal.understanding?.who_is_concerned;
+        if (what || why) {
+          purpose.innerHTML = `
+            <h3>À quoi sert ce document ?</h3>
+            ${what ? `<p>${escapeHtml(what)}</p>` : ""}
+            ${why && why !== what ? `<p>${escapeHtml(why)}</p>` : ""}
+            ${who ? `<p>${escapeHtml(who)}</p>` : ""}
+          `;
+        } else {
+          purpose.innerHTML = `
+            <h3>À quoi sert ce document ?</h3>
+            <p>Je ne peux pas encore expliquer précisément le rôle de ce document.</p>
+          `;
+        }
+      }
+
+      if (facts) {
+        const items = Array.isArray(fiscal.document_facts)
+          ? fiscal.document_facts
+          : [];
+        if (items.length) {
+          facts.innerHTML = `
+            <h3>Ce que votre document indique</h3>
+            <ul class="fiscal-list">
+              ${items
+                .map(
+                  (item) => `
+                    <li>
+                      <span class="fiscal-fact-label">${escapeHtml(item.label)}</span>
+                      <strong>${escapeHtml(item.value)}</strong>
+                    </li>
+                  `
+                )
+                .join("")}
+            </ul>
+          `;
+        } else {
+          facts.innerHTML = `
+            <h3>Ce que votre document indique</h3>
+            <p>Aucune information chiffrée ou datée n’a pu être relevée de façon fiable dans ce document.</p>
+          `;
+        }
+      }
+
+      if (actions) {
+        const items = Array.isArray(fiscal.possible_actions)
+          ? fiscal.possible_actions
+          : [];
+        const supported = items.filter((a) => a.certainty === "supported");
+        const body = supported.length
+          ? `<ul class="fiscal-list">${supported
+              .map((a) => `<li>${escapeHtml(a.text)}</li>`)
+              .join("")}</ul>`
+          : `<p>Aucune action certaine détectée.</p>
+             <p>Consultez le document pour vérifier les modalités qui vous concernent.</p>`;
+        actions.innerHTML = `
+          <h3>Ce que vous devez faire</h3>
+          ${body}
+        `;
+      }
+
+      const fieldsEl = $("fiscalFields");
+      if (fieldsEl) {
+        const fields = Array.isArray(fiscal.tax_fields)
+          ? fiscal.tax_fields
+          : [];
+        if (fields.length) {
+          fieldsEl.innerHTML = `
+            <h3>Les cases importantes</h3>
+            <ul class="fiscal-list">
+              ${fields
+                .map((f, index) => {
+                  const open = index < 2 || f.document_value ? " open" : "";
+                  const valueLine = f.document_value
+                    ? `<p><strong>Dans votre document :</strong> ${escapeHtml(
+                        f.document_value
+                      )}</p>`
+                    : `<p><strong>Dans votre document :</strong> ${escapeHtml(
+                        f.presence_label || "Aucune valeur certaine"
+                      )}</p>`;
+                  const pageLine =
+                    f.page != null
+                      ? `<p style="color:var(--muted);font-size:0.88rem">Page ${escapeHtml(
+                          String(f.page)
+                        )}</p>`
+                      : "";
+                  const roleLine = f.declarant_role_label
+                    ? `<p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                        f.declarant_role_label
+                      )}</p>`
+                    : "";
+                  const warnLine =
+                    Array.isArray(f.warnings) && f.warnings.length
+                      ? `<p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                          f.warnings[0]
+                        )}</p>`
+                      : "";
+                  return `
+                    <li class="fiscal-field-item">
+                      <details${open}>
+                        <summary>
+                          <span class="fiscal-field-code">${escapeHtml(
+                            f.field_code || ""
+                          )}</span>
+                          <span>${escapeHtml(f.label || "Case fiscale")}</span>
+                        </summary>
+                        <div class="fiscal-field-body">
+                          ${
+                            f.section
+                              ? `<p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                                  f.section
+                                )}</p>`
+                              : ""
+                          }
+                          <p style="color:var(--muted);font-size:0.88rem;margin-top:0.35rem">À quoi sert cette case ?</p>
+                          ${
+                            f.explanation
+                              ? `<p>${escapeHtml(f.explanation)}</p>`
+                              : "<p>Aucune définition vérifiée n’est disponible pour cette case.</p>"
+                          }
+                          ${roleLine}
+                          ${valueLine}
+                          ${pageLine}
+                          ${
+                            f.information_status_label
+                              ? `<p style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                                  f.information_status_label
+                                )}</p>`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.missing_requirements) &&
+                            f.missing_requirements.length
+                              ? `<p style="margin-top:0.55rem"><strong>Pour mieux comprendre votre situation</strong></p>
+                                 <ul class="fiscal-list">${f.missing_requirements
+                                   .slice(0, 4)
+                                   .map(
+                                     (r) =>
+                                       `<li>${escapeHtml(r.label)} — ${escapeHtml(
+                                         r.status_label ||
+                                           "non retrouvée dans les éléments analysés"
+                                       )}</li>`
+                                   )
+                                   .join("")}</ul>`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.ambiguous_requirements) &&
+                            f.ambiguous_requirements.length
+                              ? `<p style="margin-top:0.55rem"><strong>Informations à vérifier</strong></p>
+                                 <ul class="fiscal-list">${f.ambiguous_requirements
+                                   .slice(0, 3)
+                                   .map(
+                                     (r) =>
+                                       `<li>${escapeHtml(r.label)} — ${escapeHtml(
+                                         r.status_label || "ambiguë"
+                                       )}</li>`
+                                   )
+                                   .join("")}</ul>`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.supporting_documents) &&
+                            f.supporting_documents.length
+                              ? `<p style="margin-top:0.55rem"><strong>Documents qui peuvent être utiles</strong></p>
+                                 <ul class="fiscal-list">${f.supporting_documents
+                                   .slice(0, 4)
+                                   .map(
+                                     (s) =>
+                                       `<li>${escapeHtml(s.label)}${
+                                         s.normative
+                                           ? ""
+                                           : ' <span style="color:var(--muted)">(suggestion générique)</span>'
+                                       }</li>`
+                                   )
+                                   .join("")}</ul>`
+                              : ""
+                          }
+                          ${renderFieldApplicabilityHtml(f.applicability)}
+                          ${renderFieldCalculationHtml(f.calculation)}
+                          ${renderFieldLocalExplanationHtml(f.local_explanation)}
+                          ${
+                            Array.isArray(f.general_conditions) &&
+                            f.general_conditions.length
+                              ? `<p style="margin-top:0.55rem"><strong>Conditions générales associées</strong></p>
+                                 <p style="color:var(--muted);font-size:0.88rem">Cette rubrique peut dépendre de certaines conditions.</p>
+                                 <ul class="fiscal-list">${f.general_conditions
+                                   .slice(0, 2)
+                                   .map((c) => `<li>${escapeHtml(c)}</li>`)
+                                   .join("")}</ul>`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.candidate_fact_notes) &&
+                            f.candidate_fact_notes.length
+                              ? `<ul class="fiscal-list">${f.candidate_fact_notes
+                                  .map((n) => `<li>${escapeHtml(n)}</li>`)
+                                  .join("")}</ul>`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.priority_questions) &&
+                            f.priority_questions.length
+                              ? `<p style="margin-top:0.55rem"><strong>Points que je peux vous demander de préciser</strong></p>
+                                 <ul class="fiscal-list">${f.priority_questions
+                                   .map(
+                                     (q) =>
+                                       `<li>${escapeHtml(q.question)}</li>`
+                                   )
+                                   .join("")}</ul>
+                                 ${
+                                   f.more_questions_count > 0
+                                     ? `<p style="color:var(--muted);font-size:0.88rem">Voir les autres informations à vérifier (${escapeHtml(
+                                         String(f.more_questions_count)
+                                       )})</p>`
+                                     : ""
+                                 }`
+                              : ""
+                          }
+                          ${
+                            Array.isArray(f.official_sources) &&
+                            f.official_sources.length
+                              ? `<p style="margin-top:0.55rem"><strong>Sources officielles</strong></p>
+                                 <ul class="fiscal-list">${f.official_sources
+                                   .map(
+                                     (s) =>
+                                       `<li><a href="${escapeHtml(
+                                         s.url
+                                       )}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+                                         s.title
+                                       )}</a></li>`
+                                   )
+                                   .join("")}</ul>`
+                              : ""
+                          }
+                          <p style="margin-top:0.65rem">
+                            <button type="button" class="secondary-btn fiscal-premium-cta" disabled title="Bientôt disponible">
+                              ${escapeHtml(
+                                f.understand_cta_label ||
+                                  "M’aider à comprendre cette case"
+                              )}
+                            </button>
+                          </p>
+                          ${warnLine}
+                        </div>
+                      </details>
+                    </li>
+                  `;
+                })
+                .join("")}
+            </ul>
+          `;
+        } else {
+          fieldsEl.innerHTML = "";
+        }
+      }
+
+      if (uncertain) {
+        const points = Array.isArray(fiscal.important_points)
+          ? fiscal.important_points
+          : Array.isArray(fiscal.uncertainties)
+            ? fiscal.uncertainties
+            : [];
+        if (points.length) {
+          uncertain.innerHTML = `
+            <h3>Certaines informations restent à vérifier</h3>
+            <ul class="fiscal-list">
+              ${points.map((p) => `<li>${escapeHtml(p)}</li>`).join("")}
+            </ul>
+          `;
+        } else {
+          uncertain.innerHTML = "";
+        }
+      }
+
+      if (related) {
+        const docs = Array.isArray(fiscal.related_documents)
+          ? fiscal.related_documents
+          : [];
+        if (docs.length) {
+          related.innerHTML = `
+            <h3>Documents qui peuvent être associés</h3>
+            <ul class="fiscal-list">
+              ${docs
+                .map(
+                  (d) => `
+                    <li>
+                      <strong>${escapeHtml(d.reference || "")}</strong>
+                      ${d.title ? ` — ${escapeHtml(d.title)}` : ""}
+                      <br><span style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                        d.note || "Document associé"
+                      )}</span>
+                    </li>
+                  `
+                )
+                .join("")}
+            </ul>
+          `;
+        } else {
+          related.innerHTML = "";
+        }
+      }
+
+      if (sourcesList) {
+        const sources = Array.isArray(fiscal.provenance)
+          ? fiscal.provenance
+          : [];
+        const quality = fiscal.quality_status_label
+          ? `<li><span class="fiscal-fact-label">Fiabilité</span>${escapeHtml(
+              fiscal.quality_status_label
+            )}</li>`
+          : "";
+        sourcesList.innerHTML =
+          quality +
+          sources
+            .map(
+              (s) => `
+                <li>
+                  <span class="fiscal-fact-label">${escapeHtml(
+                    s.authority || "Source"
+                  )}</span>
+                  <a href="${escapeAttr(s.url || "#")}" target="_blank" rel="noopener noreferrer">
+                    ${escapeHtml(s.title || s.url || "Source officielle")}
+                  </a>
+                </li>
+              `
+            )
+            .join("");
+      }
+
+      if (premiumList) {
+        const placeholders = Array.isArray(fiscal.premium_placeholders)
+          ? fiscal.premium_placeholders
+          : [];
+        premiumList.innerHTML = placeholders
+          .map(
+            (p) => `
+              <li>
+                <strong>${escapeHtml(p.label || "")}</strong>
+                <br><span style="color:var(--muted);font-size:0.88rem">${escapeHtml(
+                  p.description || ""
+                )}</span>
+              </li>
+            `
+          )
+          .join("");
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/'/g, "&#39;");
     }
 
     function getCategory(documentType) {
@@ -6088,6 +7761,14 @@
         )
       ) {
         return "Contrat";
+      }
+
+      if (
+        /impôt|fiscal|déclaration de revenus|taxe foncière|avis d/i.test(
+          documentType
+        )
+      ) {
+        return "Fiscal / administratif";
       }
 
       if (
@@ -6198,7 +7879,16 @@
       }
 
       // Analyse complète backend → ne pas sous-noter artificiellement
-      if (analysis.readingQuality === "full") {
+      // sauf si des faits principaux restent incertains / warnings
+      const hasAmbiguity =
+        Array.isArray(analysis.warnings) &&
+        analysis.warnings.some((w) =>
+          /pas certaines|ambigu|incert/i.test(String(w))
+        );
+      if (
+        analysis.readingQuality === "full" &&
+        !hasAmbiguity
+      ) {
         score = Math.max(score, 84);
       }
 
@@ -6211,27 +7901,99 @@
     function updateUnderstandingDisplay(
       analysis
     ) {
+      const fiscal = analysis.fiscalDocument;
+      if (fiscal && fiscal.confidence_headline) {
+        const levelMap = {
+          certain: "excellent",
+          probable: "good",
+          partial: "medium",
+          insufficient: "low"
+        };
+        const level =
+          levelMap[fiscal.recognition_level] || "good";
+        const dots =
+          level === "excellent"
+            ? 4
+            : level === "good"
+              ? 3
+              : level === "medium"
+                ? 2
+                : 1;
+        const face =
+          level === "excellent"
+            ? "😊"
+            : level === "good"
+              ? "😌"
+              : level === "medium"
+                ? "🤔"
+                : "😕";
+        const status = {
+          level,
+          face,
+          title: fiscal.confidence_headline,
+          message:
+            fiscal.confidence_message ||
+            "Je m’appuie uniquement sur les informations fiables.",
+          dots
+        };
+
+        $("understandingCard").dataset.level =
+          status.level;
+        $("understandingFace").textContent =
+          status.face;
+        $("understandingTitle").textContent =
+          status.title;
+        $("understandingMessage").textContent =
+          status.message;
+        $("speechBubble").textContent =
+          status.title;
+        $("understandingDots").innerHTML = [1, 2, 3, 4]
+          .map(
+            (number) => `
+              <span class="understanding-dot ${
+                number <= status.dots ? "active" : ""
+              }"></span>
+            `
+          )
+          .join("");
+        return;
+      }
+
       const score =
         calculateUnderstandingScore(
           analysis
         );
 
+      const hasActions =
+        Array.isArray(analysis.actions) &&
+        analysis.actions.length > 0;
+      const hasAmbiguity =
+        Array.isArray(analysis.warnings) &&
+        analysis.warnings.some((w) =>
+          /pas certaines|ambigu|incert/i.test(String(w))
+        );
+      const actionRequired =
+        analysis?.actionRequired ?? analysis?.action_required;
+
       let status;
 
-      if (score >= 82) {
+      if (score >= 82 && !hasAmbiguity) {
         status = {
           level: "excellent",
           face: "😊",
-          title: "J’ai tout compris !",
-          message:
-            "Le document est clair. J’ai retrouvé les informations principales et les actions à réaliser.",
+          title: "Document bien identifié",
+          message: hasActions
+            ? "Le document est clair. J’ai retrouvé les informations principales et les actions à réaliser."
+            : actionRequired === false
+              ? "Le document est clair. J’ai retrouvé les informations principales — aucune action n’est requise."
+              : "Le document est clair. J’ai retrouvé les informations principales.",
           dots: 4
         };
       } else if (score >= 62) {
         status = {
           level: "good",
           face: "😌",
-          title: "J’ai compris l’essentiel",
+          title: "Document identifié — certains détails restent à vérifier",
           message:
             "Je peux bien vous expliquer le document. Quelques détails secondaires peuvent rester à confirmer.",
           dots: 3
@@ -6240,8 +8002,7 @@
         status = {
           level: "medium",
           face: "🤔",
-          title:
-            "Quelques points sont à vérifier",
+          title: "Document probablement identifié",
           message:
             "J’ai compris le sujet général, mais certaines informations sont absentes ou difficiles à lire.",
           dots: 2
@@ -6251,7 +8012,7 @@
           level: "low",
           face: "😕",
           title:
-            "J’ai besoin d’un document plus lisible",
+            "Je ne peux pas identifier ce document avec certitude",
           message:
             "Je n’ai pas retrouvé assez d’informations certaines. Essayez une photo plus nette ou le PDF d’origine.",
           dots: 1
@@ -6323,16 +8084,36 @@
           : "Lire la suite";
     }
 
-    function renderActions(actions) {
+    function renderActions(actions, analysis) {
       const list =
         $("actionList");
 
       list.innerHTML = "";
 
+      const isV4 = analysis?.engine === "v4";
+      const realCount = Array.isArray(actions)
+        ? actions.length
+        : 0;
+      const actionRequired = analysis?.action_required;
+
+      // Compter uniquement les actions réelles — jamais un placeholder.
+      $("actionCount").textContent =
+        `${realCount} action${
+          realCount > 1 ? "s" : ""
+        }`;
+
       const values =
-        actions.length
+        realCount
           ? actions
-          : [{
+          : isV4
+            ? [{
+                action:
+                  actionRequired === false
+                    ? "Aucune action requise."
+                    : "Aucune action explicite n’a été détectée dans ce document.",
+                how: ""
+              }]
+            : [{
               action:
                 "Aucune action certaine n’a été identifiée.",
 
@@ -6340,12 +8121,15 @@
                 "Demandez confirmation à l’organisme."
             }];
 
-      $("actionCount").textContent =
-        `${values.length} action${
-          values.length > 1
-            ? "s"
-            : ""
-        }`;
+      const requestTitle = $("requestTitle");
+      if (requestTitle && isV4) {
+        requestTitle.textContent =
+          realCount > 0
+            ? "Les prochaines étapes"
+            : actionRequired === false
+              ? "Aucune action requise"
+              : "Aucune étape détectée";
+      }
 
       values.forEach((item) => {
         const listItem =
@@ -6365,16 +8149,20 @@
 
         explanation.textContent =
           item.how ||
-          "Consultez le document pour vérifier les modalités.";
+          (realCount
+            ? "Consultez le document pour vérifier les modalités."
+            : "");
 
         listItem.appendChild(title);
-        listItem.appendChild(explanation);
+        if (explanation.textContent) {
+          listItem.appendChild(explanation);
+        }
 
         list.appendChild(listItem);
       });
     }
 
-    function renderMainDate(dates) {
+    function renderMainDate(dates, analysis) {
       if (!dates.length) {
         $("mainDate").textContent =
           "Non trouvée";
@@ -6385,12 +8173,16 @@
         return;
       }
 
+      // V4 : respecter l’ordre UserPresentation — pas de choix
+      // « première / dernière / plus récente » côté UI.
       const date =
-        dates.find((item) =>
-          /limite|échéance|paiement|réponse|avant/i.test(
-            `${item.label} ${item.meaning}`
-          )
-        ) || dates[0];
+        analysis?.engine === "v4"
+          ? dates[0]
+          : dates.find((item) =>
+              /limite|échéance|paiement|réponse|avant/i.test(
+                `${item.label} ${item.meaning}`
+              )
+            ) || dates[0];
 
       $("mainDate").textContent =
         date.date;
@@ -8209,6 +10001,9 @@
 
       state.isSelectingFile = false;
       state.isCompressing = false;
+      state.dossierDocuments = [];
+      state.clarificationAnswers = [];
+      renderDossierList();
       syncActionControls();
     }
 

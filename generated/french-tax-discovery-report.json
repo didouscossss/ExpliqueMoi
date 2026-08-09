@@ -1,0 +1,59 @@
+{
+  "discovered": 367,
+  "validated": 366,
+  "integrated": 372,
+  "rejected": [],
+  "needsReview": [
+    {
+      "reference": "1535-THLV",
+      "reason": "duplicate normalizedReference with distinct URLs: https://www.impots.gouv.fr/formulaire/1535-thlv/notice-avis-taxe-dhabitation-sur-les-logements-vacants-roles-supplementaires vs https://www.impots.gouv.fr/formulaire/1535-thlv/notice-davis-de-taxe-dhabitation-sur-les-logements-vacants",
+      "status": "needsReview"
+    },
+    {
+      "reference": "2041-GX",
+      "reason": "generic form — thin title",
+      "status": "needsReview"
+    },
+    {
+      "reference": "2041-GX",
+      "reason": "generic form — thin title",
+      "status": "needsReview"
+    }
+  ],
+  "catalogOnlyCount": 107,
+  "families": [
+    "businessTax",
+    "capitalGainsDeclaration",
+    "corporateTax",
+    "foreignAccountsDeclaration",
+    "foreignIncomeDeclaration",
+    "housingTax",
+    "incomeTaxNotice",
+    "incomeTaxReturn",
+    "inheritanceDonation",
+    "professionalBenefits",
+    "professionalIncomeDeclaration",
+    "propertyTax",
+    "rentalIncomeDeclaration",
+    "taxCertificate",
+    "taxCreditReduction",
+    "taxForm",
+    "taxInstruction",
+    "unknownTaxDocument",
+    "vatDeclaration",
+    "wealthTax",
+    "withholdingTax"
+  ],
+  "documentKinds": [
+    "certificate",
+    "form",
+    "instruction",
+    "notice",
+    "other",
+    "taxNotice"
+  ],
+  "withCerfa": 13,
+  "withYears": 21,
+  "withRelations": 6,
+  "notices": 27
+}
