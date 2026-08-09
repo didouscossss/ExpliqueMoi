@@ -2474,7 +2474,7 @@
       </section>
 
       <div class="quick-facts">
-        <section class="quick-fact">
+        <section class="quick-fact" id="mainDateCard">
           <div class="quick-fact-icon">
             📅
           </div>
@@ -2490,7 +2490,7 @@
           </small>
         </section>
 
-        <section class="quick-fact">
+        <section class="quick-fact" id="mainAmountCard">
           <div
             class="quick-fact-icon"
             style="background:var(--orange)"
@@ -2548,7 +2548,7 @@
         </section>
       </div>
 
-      <section class="card result-card actions-card">
+      <section class="card result-card actions-card" id="actionsCard">
         <div class="heading">
           <div class="heading-icon">✅</div>
 
@@ -2569,7 +2569,7 @@
         ></ol>
       </section>
 
-      <section class="card result-card why-card">
+      <section class="card result-card why-card" id="whyCard">
         <div class="heading">
           <div class="heading-icon">💡</div>
 
@@ -2587,7 +2587,7 @@
         <p id="whyReceived"></p>
       </section>
 
-      <section class="card result-card proof-card">
+      <section class="card result-card proof-card" id="proofCard">
         <div class="heading">
           <div class="heading-icon">🔎</div>
 
@@ -6142,11 +6142,58 @@
 
       renderTables(analysis.tables);
 
+      toggleEmptyResultSections(analysis);
+
       beginDocumentConversation(analysis);
 
       updateUnderstandingDisplay(
         analysis
       );
+    }
+
+    function toggleEmptyResultSections(analysis) {
+      const hasDate =
+        Array.isArray(analysis.dates) &&
+        analysis.dates.some(
+          (item) =>
+            item?.date &&
+            !/non trouv/i.test(item.date)
+        );
+
+      const hasAmount =
+        analysis.amount?.value &&
+        !/non trouv|incertitude|aucun/i.test(
+          analysis.amount.value
+        );
+
+      const hasRealActions =
+        Array.isArray(analysis.actions) &&
+        analysis.actions.some(
+          (item) =>
+            item?.action &&
+            !/aucune action/i.test(item.action)
+        );
+
+      const hasWhy =
+        analysis.whyReceived &&
+        !/raison non indiquée|non trouvée avec certitude|information non/i.test(
+          analysis.whyReceived
+        );
+
+      const hasEvidence =
+        Array.isArray(analysis.evidence) &&
+        analysis.evidence.length > 0;
+
+      toggleHidden($("mainDateCard"), !hasDate);
+      toggleHidden($("mainAmountCard"), !hasAmount);
+      toggleHidden($("actionsCard"), !hasRealActions);
+      toggleHidden($("whyCard"), !hasWhy);
+      toggleHidden($("proofCard"), !hasEvidence);
+    }
+
+    function toggleHidden(element, hidden) {
+      if (!element) return;
+      element.classList.toggle("hidden", Boolean(hidden));
     }
 
     function getCategory(documentType) {

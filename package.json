@@ -11,6 +11,7 @@
     "test:pdf-pages": "node scripts/test-pdf-page-limit.mjs",
     "test:photo-compression": "node scripts/test-photo-compression.mjs",
     "test:analysis-quality": "node scripts/test-analysis-quality.mjs",
+    "test:didou": "node scripts/test-didou-engine.mjs",
     "test:upload-payload": "node scripts/test-upload-payload.mjs"
   },
   "dependencies": {
