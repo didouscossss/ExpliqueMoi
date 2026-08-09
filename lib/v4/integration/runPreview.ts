@@ -26,6 +26,10 @@ import {
 } from "./adapters.js";
 import { mapV4ResultToPreviewAnalysis, type PreviewAnalysisMapped } from "./mapToPreview.js";
 import { documentCaseToPreviewJson } from "./documentCaseViewModel.js";
+import {
+  analyzeGenericDocument,
+  genericUnderstandingPreviewPayload
+} from "../generic/index.js";
 
 export interface V4PreviewRunInput {
   pages?: AnalyzePageLike[];
@@ -234,6 +238,40 @@ export function runV4PreviewAnalysis(
         metrics: docCase.metrics,
         safety_ok: safety.ok,
         clarification_question: clar.currentQuestion?.requirementId || null
+      });
+    }
+
+    // V4-Y — compréhension générique (chemin hors fr/tax, fiscalKnowledge=false)
+    try {
+      const primaryText =
+        dossierDocs[0]?.text || adapted.text || input.pastedText || "";
+      if (primaryText.trim()) {
+        const generic = analyzeGenericDocument(
+          {
+            text: primaryText,
+            fileName: dossierDocs[0]?.fileName || null,
+            id: "preview-primary"
+          },
+          { resetIds: Boolean(input.resetIds) }
+        );
+        analysis.generic_understanding =
+          genericUnderstandingPreviewPayload(generic);
+        diagnostics.push({
+          step: "generic_understanding",
+          document_type: generic.documentType,
+          facts: generic.facts.length,
+          important: generic.importantFacts.length,
+          explanations: generic.explanations.length,
+          safety_ok: Object.values(generic.safety).every((n) => n === 0)
+        });
+      }
+    } catch (genericErr) {
+      diagnostics.push({
+        step: "generic_understanding_error",
+        message: String((genericErr as Error)?.message || genericErr).slice(
+          0,
+          200
+        )
       });
     }
 

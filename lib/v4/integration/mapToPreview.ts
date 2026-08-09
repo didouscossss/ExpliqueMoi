@@ -37,6 +37,8 @@ export interface PreviewAnalysisMapped {
   fiscal_document: Record<string, unknown> | null;
   /** V4-R — dossier multi-documents (null si un seul document). */
   document_case?: Record<string, unknown> | null;
+  /** V4-Y — compréhension documentaire générique (hors fiscalité). */
+  generic_understanding?: Record<string, unknown> | null;
   /** Debug Preview — jamais inventé. */
   v4_debug: Record<string, unknown>;
   /** Invariants UI d’intégration. */
@@ -384,6 +386,7 @@ export function mapV4ResultToPreviewAnalysis(
     amounts_detail,
     fiscal_document,
     document_case: null,
+    generic_understanding: null,
     v4_debug: {
       engine: "v4",
       primaryDocumentType: diagnostics.primaryDocumentType,

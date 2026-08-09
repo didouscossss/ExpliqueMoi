@@ -2734,6 +2734,25 @@
       </section>
 
       <section
+        id="genericCard"
+        class="card result-card generic-card hidden"
+        aria-label="Compréhension du document"
+      >
+        <div class="heading">
+          <div class="heading-icon">📄</div>
+          <div>
+            <span class="kicker">Ce document</span>
+            <h2 id="genericHeadline">Compréhension locale</h2>
+          </div>
+        </div>
+        <div id="genericCeDocument" class="fiscal-block"></div>
+        <div id="genericARetenir" class="fiscal-block"></div>
+        <div id="genericEmisPar" class="fiscal-block"></div>
+        <div id="genericPourquoi" class="fiscal-block"></div>
+        <div id="genericIncertain" class="fiscal-block"></div>
+      </section>
+
+      <section
         id="fiscalCard"
         class="card result-card fiscal-card hidden"
         aria-label="Explication fiscale"
@@ -5000,6 +5019,18 @@
       if ($("fiscalCard")) {
         $("fiscalCard").classList.add("hidden");
       }
+      if ($("genericCard")) {
+        $("genericCard").classList.add("hidden");
+      }
+      [
+        "genericCeDocument",
+        "genericARetenir",
+        "genericEmisPar",
+        "genericPourquoi",
+        "genericIncertain"
+      ].forEach((id) => {
+        if ($(id)) $(id).innerHTML = "";
+      });
       [
         "fiscalIdentity",
         "fiscalPurpose",
@@ -6177,6 +6208,12 @@
             ? data.document_case
             : null,
 
+        genericUnderstanding:
+          data?.generic_understanding &&
+          typeof data.generic_understanding === "object"
+            ? data.generic_understanding
+            : null,
+
         actions:
           normalizeActions(data?.actions),
 
@@ -6585,6 +6622,7 @@
       );
 
       renderFiscalDocument(fiscal, analysis.documentCase);
+      renderGenericUnderstanding(analysis.genericUnderstanding);
 
       renderTables(analysis.tables);
 
@@ -7069,6 +7107,79 @@
       event.preventDefault();
       const input = $("clarificationAnswerInput");
       submitClarificationAnswer(input ? input.value : "");
+    }
+
+    function renderGenericUnderstanding(generic) {
+      const card = $("genericCard");
+      if (!card) return;
+      if (!generic || typeof generic !== "object") {
+        card.classList.add("hidden");
+        return;
+      }
+      const aRetenir = Array.isArray(generic.a_retenir)
+        ? generic.a_retenir
+        : [];
+      const pourquoi = Array.isArray(generic.pourquoi)
+        ? generic.pourquoi
+        : [];
+      const uncertain = Array.isArray(generic.information_incertaine)
+        ? generic.information_incertaine
+        : [];
+      // Afficher seulement s’il y a une compréhension utile hors carte fiscale
+      if (!generic.ce_document && !aRetenir.length && !generic.emis_par) {
+        card.classList.add("hidden");
+        return;
+      }
+      card.classList.remove("hidden");
+      setTextIfPresent(
+        "genericHeadline",
+        generic.ce_document || "Compréhension locale"
+      );
+      const ce = $("genericCeDocument");
+      if (ce) {
+        ce.innerHTML = `
+          <h3>Ce document</h3>
+          <p>${escapeHtml(String(generic.ce_document || "Document"))}</p>
+        `;
+      }
+      const hold = $("genericARetenir");
+      if (hold) {
+        hold.innerHTML = aRetenir.length
+          ? `<h3>À retenir</h3><ul class="fiscal-list">${aRetenir
+              .map((x) => `<li>${escapeHtml(String(x))}</li>`)
+              .join("")}</ul>`
+          : "";
+      }
+      const emis = $("genericEmisPar");
+      if (emis) {
+        emis.innerHTML = generic.emis_par
+          ? `<h3>Émis par</h3><p>${escapeHtml(String(generic.emis_par))}</p>`
+          : "";
+      }
+      const why = $("genericPourquoi");
+      if (why) {
+        why.innerHTML = pourquoi.length
+          ? `<details><summary style="cursor:pointer">Pourquoi ?</summary>
+             <ul class="fiscal-list">${pourquoi
+               .map(
+                 (p) =>
+                   `<li><strong>${escapeHtml(
+                     String(p.label || "")
+                   )}</strong> — « ${escapeHtml(
+                     String(p.evidence || "")
+                   )} »</li>`
+               )
+               .join("")}</ul></details>`
+          : "";
+      }
+      const inc = $("genericIncertain");
+      if (inc) {
+        inc.innerHTML = uncertain.length
+          ? `<h3>Information incertaine</h3><ul class="fiscal-list">${uncertain
+              .map((x) => `<li>${escapeHtml(String(x))}</li>`)
+              .join("")}</ul>`
+          : "";
+      }
     }
 
     function renderFiscalDocument(fiscal, documentCase) {

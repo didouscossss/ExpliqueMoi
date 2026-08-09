@@ -28,3 +28,4 @@ export * from "./pipeline/index.js";
 export * from "./integration/index.js";
 export * from "./knowledge/index.js";
 export * from "./localExplanation/index.js";
+export * from "./generic/index.js";

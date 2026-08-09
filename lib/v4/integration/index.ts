@@ -1,5 +1,6 @@
 /**
  * V4-K/O — Intégration Preview contrôlée + view model fiscal.
+ * V4-Y — attache aussi generic_understanding (hors fiscalité).
  */
 
 export { isV4EngineEnabled, type V4FlagRequest } from "./featureFlag.js";

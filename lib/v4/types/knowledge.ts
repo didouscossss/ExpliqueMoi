@@ -1651,8 +1651,9 @@ export interface ExternalSourceRecord {
 /* ─── V4-X — Explication locale déterministe (générique, read-only) ─── */
 
 /**
- * Domaines futurs possibles — seul `fiscal` / `unspecified` sont utilisés en V4-X.
- * Ne pas inventer de couverture hors fiscal ici.
+ * Domaines d’explication locale.
+ * V4-X : fiscal (DocumentCase).
+ * V4-Y : administrative (compréhension générique hors fiscalité).
  */
 export type LocalExplanationDomain =
   | "fiscal"

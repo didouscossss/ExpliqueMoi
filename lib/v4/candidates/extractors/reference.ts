@@ -18,6 +18,10 @@ const REF_PATTERNS: Array<{ re: RegExp; label: string }> = [
   {
     re: /(?:ref(?:erence)?|dossier)\s*[:\s#-]*\s*([A-Z0-9][A-Z0-9\-\/]{3,})/gi,
     label: "ref"
+  },
+  {
+    re: /r[eé]f[eé]rence(?:\s+(?:contrat|dossier|client))?\s*[:\-]\s*([A-Z0-9][A-Z0-9\-\/]{3,})/gi,
+    label: "ref-contrat"
   }
 ];
 

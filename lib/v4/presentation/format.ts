@@ -64,7 +64,8 @@ export function documentTypeLabel(type: string): string {
     certificate: "attestation",
     financialStatement: "état financier",
     explanatoryDocument: "document explicatif",
-    unknown: "document"
+    unknown: "document",
+    renewalNotice: "avis de renouvellement"
   };
   return map[type] || "document";
 }
