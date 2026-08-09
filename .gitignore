@@ -6,3 +6,6 @@ node_modules/
 *.log
 .DS_Store
 /tmp/
+
+# OCR runtime cache (local)
+assets/ocr/.cache/

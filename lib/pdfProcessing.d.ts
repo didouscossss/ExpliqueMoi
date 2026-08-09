@@ -33,3 +33,30 @@ export function extractPdfTextBlocks(
   textLength?: number;
   detail?: string;
 }>;
+
+export function rasterizePdfPages(
+  bytes: Uint8Array | ArrayBuffer | Buffer,
+  options?: {
+    maxPages?: number;
+    scale?: number;
+    quality?: number;
+    password?: string;
+    pageTexts?: Array<{ pageNumber: number; text: string }>;
+  }
+): Promise<{
+  ok: boolean;
+  pageCount: number;
+  images: Array<{
+    pageNumber: number;
+    mimeType: string;
+    bytes: Buffer | Uint8Array;
+    size: number;
+    width: number;
+    height: number;
+    source?: string;
+  }>;
+  readablePages: number[];
+  failedPages: number[];
+  code?: string;
+  message?: string;
+}>;

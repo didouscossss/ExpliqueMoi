@@ -13,6 +13,7 @@ export type LocalExtractionStatus =
 export type LocalExtractionMethod =
   | "direct-text"
   | "local-pdf-text"
+  | "local-ocr"
   | "none";
 
 export interface LocalExtractionSegment {

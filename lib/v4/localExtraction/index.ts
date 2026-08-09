@@ -16,3 +16,10 @@ export {
   extractThenAnalyzeLocally,
   type ExtractThenAnalyzeResult
 } from "./extractThenAnalyzeLocally.js";
+export {
+  ocrImageLocally,
+  MIN_OCR_TEXT_CHARS,
+  MIN_OCR_CONFIDENCE,
+  type OcrImageResult
+} from "./ocrImageLocally.js";
+export { getLocalOcrPaths, getOcrAssetsRoot } from "./ocrPaths.js";
