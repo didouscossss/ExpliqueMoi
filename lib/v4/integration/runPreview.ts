@@ -30,6 +30,7 @@ import {
   analyzeGenericDocument,
   genericUnderstandingPreviewPayload
 } from "../generic/index.js";
+import { extractDocumentLocally } from "../localExtraction/extractDocumentLocally.js";
 
 export interface V4PreviewRunInput {
   pages?: AnalyzePageLike[];
@@ -44,6 +45,99 @@ export interface V4PreviewRunInput {
   resetIds?: boolean;
   /** V4-S — réponses de clarification à appliquer dans l’ordre. */
   clarificationAnswers?: Array<{ questionId?: string; answer: string }>;
+}
+
+function pageBytesFromPreview(
+  page: AnalyzePageLike
+): Uint8Array | null {
+  if (page.bytes) {
+    if (page.bytes instanceof Uint8Array) return new Uint8Array(page.bytes);
+    if (typeof Buffer !== "undefined" && Buffer.isBuffer(page.bytes)) {
+      return Uint8Array.from(page.bytes);
+    }
+  }
+  if (page.base64) {
+    try {
+      return Uint8Array.from(Buffer.from(String(page.base64), "base64"));
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * V4-AD — enrichit les pages image / PDF scanné via extractDocumentLocally.
+ * PDF avec couche texte : inchangé (pas d’OCR).
+ */
+export async function enrichPagesWithLocalExtraction(
+  pages: readonly AnalyzePageLike[]
+): Promise<AnalyzePageLike[]> {
+  const out: AnalyzePageLike[] = [];
+  for (const page of pages) {
+    const copy: AnalyzePageLike = { ...page };
+    const mime = String(page.mimeType || "");
+    const isPdf = mime === "application/pdf";
+    const isImage = mime.startsWith("image/");
+
+    // PDF texte déjà inspecté → ne pas OCR
+    if (isPdf && page.pdfHasText === true) {
+      out.push(copy);
+      continue;
+    }
+
+    if (!isImage && !(isPdf && page.pdfHasText !== true)) {
+      out.push(copy);
+      continue;
+    }
+
+    const bytes = pageBytesFromPreview(page);
+    if (!bytes?.length) {
+      copy.localExtraction = {
+        status: "needsExtraction",
+        method: "none",
+        error: isImage ? "image_bytes_missing" : "pdf_bytes_missing"
+      };
+      out.push(copy);
+      continue;
+    }
+
+    const extracted = await extractDocumentLocally({
+      sourceType: isPdf ? "pdf" : "image",
+      mimeType: mime || null,
+      filename: page.name || null,
+      bytes
+    });
+
+    copy.localExtraction = {
+      status: extracted.status,
+      method: extracted.method,
+      error: extracted.error || null
+    };
+
+    if (extracted.status === "extracted" && extracted.text?.trim()) {
+      copy.ocrText = extracted.text;
+      copy.text = extracted.text;
+      if (isPdf) {
+        // Ne pas forcer pdfHasText : pagesToV4Input utilisera ocrText
+        copy.pdfScanned = true;
+      }
+    }
+    out.push(copy);
+  }
+  return out;
+}
+
+/**
+ * Preview async : OCR local (V4-AC) puis analyse sync existante.
+ */
+export async function runV4PreviewAnalysisAsync(
+  input: V4PreviewRunInput
+): Promise<V4PreviewRunResult> {
+  const pages = Array.isArray(input.pages)
+    ? await enrichPagesWithLocalExtraction(input.pages)
+    : input.pages;
+  return runV4PreviewAnalysis({ ...input, pages });
 }
 
 export interface V4PreviewRunSuccess {

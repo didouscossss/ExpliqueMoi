@@ -25,7 +25,7 @@ import { buildAnalysisPrompt } from "../lib/analysisPrompt.js";
 import { enrichAnalysisResult } from "../lib/analysisEnrichment.js";
 import {
   isV4EngineEnabled,
-  runV4PreviewAnalysis
+  runV4PreviewAnalysisAsync
 } from "../lib/v4PreviewAnalysis.js";
 
 // Limite unique côté document : 4 Mo (pas de limite de pages PDF).
@@ -244,7 +244,8 @@ export default async function handler(request, response) {
       } catch {
         clarificationAnswers = [];
       }
-      const v4Run = runV4PreviewAnalysis({
+      // V4-AD — OCR local (extractDocumentLocally) puis analyse Preview
+      const v4Run = await runV4PreviewAnalysisAsync({
         pages: requestContext.pages,
         pastedText: text,
         clarificationAnswers

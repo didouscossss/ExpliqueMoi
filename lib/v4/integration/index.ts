@@ -20,6 +20,8 @@ export {
 } from "./mapToPreview.js";
 export {
   runV4PreviewAnalysis,
+  runV4PreviewAnalysisAsync,
+  enrichPagesWithLocalExtraction,
   parseMultiDocumentPaste,
   type V4PreviewRunInput,
   type V4PreviewRunResult

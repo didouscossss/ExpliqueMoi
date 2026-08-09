@@ -48,6 +48,17 @@ export interface AnalyzePageLike {
   pdfHasText?: boolean;
   pdfScanned?: boolean;
   pdfPageCount?: number;
+  /** Octets bruts (PDF inspecté / image) — pour OCR local V4-AC. */
+  bytes?: Uint8Array | Buffer | null;
+  base64?: string | null;
+  /** Texte produit par extractDocumentLocally (OCR / PDF texte). */
+  ocrText?: string | null;
+  text?: string | null;
+  localExtraction?: {
+    status?: string;
+    method?: string;
+    error?: string | null;
+  } | null;
 }
 
 export interface V4AdapterResult {
@@ -225,8 +236,8 @@ export function ocrResultToV4Input(ocr: OcrResultLike): V4AdapterResult {
 }
 
 /**
- * Agrège pages upload (PDF inspectés + texte collé) → entrée V4.
- * Images sans OCR local : uniquement le texte collé éventuel.
+ * Agrège pages upload (PDF inspectés + OCR local + texte collé) → entrée V4.
+ * V4-AD : `ocrText` (extractDocumentLocally) prime pour image / PDF scanné.
  */
 export function pagesToV4Input(input: {
   pages?: AnalyzePageLike[];
@@ -238,7 +249,32 @@ export function pagesToV4Input(input: {
   let pageOffset = 0;
 
   for (const page of pages) {
-    if (page.mimeType === "application/pdf") {
+    const ocrText = String(page.ocrText || "").trim();
+    const isPdf = page.mimeType === "application/pdf";
+
+    // V4-AD — texte issu de extractDocumentLocally (image / PDF scanné)
+    if (ocrText) {
+      const pageNo = pageOffset + 1;
+      blocks.push(
+        ...textToV4Blocks(ocrText, {
+          page: pageNo,
+          source: "ocr",
+          idPrefix: `u${page.order ?? pageOffset}_ocr`
+        })
+      );
+      pageOffset += isPdf ? page.pdfPageCount || 1 : 1;
+      diagnostics.push({
+        step: "pagesToV4Input",
+        note: "local_ocr_text",
+        name: page.name,
+        mimeType: page.mimeType,
+        method: page.localExtraction?.method || "local-ocr",
+        chars: ocrText.replace(/\s+/g, "").length
+      });
+      continue;
+    }
+
+    if (isPdf) {
       const adapted = pdfExtractionToV4Blocks(
         {
           pageTexts: page.pdfPageTexts,
@@ -260,13 +296,14 @@ export function pagesToV4Input(input: {
       pageOffset += page.pdfPageCount || adapted.pageCount || 1;
       diagnostics.push(...adapted.diagnostics);
     } else {
-      // Photo / image : pas de nouvel OCR ici
+      // Photo / image sans texte OCR
       pageOffset += 1;
       diagnostics.push({
         step: "pagesToV4Input",
         note: "image_without_local_ocr",
         name: page.name,
-        mimeType: page.mimeType
+        mimeType: page.mimeType,
+        extraction: page.localExtraction?.status || null
       });
     }
   }

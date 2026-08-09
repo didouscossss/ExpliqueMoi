@@ -40,6 +40,7 @@
     "test:v4-document-input": "tsx scripts/test-v4-document-input.mjs",
     "test:v4-local-extraction": "tsx scripts/test-v4-local-extraction.mjs",
     "test:v4-local-ocr": "tsx scripts/test-v4-local-ocr.mjs",
+    "test:v4-preview-ocr": "tsx scripts/test-v4-preview-ocr.mjs",
     "test:v4-typecheck": "tsc -p tsconfig.v4.json --noEmit",
     "knowledge:tax:discover": "tsx scripts/discover-french-tax-knowledge.mjs",
     "knowledge:tax:update": "tsx scripts/update-french-tax-knowledge.mjs",
