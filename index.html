@@ -6604,6 +6604,89 @@
       }
     }
 
+    function renderFieldLocalExplanationHtml(lex) {
+      if (!lex || typeof lex !== "object") return "";
+      const status = lex.status || "unknown";
+      if (status === "unsupported" && !lex.summary) return "";
+      const details = Array.isArray(lex.details) ? lex.details : [];
+      const missing = Array.isArray(lex.missing_information)
+        ? lex.missing_information
+        : [];
+      const why = Array.isArray(lex.why) ? lex.why : [];
+      const sources = Array.isArray(lex.source_refs) ? lex.source_refs : [];
+      return `
+        <div class="fiscal-local-explanation" style="margin-top:0.75rem;display:grid;gap:8px">
+          <p><strong>Explication</strong></p>
+          <p class="fiscal-chip" style="justify-self:start">${escapeHtml(
+            lex.title || "Explication"
+          )}</p>
+          ${
+            lex.summary
+              ? `<p><strong>Ce que cela signifie</strong> — ${escapeHtml(
+                  lex.summary
+                )}</p>`
+              : ""
+          }
+          ${
+            details.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Ce que nous avons trouvé</strong></p>
+                 <ul class="fiscal-list">${details
+                   .slice(0, 5)
+                   .map((d) => `<li>${escapeHtml(d)}</li>`)
+                   .join("")}</ul>`
+              : ""
+          }
+          ${
+            lex.calculation_explanation
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Calcul</strong> — ${escapeHtml(
+                  lex.calculation_explanation
+                )}</p>`
+              : ""
+          }
+          ${
+            missing.length
+              ? `<p style="color:var(--muted);font-size:0.88rem"><strong>Informations manquantes</strong></p>
+                 <ul class="fiscal-list">${missing
+                   .map((m) => `<li>${escapeHtml(m)}</li>`)
+                   .join("")}</ul>`
+              : ""
+          }
+          ${
+            why.length || lex.source_explanation
+              ? `<details style="margin-top:0.25rem">
+                   <summary style="cursor:pointer;color:var(--muted);font-size:0.9rem">Pourquoi ? / Source</summary>
+                   <ul class="fiscal-list" style="margin-top:0.4rem">${why
+                     .slice(0, 4)
+                     .map((w) => `<li>${escapeHtml(w)}</li>`)
+                     .join("")}</ul>
+                   ${
+                     lex.source_explanation
+                       ? `<p class="fiscal-provenance-user">${escapeHtml(
+                           lex.source_explanation
+                         )}</p>`
+                       : ""
+                   }
+                   ${
+                     sources.length
+                       ? `<ul class="fiscal-list">${sources
+                           .slice(0, 2)
+                           .map(
+                             (s) =>
+                               `<li><a href="${escapeHtml(
+                                 s.url
+                               )}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+                                 s.title || s.url
+                               )}</a></li>`
+                           )
+                           .join("")}</ul>`
+                       : ""
+                   }
+                 </details>`
+              : ""
+          }
+        </div>`;
+    }
+
     function renderFieldCalculationHtml(calc) {
       if (!calc || typeof calc !== "object") return "";
       // unsupported : pas de section bruyante — données conservées dans le view model
@@ -7151,7 +7234,8 @@
           understand_cta_label: "M’aider à comprendre cette case",
           information_status_label: f.information_status,
           applicability: f.applicability || null,
-          calculation: f.calculation || null
+          calculation: f.calculation || null,
+          local_explanation: f.local_explanation || null
         }));
       }
 
@@ -7362,6 +7446,7 @@
                           }
                           ${renderFieldApplicabilityHtml(f.applicability)}
                           ${renderFieldCalculationHtml(f.calculation)}
+                          ${renderFieldLocalExplanationHtml(f.local_explanation)}
                           ${
                             Array.isArray(f.general_conditions) &&
                             f.general_conditions.length

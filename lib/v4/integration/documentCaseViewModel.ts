@@ -18,6 +18,14 @@ export function documentCaseToPreviewJson(
   return {
     case_id: docCase.caseId,
     documents_count: docCase.documents.length,
+    local_explanations: (docCase.localExplanations || []).map((e) => ({
+      id: e.id,
+      subject: e.subject,
+      title: e.title,
+      summary: e.summary,
+      status: e.status,
+      importance: e.importance
+    })),
     documents: docCase.documentCentricViews.map((d) => ({
       document_id: d.documentId,
       file_name: d.fileName,
@@ -125,6 +133,34 @@ export function documentCaseToPreviewJson(
                   sources: v.calculation.rule.sources
                 }
               : null
+          }
+        : null,
+      local_explanation: v.localExplanation
+        ? {
+            id: v.localExplanation.id,
+            subject: v.localExplanation.subject,
+            title: v.localExplanation.title,
+            summary: v.localExplanation.summary,
+            details: v.localExplanation.details,
+            status: v.localExplanation.status,
+            importance: v.localExplanation.importance,
+            missing_information: v.localExplanation.missingInformation,
+            why: v.localExplanation.why,
+            source_explanation: v.localExplanation.sourceExplanation,
+            calculation_explanation:
+              v.localExplanation.calculationExplanation,
+            calculation: v.localExplanation.calculation,
+            source_facts: v.localExplanation.sourceFacts.map((f) => ({
+              kind: f.kind,
+              id: f.id,
+              label: f.label,
+              value: f.value,
+              field_code: f.fieldCode,
+              document_id: f.documentId
+            })),
+            rule_refs: v.localExplanation.ruleRefs,
+            source_refs: v.localExplanation.sourceRefs,
+            limits: v.localExplanation.limits
           }
         : null,
       suggested_declared_amount: null

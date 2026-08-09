@@ -776,6 +776,8 @@ export interface TaxAssistanceContext {
   calculationResults?: CalculationResult[];
   derivedValues?: DerivedTaxValue[];
   unresolvedCalculationInputs?: string[];
+  /** V4-X — explications locales (structure seule pour Premium futur). */
+  localExplanations?: LocalExplanation[];
   provenance: KnowledgeProvenance[];
   informationStatus: FieldInformationStatus;
   questions: TaxFieldQuestion[];
@@ -1539,6 +1541,8 @@ export interface CaseCentricFieldView {
   applicability?: TaxApplicabilityEvaluation | null;
   /** V4-U — calcul déterministe (≠ montant à déclarer). */
   calculation?: CalculationResult | null;
+  /** V4-X — explication locale déterministe (read-only). */
+  localExplanation?: LocalExplanation | null;
   suggestedDeclaredAmount: null;
 }
 
@@ -1616,6 +1620,9 @@ export interface DocumentCase {
   calculationResults?: CalculationResult[];
   calculationInvariants?: TaxCalculationInvariants;
   calculationMetrics?: TaxCalculationMetrics;
+  /** V4-X — explications locales déterministes (read-only). */
+  localExplanations?: LocalExplanation[];
+  localExplanationInvariants?: LocalExplanationInvariants;
   metrics: DocumentCaseMetrics;
   taxContext: {
     primaryReferences: string[];
@@ -1639,6 +1646,105 @@ export interface ExternalSourceRecord {
   localBundlingAllowed: boolean | "UNKNOWN";
   retrievalMethod: string;
   notes?: string;
+}
+
+/* ─── V4-X — Explication locale déterministe (générique, read-only) ─── */
+
+/**
+ * Domaines futurs possibles — seul `fiscal` / `unspecified` sont utilisés en V4-X.
+ * Ne pas inventer de couverture hors fiscal ici.
+ */
+export type LocalExplanationDomain =
+  | "fiscal"
+  | "administrative"
+  | "banking"
+  | "insurance"
+  | "contract"
+  | "invoice"
+  | "professional"
+  | "other"
+  | "unspecified";
+
+export type LocalExplanationStatus =
+  | "explained"
+  | "needsInformation"
+  | "conflicted"
+  | "unsupported"
+  | "unknown"
+  | "notApplicable";
+
+export type LocalExplanationImportance = "primary" | "secondary" | "context";
+
+export interface LocalExplanationSourceFact {
+  kind: "document" | "user" | "derived";
+  id: string;
+  label: string;
+  value: string | null;
+  fieldCode?: string | null;
+  documentId?: string | null;
+}
+
+export interface LocalExplanationRuleRef {
+  ruleId: string;
+  version?: string | null;
+  kind?: string | null;
+  status?: string | null;
+  formulaId?: string | null;
+}
+
+export interface LocalExplanationCalculationSlice {
+  status: string;
+  value: number | boolean | null;
+  unit: string | null;
+  formulaId: string | null;
+  version: string | null;
+  summary: string;
+}
+
+/**
+ * Explication utilisateur locale — distincte de DocumentExplanation (V4-G).
+ * FACT ≠ RULE ≠ CALCULATION ≠ EXPLANATION ≠ USER ACTION.
+ */
+export interface LocalExplanation {
+  id: string;
+  domain: LocalExplanationDomain;
+  subject: string;
+  title: string;
+  summary: string;
+  details: string[];
+  importance: LocalExplanationImportance;
+  status: LocalExplanationStatus;
+  sourceFacts: LocalExplanationSourceFact[];
+  ruleRefs: LocalExplanationRuleRef[];
+  sourceRefs: Array<{ title: string; url: string }>;
+  taxYear?: number | null;
+  calculation?: LocalExplanationCalculationSlice | null;
+  calculationExplanation?: string | null;
+  sourceExplanation?: string | null;
+  missingInformation: string[];
+  /** Réponses à « Pourquoi ExpliqueMoi me dit ça ? » */
+  why: string[];
+  limits: string[];
+}
+
+export interface LocalExplanationInvariants {
+  unsupportedExplanationPromoted: number;
+  unknownExplanationPromoted: number;
+  unsourcedExplanation: number;
+  explanationChangedFacts: number;
+  explanationPromotedToDeclaration: number;
+  explanationPromotedToEligibility: number;
+  implicitExplanationAggregation: number;
+}
+
+/**
+ * Frontière Premium future — structure seule, aucun appel réseau/LLM en V4-X.
+ */
+export interface PremiumExplanationContext {
+  caseId: string | null;
+  selectedSubjects: string[];
+  explanations: LocalExplanation[];
+  note: string;
 }
 
 /** Candidat uniforme produit par les source adapters (build-time). */

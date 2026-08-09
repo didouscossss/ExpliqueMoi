@@ -27,3 +27,4 @@ export * from "./presentation/index.js";
 export * from "./pipeline/index.js";
 export * from "./integration/index.js";
 export * from "./knowledge/index.js";
+export * from "./localExplanation/index.js";

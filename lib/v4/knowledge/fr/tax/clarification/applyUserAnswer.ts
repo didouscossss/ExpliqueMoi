@@ -31,6 +31,7 @@ import {
   mergeApplicabilityQuestionsIntoSession
 } from "../applicability/index.js";
 import { evaluateDocumentCaseCalculations } from "../calculation/index.js";
+import { attachLocalExplanations } from "../../../../localExplanation/index.js";
 
 export interface ApplyClarificationResult {
   state: ClarificationState;
@@ -465,7 +466,7 @@ function finalizeWithRecalc(
   };
   const calc = evaluateDocumentCaseCalculations(withApp);
 
-  const documentCase: DocumentCase = {
+  const documentCase: DocumentCase = attachLocalExplanations({
     ...withApp,
     calculationResults: calc.results,
     calculationInvariants: calc.invariants,
@@ -478,7 +479,7 @@ function finalizeWithRecalc(
     })),
     suggestedDeclaredAmount: null,
     eligibilityDecision: null
-  };
+  });
 
   // Safety: no aggregation from user facts
   if (documentCase.suggestedDeclaredAmount != null) {

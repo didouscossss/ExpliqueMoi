@@ -234,5 +234,14 @@ export type {
   CalculationResult,
   CalculationExplanation,
   TaxCalculationInvariants,
-  TaxCalculationMetrics
+  TaxCalculationMetrics,
+  LocalExplanationDomain,
+  LocalExplanationStatus,
+  LocalExplanationImportance,
+  LocalExplanationSourceFact,
+  LocalExplanationRuleRef,
+  LocalExplanationCalculationSlice,
+  LocalExplanation,
+  LocalExplanationInvariants,
+  PremiumExplanationContext
 } from "./knowledge.js";

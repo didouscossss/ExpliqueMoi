@@ -38,6 +38,7 @@ import {
 import {
   evaluateDocumentCaseCalculations
 } from "../calculation/calculateDerivedValue.js";
+import { attachLocalExplanations } from "../../../../localExplanation/index.js";
 
 export interface DocumentCaseInput {
   text: string;
@@ -607,7 +608,7 @@ export function buildDocumentCase(
     calculation: calc.results.find((r) => r.fieldCode === v.fieldCode) || null
   }));
 
-  return {
+  const withCalc: DocumentCase = {
     ...draftWithApp,
     caseCentricViews,
     calculationResults: calc.results,
@@ -615,6 +616,9 @@ export function buildDocumentCase(
     calculationMetrics: calc.metrics,
     suggestedDeclaredAmount: null
   };
+
+  // V4-X — explications locales déterministes (read-only, après calcul)
+  return attachLocalExplanations(withCalc);
 }
 
 function buildCaseCentricViews(
@@ -850,6 +854,9 @@ export function buildCaseTaxAssistanceContext(
       .filter((d): d is NonNullable<typeof d> => Boolean(d)),
     unresolvedCalculationInputs: (docCase.calculationResults || []).flatMap(
       (r) => r.missingInputs
+    ),
+    localExplanations: (docCase.localExplanations || []).filter(
+      (e) => e.subject === fieldCode.toUpperCase()
     )
   };
 }
