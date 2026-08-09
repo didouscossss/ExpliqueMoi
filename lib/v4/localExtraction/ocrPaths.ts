@@ -10,9 +10,33 @@ import { existsSync } from "node:fs";
 const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-/** Racine assets OCR vendored (repo). */
+function ocrRootLooksReady(root: string): boolean {
+  const coreOk = existsSync(
+    path.join(root, "core", "tesseract-core-simd-lstm.wasm.js")
+  );
+  const fraOk =
+    existsSync(path.join(root, "lang", "fra.traineddata.gz")) ||
+    existsSync(path.join(root, "lang", "fra.traineddata"));
+  return coreOk && fraOk;
+}
+
+/**
+ * Racine assets OCR vendored (repo).
+ * Accepte source (`lib/v4/localExtraction`) et bundle Preview (`lib/v4Preview.bundle.mjs`).
+ */
 export function getOcrAssetsRoot(): string {
-  return path.resolve(HERE, "../../../assets/ocr");
+  const candidates = [
+    // Source TS : lib/v4/localExtraction → assets/ocr
+    path.resolve(HERE, "../../../assets/ocr"),
+    // Bundle Vercel/Preview : lib/v4Preview.bundle.mjs → assets/ocr
+    path.resolve(HERE, "../assets/ocr"),
+    // CWD repo (tests / scripts)
+    path.resolve(process.cwd(), "assets/ocr")
+  ];
+  for (const root of candidates) {
+    if (ocrRootLooksReady(root)) return root;
+  }
+  return candidates[0];
 }
 
 export function getLocalOcrPaths(): {

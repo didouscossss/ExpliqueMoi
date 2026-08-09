@@ -225,6 +225,7 @@ export function runV4PreviewAnalysis(
           "document";
         const list = byFile.get(key) || [];
         const pageText =
+          (p as { ocrText?: string }).ocrText ||
           (p as { text?: string }).text ||
           (p as { content?: string }).content ||
           "";
