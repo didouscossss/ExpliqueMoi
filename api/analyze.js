@@ -15,7 +15,7 @@ import {
   buildTooLargeMessage
 } from "../lib/pdfChunking.js";
 import { enrichAnalysisResult } from "../lib/analysisEnrichment.js";
-import { analyzeDocumentWithDidou } from "../lib/didou/index.js";
+import { analyzeDocumentWithDidouAsync } from "../lib/didou/index.js";
 import { buildDidoutorContext } from "../lib/didoutor/index.js";
 
 // Limite unique côté document : 4 Mo (pas de limite de pages PDF).
@@ -246,9 +246,9 @@ export default async function handler(request, response) {
       diagnostics: requestContext.diagnostics
     };
 
-    // -------- Didou (local) — parcours standard sans Gemini --------
+    // -------- Didou (local) — OCR si besoin, puis analyse — sans Gemini --------
     const didouStarted = Date.now();
-    const didouRun = analyzeDocumentWithDidou({
+    const didouRun = await analyzeDocumentWithDidouAsync({
       pastedText: text,
       pages: requestContext.pages,
       fileName: requestContext.pages[0]?.name || null,
@@ -256,6 +256,7 @@ export default async function handler(request, response) {
     });
     const didouDurationMs = Date.now() - didouStarted;
 
+    requestContext.diagnostics.push(...(didouRun.ocrDiagnostics || []));
     requestContext.diagnostics.push({
       step: "didou_analyze",
       engine: "didou",
@@ -265,18 +266,30 @@ export default async function handler(request, response) {
       understandingLevel: didouRun.didou?.understandingLevel || null,
       confidence: didouRun.didou?.confidence ?? null,
       durationMs: didouDurationMs,
-      charCount: didouRun.didou?.meta?.charCount ?? null
+      charCount: didouRun.didou?.meta?.charCount ?? null,
+      extractionMethods: didouRun.didou?.meta?.extractionMethods || [],
+      ocrUncertain: Boolean(didouRun.didou?.meta?.ocrUncertain)
     });
+
+    for (const warning of didouRun.didou?.warnings || []) {
+      if (warning && !requestContext.warnings.includes(warning)) {
+        requestContext.warnings.push(warning);
+      }
+    }
+
+    const methods = didouRun.didou?.meta?.extractionMethods || [];
+    const usedOcr = methods.includes("local-ocr");
 
     pdfProcessing = {
       ...pdfProcessing,
-      mode: "didou_local",
+      mode: usedOcr ? "didou_local_ocr" : "didou_local",
       engine: "didou",
       durationMs: didouDurationMs,
+      extractionMethods: methods,
       readablePages:
         pdfProcessing.pageCount > 0
           ? Array.from({ length: pdfProcessing.pageCount }, (_, i) => i + 1)
-          : pdfProcessing.hasText
+          : pdfProcessing.hasText || usedOcr
             ? [1]
             : [],
       diagnostics: requestContext.diagnostics
@@ -326,8 +339,9 @@ export default async function handler(request, response) {
         pageCount: pdfProcessing.pageCount,
         readablePages: pdfProcessing.readablePages,
         failedPages: pdfProcessing.failedPages,
-        hasText: pdfProcessing.hasText,
+        hasText: pdfProcessing.hasText || usedOcr,
         scanned: pdfProcessing.scanned,
+        extractionMethods: methods,
         durationMs: didouDurationMs
       })
     );

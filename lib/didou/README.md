@@ -3,10 +3,18 @@
 Parcours **gratuit / standard** d’ExpliqueMoi.
 
 ```
-Document → extraction texte (pdfjs) → Didou → résultat utilisateur
+Document → extraction texte (pdfjs)
+        → OCR local Tesseract (si image / PDF scanné)
+        → Didou → résultat utilisateur
 ```
 
 **Aucun appel Gemini / OpenAI** dans ce pipeline.
+
+### OCR (quand ?)
+- PDF avec couche texte exploitable → **pas d’OCR**
+- PDF scanné → raster + OCR local (max 8 pages)
+- Image / photo → OCR local
+- OCR faible confiance → texte gardé mais marqué `uncertain` (pas un fait certain)
 
 ## Couches
 
