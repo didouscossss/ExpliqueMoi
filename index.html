@@ -2474,7 +2474,7 @@
       </section>
 
       <div class="quick-facts">
-        <section class="quick-fact">
+        <section class="quick-fact" id="mainDateCard">
           <div class="quick-fact-icon">
             📅
           </div>
@@ -2490,7 +2490,7 @@
           </small>
         </section>
 
-        <section class="quick-fact">
+        <section class="quick-fact" id="mainAmountCard">
           <div
             class="quick-fact-icon"
             style="background:var(--orange)"
@@ -2548,7 +2548,7 @@
         </section>
       </div>
 
-      <section class="card result-card actions-card">
+      <section class="card result-card actions-card" id="actionsCard">
         <div class="heading">
           <div class="heading-icon">✅</div>
 
@@ -2569,7 +2569,7 @@
         ></ol>
       </section>
 
-      <section class="card result-card why-card">
+      <section class="card result-card why-card" id="whyCard">
         <div class="heading">
           <div class="heading-icon">💡</div>
 
@@ -2587,7 +2587,7 @@
         <p id="whyReceived"></p>
       </section>
 
-      <section class="card result-card proof-card">
+      <section class="card result-card proof-card" id="proofCard">
         <div class="heading">
           <div class="heading-icon">🔎</div>
 
@@ -5637,8 +5637,57 @@
         readingQuality = "partial";
       }
 
+      const userSummary =
+        data?.user_summary &&
+        typeof data.user_summary === "object"
+          ? data.user_summary
+          : null;
+
+      const summaryFromUser = cleanText(
+        userSummary?.one_sentence
+      );
+      const labelFromUser = cleanText(
+        userSummary?.document_label
+      );
+      const importantPoints = Array.isArray(
+        userSummary?.important_points
+      )
+        ? userSummary.important_points
+            .map((item) => cleanText(item))
+            .filter(
+              (item) =>
+                item &&
+                !/date trouvée|montant trouvé|rôle non|information incertaine/i.test(
+                  item
+                )
+            )
+            .slice(0, 5)
+        : [];
+
+      const mainDateFromUser =
+        userSummary?.main_date &&
+        typeof userSummary.main_date === "object"
+          ? userSummary.main_date
+          : null;
+      const mainAmountFromUser =
+        userSummary?.main_amount &&
+        typeof userSummary.main_amount === "object"
+          ? userSummary.main_amount
+          : null;
+
+      const amountValue =
+        cleanText(mainAmountFromUser?.value) ||
+        cleanText(amount?.value) ||
+        "";
+      const amountMeaning =
+        cleanText(mainAmountFromUser?.meaning) ||
+        cleanText(mainAmountFromUser?.label) ||
+        cleanText(amount?.meaning) ||
+        "";
+
       return {
         documentType:
+          labelFromUser ||
           cleanText(data?.document_type) ||
           "Document non identifié",
 
@@ -5649,8 +5698,11 @@
           ),
 
         summary:
+          summaryFromUser ||
           cleanText(data?.plain_summary) ||
           "Résumé indisponible.",
+
+        importantPoints,
 
         request:
           cleanText(data?.request) ||
@@ -5664,19 +5716,33 @@
           normalizeActions(data?.actions),
 
         dates:
-          normalizeDates(
-            data?.enriched_dates || data?.dates
+          prioritizeClientDates(
+            normalizeDates(
+              data?.enriched_dates || data?.dates
+            ),
+            mainDateFromUser,
+            labelFromUser || data?.document_type
           ),
 
         amount: {
           value:
-            cleanText(amount?.value) ||
-            "Non trouvé",
+            amountValue &&
+            !/non trouvé|non trouvée|incertitude/i.test(
+              amountValue
+            )
+              ? amountValue
+              : "Non trouvé",
 
           meaning:
-            cleanText(amount?.meaning) ||
-            "Aucun montant identifié."
+            amountValue &&
+            !/non trouvé|non trouvée|incertitude/i.test(
+              amountValue
+            )
+              ? amountMeaning || "Montant principal"
+              : "Aucun montant certain identifié."
         },
+
+        userSummary,
 
         urgency: {
           level:
@@ -6017,10 +6083,27 @@
 
       let summaryText = analysis.summary;
 
+      if (
+        Array.isArray(analysis.importantPoints) &&
+        analysis.importantPoints.length
+      ) {
+        summaryText = `${summaryText}\n\n${analysis.importantPoints
+          .map((point) => `• ${point}`)
+          .join("\n")}`;
+      }
+
       // Avertissement discret uniquement si l’analyse est réellement exploitable
       if (hasWarnings) {
-        summaryText =
-          `${analysis.summary}\n\n⚠️ ${analysis.warnings[0]}`;
+        const usefulWarning = analysis.warnings.find(
+          (item) =>
+            !/date trouvée|montant trouvé|rôle non|information incertaine/i.test(
+              item || ""
+            )
+        );
+        if (usefulWarning) {
+          summaryText =
+            `${summaryText}\n\n⚠️ ${usefulWarning}`;
+        }
       }
 
       $("summaryText").textContent =
@@ -6036,7 +6119,8 @@
       );
 
       renderMainDate(
-        analysis.dates
+        analysis.dates,
+        analysis.documentType
       );
 
       $("mainAmount").textContent =
@@ -6058,6 +6142,8 @@
 
       renderTables(analysis.tables);
 
+      toggleEmptyResultSections(analysis);
+
       beginDocumentConversation(analysis);
 
       updateUnderstandingDisplay(
@@ -6065,9 +6151,70 @@
       );
     }
 
+    function toggleEmptyResultSections(analysis) {
+      const hasDate =
+        Array.isArray(analysis.dates) &&
+        analysis.dates.some(
+          (item) =>
+            item?.date &&
+            !/non trouv/i.test(item.date)
+        );
+
+      const hasAmount =
+        analysis.amount?.value &&
+        !/non trouv|incertitude|aucun/i.test(
+          analysis.amount.value
+        );
+
+      const hasRealActions =
+        Array.isArray(analysis.actions) &&
+        analysis.actions.some(
+          (item) =>
+            item?.action &&
+            !/aucune action/i.test(item.action)
+        );
+
+      const hasWhy =
+        analysis.whyReceived &&
+        !/raison non indiquée|non trouvée avec certitude|information non/i.test(
+          analysis.whyReceived
+        );
+
+      const hasEvidence =
+        Array.isArray(analysis.evidence) &&
+        analysis.evidence.length > 0;
+
+      toggleHidden($("mainDateCard"), !hasDate);
+      toggleHidden($("mainAmountCard"), !hasAmount);
+      toggleHidden($("actionsCard"), !hasRealActions);
+      toggleHidden($("whyCard"), !hasWhy);
+      toggleHidden($("proofCard"), !hasEvidence);
+    }
+
+    function toggleHidden(element, hidden) {
+      if (!element) return;
+      element.classList.toggle("hidden", Boolean(hidden));
+    }
+
     function getCategory(documentType) {
       if (
-        /facture|paiement/i.test(
+        /quittance|loyer|bail/i.test(
+          documentType
+        )
+      ) {
+        return "Logement";
+      }
+
+      if (
+        /liasse|2031|fiscal|impôt|cerfa|déclaration de résultats/i.test(
+          documentType
+        )
+      ) {
+        return "Fiscal";
+      }
+
+      if (
+        /facture|avoir|devis|paiement/i.test(
           documentType
         )
       ) {
@@ -6075,7 +6222,7 @@
       }
 
       if (
-        /assemblée|copropriété|procès-verbal/i.test(
+        /assemblée|copropriété|procès-verbal|convocation/i.test(
           documentType
         )
       ) {
@@ -6329,23 +6476,33 @@
 
       list.innerHTML = "";
 
+      const realActions = Array.isArray(actions)
+        ? actions.filter(
+            (item) =>
+              item?.action &&
+              !/aucune action certaine|non identifiée/i.test(
+                item.action
+              )
+          )
+        : [];
+
       const values =
-        actions.length
-          ? actions
+        realActions.length
+          ? realActions
           : [{
               action:
-                "Aucune action certaine n’a été identifiée.",
+                "Aucune action particulière n’est demandée.",
 
               how:
-                "Demandez confirmation à l’organisme."
+                "Conservez ce document. Aucune démarche urgente n’a été détectée."
             }];
 
       $("actionCount").textContent =
-        `${values.length} action${
-          values.length > 1
-            ? "s"
-            : ""
-        }`;
+        realActions.length
+          ? `${realActions.length} action${
+              realActions.length > 1 ? "s" : ""
+            }`
+          : "0 action";
 
       values.forEach((item) => {
         const listItem =
@@ -6374,23 +6531,48 @@
       });
     }
 
-    function renderMainDate(dates) {
-      if (!dates.length) {
+    function renderMainDate(dates, documentType) {
+      const useful = Array.isArray(dates)
+        ? dates.filter(
+            (item) =>
+              item?.date &&
+              !/rôle non|non déterminé|date trouvée|historique|mention légale/i.test(
+                `${item.label} ${item.meaning} ${item.type || ""}`
+              )
+          )
+        : [];
+
+      if (!useful.length) {
         $("mainDate").textContent =
           "Non trouvée";
 
         $("mainDateMeaning").textContent =
-          "Aucune échéance certaine";
+          "Aucune date principale certaine";
 
         return;
       }
 
+      const type = String(documentType || "").toLowerCase();
+
       const date =
-        dates.find((item) =>
-          /limite|échéance|paiement|réponse|avant/i.test(
-            `${item.label} ${item.meaning}`
+        useful.find((item) =>
+          /assemblée|copropriété|convocation/.test(type) &&
+          /assemblée|meeting|convocation|ag\b/i.test(
+            `${item.label} ${item.meaning} ${item.type || ""}`
           )
-        ) || dates[0];
+        ) ||
+        useful.find((item) =>
+          /quittance|loyer/.test(type) &&
+          /période|period|loyer/i.test(
+            `${item.label} ${item.meaning} ${item.type || ""}`
+          )
+        ) ||
+        useful.find((item) =>
+          /limite|échéance|paiement|réponse|avant|rendez-vous|assemblée|période|due|deadline|appointment|meeting|period/i.test(
+            `${item.label} ${item.meaning} ${item.type || ""}`
+          )
+        ) ||
+        useful[0];
 
       $("mainDate").textContent =
         date.date;
@@ -6398,7 +6580,61 @@
       $("mainDateMeaning").textContent =
         date.meaning ||
         date.label ||
-        "Date mentionnée";
+        "Date importante";
+    }
+
+    function prioritizeClientDates(dates, mainDateFromUser, documentType) {
+      const list = Array.isArray(dates) ? [...dates] : [];
+
+      if (
+        mainDateFromUser?.date &&
+        !list.some(
+          (item) =>
+            cleanText(item.date) ===
+            cleanText(mainDateFromUser.date)
+        )
+      ) {
+        list.unshift({
+          date: cleanText(mainDateFromUser.date),
+          label:
+            cleanText(mainDateFromUser.label) ||
+            "Date importante",
+          meaning: cleanText(mainDateFromUser.meaning),
+          type: "",
+          page: "",
+          context: "",
+          confidence: 90
+        });
+      }
+
+      const type = String(documentType || "").toLowerCase();
+
+      return list
+        .filter(
+          (item) =>
+            item.date &&
+            !/rôle non|non déterminé|date trouvée/i.test(
+              `${item.label} ${item.meaning}`
+            )
+        )
+        .sort((a, b) => {
+          const score = (item) => {
+            let value = Number(item.confidence) || 50;
+            const blob = `${item.label} ${item.meaning} ${item.type || ""}`.toLowerCase();
+            if (/limite|échéance|deadline|due|assemblée|période|rendez-vous/.test(blob)) {
+              value += 30;
+            }
+            if (/quittance|loyer/.test(type) && /période|period/.test(blob)) {
+              value += 40;
+            }
+            if (/historique|mention légale|table/.test(blob)) {
+              value -= 40;
+            }
+            return value;
+          };
+          return score(b) - score(a);
+        })
+        .slice(0, 4);
     }
 
     function renderUrgency(urgency) {
