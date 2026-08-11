@@ -120,6 +120,32 @@ try {
     pass("FACTURE", `${didou.mainAmount.value} | ${didou.mainDate.date}`);
   }
 
+  // E — Facture photo SIMER : contexte OCR sale mais faits utiles propres
+  {
+    const simerOcr = `
+GRAND CHATELLERAULT
+SIMER
+Organisme de Gestion SIMER - Service Public de Prévention et de Gestion des Déchets Ménagers
+Date du relevé : 01/04/2026
+REDEVANCE INCITATIVE
+1er Semestre 2026
+Part FIXE Abonnements aux services 70,02 €
+Forfait proportionnel 45,25 €
+Montant dû (TTC) 115,27 €
+Payable sous trente jours, à réception de facture
+Voir détail sur la 3ème page
+`;
+    const didou = runDidouPipeline({ text: simerOcr, fileName: "photo-simer.jpg" });
+    assert.equal(didou.family, "facture");
+    assert.equal(didou.mainAmount?.value, "115,27 €");
+    assert.match(String(didou.mainDate?.date || ""), /30|trente/i);
+    assert.ok(didou.importantFacts.some((f) => /1er semestre 2026/i.test(String(f.value || ""))));
+    assert.match(String(didou.issuer || ""), /SIMER/i);
+    assert.ok(didou.evidence.every((e) => String(e.quote || "").length <= 190));
+    assert.ok(!String(didou.mainAmount?.meaning || "").includes("bacs individuels"));
+    pass("FACTURE_SIMER_OCR", `${didou.mainAmount.value} | ${didou.mainDate.date} | ${didou.issuer}`);
+  }
+
   // E — Texte vide → partiel, pas d’invention
   {
     const didou = runDidouPipeline({ text: "" });
