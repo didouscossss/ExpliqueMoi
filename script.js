@@ -842,3 +842,94 @@ function wait(milliseconds) {
     setTimeout(resolve, milliseconds);
   });
 }
+/* =========================================================
+   DIDOU — PERSONNAGES SELON L'ÉTAT
+   ========================================================= */
+
+const DIDOU_CHARACTERS = {
+  thinking: {
+    image: "assets/didou-reflechis.png",
+    badge: "Analyse en cours",
+    title: "Je lis votre document",
+    text: "Didou analyse les informations importantes.",
+    className: "is-thinking",
+    loader: true
+  },
+
+  partial: {
+    image: "assets/didou-compris-partiellement.png",
+    badge: "Compris partiellement",
+    title: "J’ai compris une partie du document",
+    text: "Certaines informations sont claires, mais quelques éléments restent à vérifier.",
+    className: "is-partial",
+    loader: false
+  },
+
+  failed: {
+    image: "assets/didou-pas-compris.png",
+    badge: "Impossible à lire",
+    title: "Je n’ai pas réussi à lire ce document",
+    text: "La qualité de la photo ou le format ne permet pas une lecture suffisamment fiable.",
+    className: "is-failed",
+    loader: false
+  },
+
+  didoutor: {
+    image: "assets/didoutor-reflechis.png",
+    badge: "Didoutor en cours",
+    title: "Je travaille pour vous",
+    text: "Didoutor analyse le document plus en détail.",
+    className: "is-didoutor",
+    loader: true
+  }
+};
+
+function showDidouState(stateName) {
+  const config = DIDOU_CHARACTERS[stateName];
+
+  if (!config) return;
+
+  const card = document.getElementById("didouStateCard");
+  const image = document.getElementById("didouStateImage");
+  const badge = document.getElementById("didouStateBadge");
+  const title = document.getElementById("didouStateTitle");
+  const text = document.getElementById("didouStateText");
+  const loader = document.getElementById("didouStateLoader");
+
+  if (!card || !image || !badge || !title || !text) {
+    return;
+  }
+
+  card.classList.remove(
+    "is-thinking",
+    "is-partial",
+    "is-failed",
+    "is-didoutor"
+  );
+
+  card.classList.add(config.className);
+
+  image.src = config.image;
+  image.alt = config.title;
+
+  badge.textContent = config.badge;
+  title.textContent = config.title;
+  text.textContent = config.text;
+
+  if (loader) {
+    loader.hidden = !config.loader;
+  }
+
+  card.hidden = false;
+}
+
+function hideDidouState() {
+  const card = document.getElementById("didouStateCard");
+
+  if (card) {
+    card.hidden = true;
+  }
+}
+
+window.showDidouState = showDidouState;
+window.hideDidouState = hideDidouState;
