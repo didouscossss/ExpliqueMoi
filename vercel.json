@@ -3,7 +3,7 @@
     "api/analyze.js": {
       "maxDuration": 60,
       "memory": 1024,
-      "includeFiles": "{node_modules/pdfjs-dist/**,assets/fonts/**,lib/**}"
+      "includeFiles": "{node_modules/pdfjs-dist/**,node_modules/tesseract.js/**,node_modules/tesseract.js-core/**,assets/fonts/**,assets/ocr/**,lib/**}"
     },
     "api/assist.js": {
       "maxDuration": 30

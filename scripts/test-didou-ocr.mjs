@@ -3,6 +3,7 @@
  * Tests OCR local Didou — 0 Gemini / 0 OpenAI / 0 CDN.
  */
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { createCanvas } from "@napi-rs/canvas";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import {
@@ -264,6 +265,18 @@ Date limite : 20/04/2026`);
     assert.ok(!/callGeminiForAnalysis/.test(analyzeSrc));
     assert.ok(!/openai/i.test(analyzeSrc));
     assert.ok(/analyzeDocumentWithDidouAsync/.test(analyzeSrc));
+
+    const vercelConfig = fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8");
+    assert.match(vercelConfig, /assets\/ocr\/\*\*/);
+    assert.match(vercelConfig, /node_modules\/tesseract\.js\/\*\*/);
+    assert.match(vercelConfig, /node_modules\/tesseract\.js-core\/\*\*/);
+
+    const ocrSrc = fs.readFileSync(
+      new URL("../lib/didou/ocr/ocrImageLocally.js", import.meta.url),
+      "utf8"
+    );
+    assert.match(ocrSrc, /OCR_TIMEOUT_MS = 35_000/);
+    assert.match(ocrSrc, /Promise\.race/);
     pass("NO_AI_PROVIDER", `fetch=${fetchCalls}`);
   }
 } catch (error) {
