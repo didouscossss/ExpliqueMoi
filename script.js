@@ -271,7 +271,6 @@ async function analyzeManualText() {
 
 async function sendAnalysis(formData) {
   showScreen("loadingScreen");
-  showDidouState("thinking");
   startProgress();
 
   try {
