@@ -1007,3 +1007,89 @@ body.dark-theme .hero-badge {
 
   font-size: 19px;
   font-weight: 850
+/* =========================================================
+   ACCUEIL — UPLOAD AU PREMIER PLAN
+   ========================================================= */
+
+.upload-card {
+  padding: 28px 22px;
+  border-radius: 30px;
+  text-align: center;
+}
+
+.upload-card h2 {
+  margin: 0 0 10px;
+  font-size: clamp(1.7rem, 6vw, 2.25rem);
+}
+
+.upload-card > p {
+  max-width: 520px;
+  margin: 0 auto 24px;
+  line-height: 1.5;
+  opacity: 0.78;
+}
+
+.upload-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.upload-choice {
+  min-height: 92px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.upload-choice-icon {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.45rem;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.secondary-button .upload-choice-icon {
+  background: rgba(120, 92, 240, 0.10);
+}
+
+.upload-choice-copy {
+  display: block;
+}
+
+.upload-choice-copy strong,
+.upload-choice-copy small {
+  display: block;
+}
+
+.upload-choice-copy strong {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.upload-choice-copy small {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  opacity: 0.72;
+}
+
+@media (max-width: 620px) {
+  .upload-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-card {
+    padding: 24px 18px;
+  }
+}
