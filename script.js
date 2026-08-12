@@ -485,6 +485,26 @@ function normalizeEvidence(evidence) {
 /* AFFICHAGE DU RÉSULTAT */
 
 function renderAnalysis(analysis) {
+  const resultCharacterImage =
+  document.getElementById("resultCharacterImage");
+
+const understanding =
+  String(
+    analysis.understandingLevel ||
+    analysis.confidenceLevel ||
+    ""
+  ).toLowerCase();
+
+if (resultCharacterImage) {
+  const isPartial =
+    understanding === "partial" ||
+    understanding === "medium" ||
+    understanding === "uncertain";
+
+  resultCharacterImage.src = isPartial
+    ? "assets/didou-compris-partiellement.png"
+    : "/file_00000000a1cc820d9e8e42399a9cc0b0.png";
+}
   setText("documentType", analysis.documentType);
   setText("plainSummary", analysis.summary);
   setText("documentRequest", analysis.request);
