@@ -2317,14 +2317,38 @@
           <div class="loading-step">
             💡 Préparation d’une explication simple
           </div>
-        </div>
-      </div>
+            </div>
+    </div>
+
+    <!-- DIDOU PENDANT LE CHARGEMENT -->
+    <section
+      class="didou-state-card"
+      id="didouStateCard"
+      hidden
+    >
+      <div class="didou-state-image-wrap">
+  <img
+    id="didouStateImage"
+    class="didou-state-image"
+    src="assets/images/didou-reflechis.png"
+    alt="Didou réfléchit"
+  />
+</div>
+
+<div class="didou-state-content">
+  <strong id="didouStateTitle">Didou réfléchit...</strong>
+  <p id="didouStateMessage">
+    Je lis votre document et je vérifie les informations importantes.
+  </p>
+</div>
     </section>
 
-    <section
-      id="resultScreen"
-      class="screen results"
-    >
+  </section> <!-- fermeture de loadingScreen -->
+
+  <section
+    id="resultScreen"
+    class="screen results"
+  >
       <div>
         <button
           id="newDocumentButton"
