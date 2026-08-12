@@ -501,7 +501,7 @@ if (resultCharacterImage) {
     understanding === "uncertain";
 
   resultCharacterImage.src = isPartial
-    ? "assets/didou-compris-partiellement.png"
+    ? "assets/didou a compris partiellement.png"
     : "/file_00000000a1cc820d9e8e42399a9cc0b0.png";
 }
   setText("documentType", analysis.documentType);
