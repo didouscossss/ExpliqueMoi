@@ -309,7 +309,6 @@ showScreen("resultScreen");
  } catch (error) {
   stopProgress();
 
-  showDidouState("failed");
 
   showError(
     "Impossible d’analyser ce document",
@@ -506,7 +505,7 @@ if (resultCharacterImage) {
     : "/file_00000000a1cc820d9e8e42399a9cc0b0.png";
 }
   setText("documentType", analysis.documentType);
-  setText("plainSummary", analysis.summary);
+  setText("plainSummary", buildShortSummary(analysis));
   setText("documentRequest", analysis.request);
   setText("whyReceived", analysis.whyReceived);
 
@@ -531,7 +530,49 @@ if (resultCharacterImage) {
   $("detailsSection")?.classList.add("hidden");
   $("evidenceSection")?.classList.add("hidden");
 }
+function buildShortSummary(analysis) {
+  const type = String(analysis.documentType || "").trim();
+  const issuer = String(analysis.issuer || "").trim();
+  const amount = String(analysis.amount?.value || "").trim();
 
+  const period = String(
+    analysis.period?.raw ||
+    analysis.mainPeriod?.raw ||
+    ""
+  ).trim();
+
+  const actions = Array.isArray(analysis.actions)
+    ? analysis.actions
+    : [];
+
+  const firstAction = String(
+    actions[0]?.action || ""
+  ).trim();
+
+  const parts = [];
+
+  if (type) {
+    parts.push(
+      issuer
+        ? `C’est une ${type.toLowerCase()} émise par ${issuer}.`
+        : `C’est une ${type.toLowerCase()}.`
+    );
+  }
+
+  if (amount) {
+    parts.push(`Montant principal : ${amount}.`);
+  }
+
+  if (period) {
+    parts.push(`Période concernée : ${period}.`);
+  }
+
+  if (firstAction) {
+    parts.push(`À faire : ${firstAction}.`);
+  }
+
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+}
 function setText(id, value) {
   const element = $(id);
 
