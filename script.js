@@ -299,20 +299,24 @@ async function sendAnalysis(formData) {
 
     state.lastAnalysis = normalizeAnalysis(data);
 
-    finishProgress();
+finishProgress();
 
-    await wait(500);
+await wait(500);
 
-    renderAnalysis(state.lastAnalysis);
-    showScreen("resultScreen");
-  } catch (error) {
-    stopProgress();
+    hideDidouState();
 
-    showError(
-      "Impossible d’analyser ce document",
-      getFriendlyError(error)
-    );
-  }
+renderAnalysis(state.lastAnalysis);
+showScreen("resultScreen");
+ } catch (error) {
+  stopProgress();
+
+  showDidouState("failed");
+
+  showError(
+    "Impossible d’analyser ce document",
+    getFriendlyError(error)
+  );
+}
 }
 
 function getFriendlyError(error) {
