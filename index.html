@@ -924,7 +924,33 @@
       font-size: 0.92em;
       opacity: 0.9;
     }
+.error-character {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
+  width: 190px;
+  height: 190px;
+
+  margin: 0 auto 18px;
+
+  overflow: hidden;
+}
+
+.error-character-image {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: contain;
+  object-position: center;
+
+  filter:
+    drop-shadow(
+      0 14px 22px rgba(34, 39, 78, 0.18)
+    );
+}
     .progress {
       overflow: hidden;
 
@@ -2848,9 +2874,9 @@
 
     <section id="errorScreen" class="screen">
       <div class="card error-card">
-        <div class="error-character">
+     <div class="error-character">
   <img
-    src = "assets/je n'ai pas compris.png";
+    src="assets/je n'ai pas compris.png"
     alt="Didou n'a pas compris le document"
     class="error-character-image"
   />
