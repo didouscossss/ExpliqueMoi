@@ -14,6 +14,7 @@
     "test:didou": "node scripts/test-didou-engine.mjs",
     "test:didou-ocr": "node scripts/test-didou-ocr.mjs",
     "test:pdf-mixed-pages": "node scripts/test-pdf-mixed-pages.mjs",
+    "test:structural-centrality": "node scripts/test-structural-centrality.mjs",
     "test:upload-payload": "node scripts/test-upload-payload.mjs"
   },
   "dependencies": {
