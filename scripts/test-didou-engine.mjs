@@ -32,7 +32,8 @@ import {
   CARTE_GRISE,
   AVIS_ECHEANCE_ENERGIE,
   ATTESTATION_EMPLOYEUR_FRANCE_TRAVAIL,
-  SINISTRE_ASSURANCE
+  SINISTRE_ASSURANCE,
+  CONFIRMATION_SOUSCRIPTION_ENERGIE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -574,6 +575,24 @@ try {
     pass(
       "SINISTRE_ASSURANCE",
       `${didou.family} | ${didou.documentType} | ${didou.mainAmount.value}`
+    );
+  }
+
+  // D20 — Confirmation de souscription énergie : "le contrat ENTRE
+  // en vigueur le..." (verbe) doit être reconnu au même titre que
+  // "date d'ENTRÉE en vigueur" (nom, déjà couvert) ; "jusqu'au X"
+  // doit être reconnu comme une échéance au même titre que
+  // "avant le X".
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONFIRMATION_SOUSCRIPTION_ENERGIE
+    });
+    assert.ok(didou.mainDate?.date, "une date doit être retenue");
+    assert.match(didou.mainDate.date, /01\/04\/2026/);
+    assert.equal(didou.mainDate.role, "startDate");
+    pass(
+      "CONFIRMATION_SOUSCRIPTION",
+      `${didou.mainDate.date} (${didou.mainDate.role})`
     );
   }
 
