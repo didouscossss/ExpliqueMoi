@@ -20,7 +20,8 @@ import {
   CONTRAT_TRAVAIL_CDI,
   NOTIFICATION_TROP_PERCU_CAF,
   DECOMPTE_CPAM,
-  AVIS_IMPOT_REVENU
+  AVIS_IMPOT_REVENU,
+  AVIS_ECHEANCE_ASSURANCE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -246,6 +247,24 @@ try {
     pass(
       "AVIS_IMPOT_REVENU",
       `${didou.family} | ${didou.mainAmount.value} (${didou.mainAmount.role})`
+    );
+  }
+
+  // D8 — Avis d'échéance assurance : cotisation prélevée automatiquement
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: AVIS_ECHEANCE_ASSURANCE
+    });
+    assert.equal(didou.family, "assurance");
+    assert.match(String(didou.documentType), /[ée]ch[ée]ance/i);
+    assert.ok(didou.mainAmount?.value);
+    assert.match(didou.mainAmount.value, /187,40/);
+    assert.equal(didou.mainAmount.role, "automaticDebitAmount");
+    assert.ok(didou.mainDate?.date);
+    assert.match(didou.mainDate.date, /15\/07\/2026/);
+    pass(
+      "AVIS_ECHEANCE_ASSURANCE",
+      `${didou.family} | ${didou.mainAmount.value} | ${didou.mainDate.date}`
     );
   }
 
