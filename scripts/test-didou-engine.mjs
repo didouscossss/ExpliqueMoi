@@ -29,7 +29,9 @@ import {
   RELEVE_CARRIERE_CNAV,
   CONVENTION_STAGE,
   AVIS_CONTRAVENTION,
-  CARTE_GRISE
+  CARTE_GRISE,
+  AVIS_ECHEANCE_ENERGIE,
+  ATTESTATION_EMPLOYEUR_FRANCE_TRAVAIL
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -512,6 +514,43 @@ try {
       `une explication spécifique doit être donnée (reçu ${JSON.stringify(didou.whyReceived)})`
     );
     pass("CARTE_GRISE", `${didou.family} | ${didou.documentType}`);
+  }
+
+  // D17 — Avis d'échéance énergie : une phrase précédente sans
+  // rapport mentionnant "pénalité" ne doit pas faire passer le
+  // montant normal qui suit pour une pénalité elle-même — et
+  // "montant à régler" (aussi courant que "montant à payer") doit
+  // être reconnu comme montant dû.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: AVIS_ECHEANCE_ENERGIE
+    });
+    assert.ok(didou.mainAmount, "le montant à régler doit être retenu");
+    assert.match(didou.mainAmount.value, /89,50[\s  ]€/);
+    assert.equal(
+      didou.mainAmount.role,
+      "amountDue",
+      "un montant normal précédé d'une phrase mentionnant \"pénalité\" ne doit pas devenir lui-même une pénalité"
+    );
+    pass(
+      "AVIS_ECHEANCE_ENERGIE",
+      `${didou.mainAmount.value} (${didou.mainAmount.role})`
+    );
+  }
+
+  // D18 — Attestation employeur : l'obligation passive au féminin
+  // ("cette attestation doit être transmise") doit être reconnue au
+  // même titre que sa forme masculine ("ce document doit être
+  // transmis") déjà couverte.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: ATTESTATION_EMPLOYEUR_FRANCE_TRAVAIL
+    });
+    assert.ok(
+      didou.actions.length >= 1,
+      "l'obligation de transmission au féminin (\"doit être transmise\") doit être reconnue comme action"
+    );
+    pass("ATTESTATION_EMPLOYEUR", `actions=${didou.actions.length}`);
   }
 
   // E — Texte vide → partiel, pas d’invention
