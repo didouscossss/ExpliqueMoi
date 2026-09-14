@@ -25,7 +25,9 @@ import {
   CONFIRMATION_RESILIATION,
   AVIS_PASSAGE_COLIS,
   LIASSE_FISCALE_2032,
-  CONVOCATION_MEDICALE
+  CONVOCATION_MEDICALE,
+  RELEVE_CARRIERE_CNAV,
+  CONVENTION_STAGE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -408,6 +410,47 @@ try {
     pass(
       "CONVOCATION_MEDICALE",
       `${didou.mainDate.date} (${didou.mainDate.role}) | actions=${didou.actions.length}`
+    );
+  }
+
+  // D13 — Relevé de carrière CNAV : "assurance vieillesse" est le
+  // nom légal de la branche retraite de la Sécurité sociale, pas de
+  // l'assurance privée — ne doit pas être classé "assurance".
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: RELEVE_CARRIERE_CNAV
+    });
+    assert.equal(didou.family, "retraite");
+    assert.match(didou.documentType || "", /carrière|carriere/i);
+    assert.notEqual(
+      didou.family,
+      "assurance",
+      "un relevé de carrière CNAV ne doit pas être confondu avec un document d'assurance privée"
+    );
+    assert.ok(
+      didou.whyReceived && /carrière|carriere|retraite/i.test(didou.whyReceived),
+      `une explication spécifique doit être donnée, pas null ni une phrase générique (reçu ${JSON.stringify(didou.whyReceived)})`
+    );
+    pass("RELEVE_CARRIERE_CNAV", `${didou.family} | ${didou.documentType}`);
+  }
+
+  // D14 — Convention de stage : type de document totalement hors
+  // catalogue, mais avec une échéance et une action clairement
+  // extraites — la confiance ne doit pas rester à un niveau
+  // ridiculement bas au point de contredire ces faits fiables.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONVENTION_STAGE
+    });
+    assert.ok(didou.mainDate?.date, "l'échéance doit être trouvée malgré l'absence de fiche Knowledge");
+    assert.ok(didou.actions.length >= 1, "l'action doit être trouvée malgré l'absence de fiche Knowledge");
+    assert.ok(
+      didou.confidence > 15,
+      `la confiance ne doit pas rester proche de zéro quand une échéance et une action fiables existent (reçu ${didou.confidence})`
+    );
+    pass(
+      "CONVENTION_STAGE",
+      `confidence=${didou.confidence} | mainDate=${didou.mainDate.date} | actions=${didou.actions.length}`
     );
   }
 
