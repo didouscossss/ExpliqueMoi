@@ -13,7 +13,11 @@ import {
   QUITTANCE_LOYER,
   LIASSE_FISCALE_2031,
   CONVOCATION_AG,
-  FACTURE_FREE
+  FACTURE_FREE,
+  MISE_EN_DEMEURE,
+  REJET_PRELEVEMENT,
+  CONTRAT_TRAVAIL_CDI,
+  NOTIFICATION_TROP_PERCU_CAF
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -119,6 +123,74 @@ try {
     assert.match(didou.mainAmount.value, /14,99|14.99/);
     assert.ok(didou.mainDate?.date);
     pass("FACTURE", `${didou.mainAmount.value} | ${didou.mainDate.date}`);
+  }
+
+  // D2 — Mise en demeure (juridique) : famille + action réellement requise
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: MISE_EN_DEMEURE
+    });
+    assert.equal(didou.family, "juridique");
+    assert.match(String(didou.documentType), /mise en demeure/i);
+    assert.equal(didou.brain?.decision?.actionRequired, true);
+    assert.ok(didou.actions.length >= 1, "une mise en demeure doit produire une action");
+    assert.ok(
+      didou.actions.some((a) => /r[ée]gler|payer/i.test(a.action)),
+      "l'action doit porter sur le règlement de la somme due"
+    );
+    pass(
+      "MISE_EN_DEMEURE",
+      `${didou.family} | ${didou.documentType} | actions=${didou.actions.length}`
+    );
+  }
+
+  // D3 — Rejet de prélèvement (bancaire) : reconnu même sans hypothèse concurrente
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: REJET_PRELEVEMENT
+    });
+    assert.equal(didou.family, "bancaire");
+    assert.match(String(didou.documentType), /rejet.*pr[ée]l|pr[ée]l.*rejet/i);
+    assert.equal(didou.brain?.decision?.actionRequired, true);
+    assert.ok(didou.actions.length >= 1);
+    pass(
+      "REJET_PRELEVEMENT",
+      `${didou.family} | ${didou.documentType} | actions=${didou.actions.length}`
+    );
+  }
+
+  // D4 — Contrat de travail : pas d'action fabriquée, pas de dump de contexte brut
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONTRAT_TRAVAIL_CDI
+    });
+    assert.equal(didou.family, "emploi");
+    assert.match(String(didou.documentType), /contrat de travail/i);
+    assert.ok(didou.mainDate?.date);
+    assert.ok(
+      didou.mainDate.meaning.length < 100,
+      `meaning ne doit pas être un dump de contexte brut : "${didou.mainDate.meaning}"`
+    );
+    pass(
+      "CONTRAT_TRAVAIL",
+      `${didou.family} | ${didou.documentType} | ${didou.mainDate.date}`
+    );
+  }
+
+  // D5 — Notification de trop-perçu CAF : famille sociale + action de remboursement
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: NOTIFICATION_TROP_PERCU_CAF
+    });
+    assert.equal(didou.family, "social");
+    assert.match(String(didou.documentType), /trop.per[cç]u/i);
+    assert.equal(didou.brain?.decision?.actionRequired, true);
+    assert.ok(didou.mainAmount?.value);
+    assert.match(didou.mainAmount.value, /340/);
+    pass(
+      "NOTIFICATION_TROP_PERCU",
+      `${didou.family} | ${didou.documentType} | ${didou.mainAmount.value}`
+    );
   }
 
   // E — Texte vide → partiel, pas d’invention
