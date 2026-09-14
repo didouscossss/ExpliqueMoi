@@ -17,7 +17,9 @@ import {
   MISE_EN_DEMEURE,
   REJET_PRELEVEMENT,
   CONTRAT_TRAVAIL_CDI,
-  NOTIFICATION_TROP_PERCU_CAF
+  NOTIFICATION_TROP_PERCU_CAF,
+  DECOMPTE_CPAM,
+  AVIS_IMPOT_REVENU
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -190,6 +192,54 @@ try {
     pass(
       "NOTIFICATION_TROP_PERCU",
       `${didou.family} | ${didou.documentType} | ${didou.mainAmount.value}`
+    );
+  }
+
+  // D6 — Décompte CPAM : le montant REMBOURSÉ, pas la base de calcul
+  //
+  // Régression réelle : "Montant payé : 26,00 €" et "Base de
+  // remboursement : 26,00 €" (même valeur, deux étiquettes
+  // différentes) précédaient "Montant remboursé : 18,20 €". Le
+  // contexte utilisé pour classer le RÔLE de chaque montant
+  // pouvait déborder sur l'étiquette du montant suivant et faire
+  // gagner le mauvais montant (26,00 € au lieu de 18,20 €).
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: DECOMPTE_CPAM
+    });
+    assert.equal(didou.family, "sante");
+    assert.match(String(didou.documentType), /remboursement.*assurance maladie/i);
+    assert.ok(didou.mainAmount?.value);
+    assert.match(
+      didou.mainAmount.value,
+      /18,20/,
+      `le montant principal doit être le montant REMBOURSÉ (18,20 €), pas la base de calcul : reçu "${didou.mainAmount.value}"`
+    );
+    assert.equal(didou.mainAmount.role, "refundAmount");
+    pass("DECOMPTE_CPAM", `${didou.family} | ${didou.mainAmount.value}`);
+  }
+
+  // D7 — Avis d'impôt : plusieurs montants rapprochés, aucune contamination
+  //
+  // Régression réelle : "Revenu fiscal de référence : 32 400 €"
+  // (une référence, pas un montant payé) récupérait le rôle
+  // "paidAmount" à cause d'une étiquette "Montant déjà prélevé à
+  // la source" appartenant à un AUTRE montant, plus loin dans le
+  // même paragraphe.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: AVIS_IMPOT_REVENU
+    });
+    assert.equal(didou.family, "fiscal");
+    assert.match(String(didou.documentType), /imp[oô]t sur le revenu/i);
+    assert.ok(didou.mainAmount?.value);
+    assert.ok(
+      !/32.400|32 400/.test(didou.mainAmount.value),
+      `le revenu fiscal de référence n'est pas un montant payé : reçu "${didou.mainAmount.value}"`
+    );
+    pass(
+      "AVIS_IMPOT_REVENU",
+      `${didou.family} | ${didou.mainAmount.value} (${didou.mainAmount.role})`
     );
   }
 
