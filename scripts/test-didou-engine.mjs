@@ -39,7 +39,8 @@ import {
   CHANGEMENT_RIB,
   AVIS_TAXE_HABITATION,
   RADIATION_FRANCE_TRAVAIL,
-  RELANCE_FACTURE_IMPAYEE
+  RELANCE_FACTURE_IMPAYEE,
+  VISITE_MEDECINE_TRAVAIL
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -712,6 +713,30 @@ try {
       "un montant explicitement impayé ne doit pas rester classé comme simple ligne de détail de facture"
     );
     pass("RELANCE_FACTURE_IMPAYEE", `${didou.documentType} | ${didou.mainAmount.value}`);
+  }
+
+  // D27 — Convocation à une visite médicale du travail : régression
+  // critique du même type que RADIATION_FRANCE_TRAVAIL, mais côté
+  // catalogue cette fois. La fiche "Convocation à une assemblée
+  // générale de copropriété" contenait la phrase générique "vous
+  // êtes convoqué" (sans "assemblée" dans la phrase elle-même) —
+  // identique à trois autres fiches de convocation (médicale,
+  // France Travail, judiciaire). N'importe quelle convocation
+  // pouvait ainsi gagner des points AG copropriété rien qu'en
+  // employant cette formule pourtant on ne peut plus généraliste.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: VISITE_MEDECINE_TRAVAIL
+    });
+    assert.notEqual(
+      didou.documentType,
+      "Convocation à une assemblée générale de copropriété",
+      "\"vous êtes convoqué\" seul ne doit pas faire gagner la fiche AG copropriété"
+    );
+    assert.equal(didou.family, "sante");
+    assert.match(didou.documentType || "", /médicale|medicale/i);
+    assert.match(didou.mainDate?.date || "", /22\/04\/2026/);
+    pass("VISITE_MEDECINE_TRAVAIL", `${didou.family} | ${didou.documentType}`);
   }
 
   // E — Texte vide → partiel, pas d’invention
