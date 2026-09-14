@@ -21,7 +21,8 @@ import {
   NOTIFICATION_TROP_PERCU_CAF,
   DECOMPTE_CPAM,
   AVIS_IMPOT_REVENU,
-  AVIS_ECHEANCE_ASSURANCE
+  AVIS_ECHEANCE_ASSURANCE,
+  CONFIRMATION_RESILIATION
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -265,6 +266,35 @@ try {
     pass(
       "AVIS_ECHEANCE_ASSURANCE",
       `${didou.family} | ${didou.mainAmount.value} | ${didou.mainDate.date}`
+    );
+  }
+
+  // D9 — Confirmation de résiliation : AUCUN type dans le catalogue
+  // Knowledge ne couvre ce cas (pas de fiche "résiliation télécom") —
+  // c'est un test de raisonnement générique, pas de correspondance
+  // catalogue. Régression réelle : le signal "prélèvement du dernier
+  // mois" (secondaire) l'emportait sur le vrai sujet de la lettre
+  // (confirmer une résiliation), donnant "Avis de prélèvement".
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONFIRMATION_RESILIATION
+    });
+    assert.match(
+      String(didou.documentType),
+      /r[ée]siliation/i,
+      `le sujet réel de la lettre (résiliation) doit primer sur le détail secondaire (prélèvement) : reçu "${didou.documentType}"`
+    );
+    assert.equal(didou.brain?.consensus?.intent, "decision");
+    assert.match(didou.whyReceived, /r[ée]siliation|annulation/i);
+    // L'action "annuler la résiliation avant le 25/06" doit survivre,
+    // même optionnelle (actionRequired peut rester false).
+    assert.ok(
+      didou.actions.some((a) => /annuler/i.test(a.action)),
+      "la possibilité d'annuler la résiliation doit rester visible"
+    );
+    pass(
+      "CONFIRMATION_RESILIATION",
+      `${didou.documentType} | ${didou.actions.length} action(s)`
     );
   }
 
