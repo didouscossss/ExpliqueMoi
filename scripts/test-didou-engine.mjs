@@ -33,7 +33,8 @@ import {
   AVIS_ECHEANCE_ENERGIE,
   ATTESTATION_EMPLOYEUR_FRANCE_TRAVAIL,
   SINISTRE_ASSURANCE,
-  CONFIRMATION_SOUSCRIPTION_ENERGIE
+  CONFIRMATION_SOUSCRIPTION_ENERGIE,
+  NOTIFICATION_DROITS_CAF_MULTI
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -594,6 +595,23 @@ try {
       "CONFIRMATION_SOUSCRIPTION",
       `${didou.mainDate.date} (${didou.mainDate.role})`
     );
+  }
+
+  // D21 — Notification de droits CAF (multi-prestations) : "le
+  // versement ... sera effectué le X" (futur, annonce d'un paiement
+  // à venir) doit être reconnu comme paymentDate, au même titre que
+  // "payé le X" (passé/constaté), déjà couvert.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: NOTIFICATION_DROITS_CAF_MULTI
+    });
+    const paymentDate = (didou.brain?.dates || []).find(
+      (d) => d.value === "05/02/2026"
+    );
+    assert.ok(paymentDate, "la date de versement doit être extraite");
+    assert.equal(paymentDate.role, "paymentDate");
+    assert.equal(paymentDate.verified, true);
+    pass("NOTIFICATION_DROITS_CAF_MULTI", `05/02/2026 (${paymentDate.role})`);
   }
 
   // E — Texte vide → partiel, pas d’invention
