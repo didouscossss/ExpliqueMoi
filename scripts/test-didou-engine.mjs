@@ -23,7 +23,9 @@ import {
   AVIS_IMPOT_REVENU,
   AVIS_ECHEANCE_ASSURANCE,
   CONFIRMATION_RESILIATION,
-  AVIS_PASSAGE_COLIS
+  AVIS_PASSAGE_COLIS,
+  LIASSE_FISCALE_2032,
+  CONVOCATION_MEDICALE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -341,6 +343,67 @@ try {
     pass(
       "AVIS_PASSAGE_COLIS",
       `mainDate=${didou.mainDate.date} | label="${didou.userSummary?.document_label}" | actions=${didou.actions.length}`
+    );
+  }
+
+  // D11 — Liasse fiscale, annexe 2032 : ne doit pas être confondue
+  // avec le 2031-SD (vocabulaire partagé "liasse"/"résultat
+  // fiscal"/"bénéfices"), doit retenir le résultat FINAL de
+  // l'exercice comme montant principal (pas un résultat
+  // intermédiaire "avant impôt", ni une valeur de tableau
+  // générique), et doit reconnaître l'échéance de transmission
+  // même formulée à la voix passive ("doit être transmis").
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: LIASSE_FISCALE_2032
+    });
+    assert.equal(didou.family, "fiscal");
+    assert.doesNotMatch(
+      didou.documentType || "",
+      /2031/,
+      "un formulaire 2032 ne doit pas être présenté comme le 2031-SD"
+    );
+    assert.match(didou.documentType || "", /2032|annexe/i);
+    assert.ok(didou.mainAmount, "un montant principal doit être retenu");
+    assert.match(didou.mainAmount.value, /87[\s  ]450,00[\s  ]€/);
+    assert.doesNotMatch(
+      didou.mainAmount.value,
+      /84[\s  ]500,00[\s  ]€/,
+      "le résultat intermédiaire \"avant impôt\" ne doit pas l'emporter sur le résultat final de l'exercice"
+    );
+    assert.ok(
+      !/table_value|unknown/i.test(didou.mainAmount.role || ""),
+      "le résultat de l'exercice ne doit pas rester classé comme valeur de tableau générique"
+    );
+    assert.ok(didou.mainDate?.date, "l'échéance de transmission doit être trouvée");
+    assert.match(didou.mainDate.date, /20\/05\/2026/);
+    pass(
+      "LIASSE_2032",
+      `${didou.documentType} | ${didou.mainAmount.value} | ${didou.mainDate.date}`
+    );
+  }
+
+  // D12 — Convocation médicale : date de convocation formulée avec
+  // un verbe ("vous êtes convoqué ... le") plutôt qu'un mot-clé
+  // isolé ("convocation") — doit tout de même être reconnue comme
+  // meetingDate, avec une action de rappel synthétisée à partir de
+  // faits déjà vérifiés (aucune fiche Knowledge ne couvre ce cas
+  // précis : généralisation du pipeline, pas une règle ad hoc).
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONVOCATION_MEDICALE
+    });
+    assert.equal(didou.family, "sante");
+    assert.ok(didou.mainDate?.date, "la date du rendez-vous doit être trouvée");
+    assert.match(didou.mainDate.date, /15\/11\/2026/);
+    assert.equal(didou.mainDate.role, "meetingDate");
+    assert.ok(
+      didou.actions.length >= 1,
+      "une échéance vérifiée doit se traduire par une action visible pour l'utilisateur"
+    );
+    pass(
+      "CONVOCATION_MEDICALE",
+      `${didou.mainDate.date} (${didou.mainDate.role}) | actions=${didou.actions.length}`
     );
   }
 
