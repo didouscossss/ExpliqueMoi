@@ -9,6 +9,7 @@ import {
 } from "../lib/didou/index.js";
 import { buildDidoutorContext } from "../lib/didoutor/index.js";
 import { extractActionPhrases } from "../lib/didou/extract/actions.js";
+import { extractDatesAndPeriods } from "../lib/didou/extract/dates.js";
 import {
   QUITTANCE_LOYER,
   LIASSE_FISCALE_2031,
@@ -169,13 +170,18 @@ try {
     assert.equal(didou.family, "emploi");
     assert.match(String(didou.documentType), /contrat de travail/i);
     assert.ok(didou.mainDate?.date);
+    assert.equal(
+      didou.mainDate.role,
+      "startDate",
+      "la date d'entrée en fonction ('à compter du') doit être reconnue comme date de début, pas comme période couverte par accident"
+    );
     assert.ok(
       didou.mainDate.meaning.length < 100,
       `meaning ne doit pas être un dump de contexte brut : "${didou.mainDate.meaning}"`
     );
     pass(
       "CONTRAT_TRAVAIL",
-      `${didou.family} | ${didou.documentType} | ${didou.mainDate.date}`
+      `${didou.family} | ${didou.documentType} | ${didou.mainDate.date} (${didou.mainDate.role})`
     );
   }
 
@@ -308,6 +314,39 @@ Vous êtes invité à signer le formulaire ci-joint avant le 10/05/2026.
     pass(
       "ACTION_SENTENCE_CONTEXT",
       `"${signAction.phrase}" ⊂ "${signAction.sentence}"`
+    );
+  }
+
+  // H — Contexte de dates rapprochées non contaminé (non-régression)
+  //
+  // Régression réelle : dans "Contrat émis le 10/06/2026. Vous
+  // devez régler avant le 20/07/2026.", la date d'émission
+  // récupérait le rôle "deadline" à cause de la phrase suivante,
+  // présente dans son rayon de contexte de 120 caractères.
+  {
+    const text = [
+      "AVIS D'ECHEANCE ASSURANCE HABITATION",
+      "",
+      "Contrat emis le 10/06/2026.",
+      "Vous devez regler votre cotisation avant le 20/07/2026, sous peine de resiliation."
+    ].join("\n");
+
+    const { dates } = extractDatesAndPeriods(text);
+    const issueDate = dates.find((d) => d.raw === "10/06/2026");
+    const deadlineDate = dates.find((d) => d.raw === "20/07/2026");
+
+    assert.ok(issueDate);
+    assert.ok(deadlineDate);
+    assert.equal(
+      issueDate.hint,
+      "issueDate",
+      `la date d'émission ne doit pas hériter du rôle de la phrase suivante : reçu "${issueDate.hint}"`
+    );
+    assert.equal(deadlineDate.hint, "deadline");
+
+    pass(
+      "DATE_CONTEXT_NOT_CONTAMINATED",
+      `10/06=${issueDate.hint} | 20/07=${deadlineDate.hint}`
     );
   }
 
