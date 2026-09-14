@@ -27,7 +27,8 @@ import {
   LIASSE_FISCALE_2032,
   CONVOCATION_MEDICALE,
   RELEVE_CARRIERE_CNAV,
-  CONVENTION_STAGE
+  CONVENTION_STAGE,
+  AVIS_CONTRAVENTION
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -451,6 +452,35 @@ try {
     pass(
       "CONVENTION_STAGE",
       `confidence=${didou.confidence} | mainDate=${didou.mainDate.date} | actions=${didou.actions.length}`
+    );
+  }
+
+  // D15 — Avis de contravention : "forfaitaire" ne doit pas être
+  // confondu avec "forfait" (ligne de détail de facture — abonnement
+  // téléphonique, forfait mobile...), et le montant de base dû
+  // (35 €) doit l'emporter sur le montant majoré conditionnel
+  // ("si paiement tardif", 75 €) qui ne s'applique pas encore.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: AVIS_CONTRAVENTION
+    });
+    assert.equal(didou.family, "juridique");
+    assert.match(didou.documentType || "", /contravention/i);
+    assert.ok(didou.mainAmount, "un montant principal doit être retenu");
+    assert.match(didou.mainAmount.value, /35,00[\s  ]€/);
+    assert.notEqual(
+      didou.mainAmount.role,
+      "invoiceLineAmount",
+      "\"amende forfaitaire\" ne doit pas être confondue avec une ligne de détail de facture (\"forfait\")"
+    );
+    assert.doesNotMatch(
+      didou.mainAmount.value,
+      /75,00[\s  ]€/,
+      "le montant majoré conditionnel ne doit pas l'emporter sur le montant de base actuellement dû"
+    );
+    pass(
+      "AVIS_CONTRAVENTION",
+      `${didou.documentType} | ${didou.mainAmount.value} (${didou.mainAmount.role})`
     );
   }
 
