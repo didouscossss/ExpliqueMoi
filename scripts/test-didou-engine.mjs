@@ -37,7 +37,9 @@ import {
   NOTIFICATION_DROITS_CAF_MULTI,
   CONTROLE_TECHNIQUE,
   CHANGEMENT_RIB,
-  AVIS_TAXE_HABITATION
+  AVIS_TAXE_HABITATION,
+  RADIATION_FRANCE_TRAVAIL,
+  RELANCE_FACTURE_IMPAYEE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -668,6 +670,48 @@ try {
       "le montant majoré conditionnel ne doit pas l'emporter sur le montant de base dû"
     );
     pass("AVIS_TAXE_HABITATION", `${didou.documentType} | ${didou.mainAmount.value}`);
+  }
+
+  // D25 — Notification de radiation France Travail : un seul mot
+  // ("convocation", en référence à une convocation PASSÉE et
+  // manquée) ne doit pas router vers l'adaptateur spécialisé AG
+  // copropriété ni faire perdre la vraie identification (une
+  // notification de radiation, pas une convocation à venir).
+  // Régression réelle : avec confiance 30/100, family="copropriete"
+  // routait vers adaptCondoMeeting qui affichait "Convocation à une
+  // assemblée générale de copropriété" avec une action absurde.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: RADIATION_FRANCE_TRAVAIL
+    });
+    assert.notEqual(
+      didou.documentType,
+      "Convocation à une assemblée générale de copropriété",
+      "un mot \"convocation\" isolé ne doit pas faire passer ce document pour une AG de copropriété"
+    );
+    assert.equal(didou.family, "social");
+    assert.match(didou.documentType || "", /radiation/i);
+    pass("RADIATION_FRANCE_TRAVAIL", `${didou.family} | ${didou.documentType}`);
+  }
+
+  // D26 — Relance de facture impayée : une phrase sans rapport plus
+  // loin dans le document ("sans régularisation sous 8 jours")
+  // ne doit pas faire passer le montant impayé pour une simple
+  // ligne de détail de facture (abonnement, etc.) ; "demeure
+  // impayée" doit être reconnu comme montant dû.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: RELANCE_FACTURE_IMPAYEE
+    });
+    assert.equal(didou.family, "facture");
+    assert.ok(didou.mainAmount, "le montant impayé doit être retenu");
+    assert.match(didou.mainAmount.value, /45,90[\s  ]€/);
+    assert.equal(
+      didou.mainAmount.role,
+      "amountDue",
+      "un montant explicitement impayé ne doit pas rester classé comme simple ligne de détail de facture"
+    );
+    pass("RELANCE_FACTURE_IMPAYEE", `${didou.documentType} | ${didou.mainAmount.value}`);
   }
 
   // E — Texte vide → partiel, pas d’invention
