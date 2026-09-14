@@ -34,7 +34,10 @@ import {
   ATTESTATION_EMPLOYEUR_FRANCE_TRAVAIL,
   SINISTRE_ASSURANCE,
   CONFIRMATION_SOUSCRIPTION_ENERGIE,
-  NOTIFICATION_DROITS_CAF_MULTI
+  NOTIFICATION_DROITS_CAF_MULTI,
+  CONTROLE_TECHNIQUE,
+  CHANGEMENT_RIB,
+  AVIS_TAXE_HABITATION
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -612,6 +615,59 @@ try {
     assert.equal(paymentDate.role, "paymentDate");
     assert.equal(paymentDate.verified, true);
     pass("NOTIFICATION_DROITS_CAF_MULTI", `05/02/2026 (${paymentDate.role})`);
+  }
+
+  // D22 — Contrôle technique : "doit être présenté" (voix passive,
+  // verbe "présenter" pas encore couvert) doit devenir une action
+  // au même titre que "doit être transmis" déjà couvert.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONTROLE_TECHNIQUE
+    });
+    assert.ok(didou.mainDate?.date, "la date de contre-visite doit être trouvée");
+    assert.match(didou.mainDate.date, /15\/04\/2026/);
+    assert.ok(
+      didou.actions.length >= 1,
+      "l'obligation de représenter le véhicule (\"doit être présenté\") doit devenir une action"
+    );
+    pass("CONTROLE_TECHNIQUE", `mainDate=${didou.mainDate.date} | actions=${didou.actions.length}`);
+  }
+
+  // D23 — Changement de RIB : ce document ANNONCE un changement de
+  // RIB, il n'EST pas un RIB — l'alias très court "rib" (3 lettres)
+  // ne doit pas suffire à le faire classer comme "Relevé d'identité
+  // bancaire".
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CHANGEMENT_RIB
+    });
+    assert.equal(didou.family, "bancaire");
+    assert.notEqual(
+      didou.documentType,
+      "Relevé d'identité bancaire",
+      "une confirmation de changement de RIB n'est pas un RIB elle-même"
+    );
+    pass("CHANGEMENT_RIB", `${didou.family} | ${didou.documentType}`);
+  }
+
+  // D24 — Avis de taxe d'habitation : absente du catalogue jusqu'ici
+  // (seule la taxe foncière existait) ; le montant de base dû doit
+  // l'emporter sur le montant majoré conditionnel, comme pour
+  // l'avis de contravention plus tôt dans la session.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: AVIS_TAXE_HABITATION
+    });
+    assert.equal(didou.family, "fiscal");
+    assert.match(didou.documentType || "", /taxe d'habitation|taxe d habitation/i);
+    assert.ok(didou.mainAmount, "un montant principal doit être retenu");
+    assert.match(didou.mainAmount.value, /1[\s  ]240,00[\s  ]€/);
+    assert.doesNotMatch(
+      didou.mainAmount.value,
+      /1[\s  ]364,00[\s  ]€/,
+      "le montant majoré conditionnel ne doit pas l'emporter sur le montant de base dû"
+    );
+    pass("AVIS_TAXE_HABITATION", `${didou.documentType} | ${didou.mainAmount.value}`);
   }
 
   // E — Texte vide → partiel, pas d’invention
