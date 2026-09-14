@@ -329,9 +329,18 @@ try {
       "Document non compris",
       "un fait concret et fiable (l'échéance) suffit à ne pas déclarer forfait"
     );
+    // Deux voies indépendantes (extraction par mots-clés et
+    // Semantic Relevance) capturaient la même instruction avec un
+    // texte différent (l'une contenant l'autre) -> même action
+    // affichée deux fois dans la liste.
+    assert.equal(
+      didou.actions.length,
+      1,
+      `une seule action attendue (pas de quasi-doublon) : reçu ${JSON.stringify(didou.actions.map((a) => a.action))}`
+    );
     pass(
       "AVIS_PASSAGE_COLIS",
-      `mainDate=${didou.mainDate.date} | label="${didou.userSummary?.document_label}"`
+      `mainDate=${didou.mainDate.date} | label="${didou.userSummary?.document_label}" | actions=${didou.actions.length}`
     );
   }
 
