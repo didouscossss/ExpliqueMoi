@@ -28,7 +28,8 @@ import {
   CONVOCATION_MEDICALE,
   RELEVE_CARRIERE_CNAV,
   CONVENTION_STAGE,
-  AVIS_CONTRAVENTION
+  AVIS_CONTRAVENTION,
+  CARTE_GRISE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -325,6 +326,19 @@ try {
     );
     assert.match(didou.mainDate.date, /26\/06\/2026/);
     assert.equal(didou.mainDate.role, "deadline");
+    // Régression réelle (introduite par l'ajout du catalogue
+    // administratif) : la phrase "muni d'une pièce d'identité" (une
+    // simple EXIGENCE pour retirer le colis) faisait gagner la fiche
+    // Knowledge "Pièce d'identité" via son signal "type" — un nom de
+    // fiche qui apparaît tel quel dans le texte, mais pas comme
+    // auto-désignation du document. Corrigé en exigeant un minimum
+    // de corroboration (vocabulaire/phrase/organisme) en plus du
+    // simple nom de type avant de laisser Knowledge trancher seul.
+    assert.notEqual(
+      didou.documentType,
+      "Pièce d'identité",
+      "une simple mention de \"pièce d'identité\" comme exigence ne doit pas faire passer ce document pour une pièce d'identité elle-même"
+    );
     assert.ok(
       !didou.actions.some((a) => a.action.trim() === "avant le"),
       "aucun fragment d'action tronqué et absurde ne doit apparaître"
@@ -482,6 +496,22 @@ try {
       "AVIS_CONTRAVENTION",
       `${didou.documentType} | ${didou.mainAmount.value} (${didou.mainAmount.role})`
     );
+  }
+
+  // D16 — Carte grise : document administratif extrêmement courant,
+  // jusqu'ici absent du catalogue et réduit à un libellé générique
+  // "Certificat" sans aucune explication.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CARTE_GRISE
+    });
+    assert.equal(didou.family, "administratif");
+    assert.match(didou.documentType || "", /immatriculation/i);
+    assert.ok(
+      didou.whyReceived && /véhicule|vehicule/i.test(didou.whyReceived),
+      `une explication spécifique doit être donnée (reçu ${JSON.stringify(didou.whyReceived)})`
+    );
+    pass("CARTE_GRISE", `${didou.family} | ${didou.documentType}`);
   }
 
   // E — Texte vide → partiel, pas d’invention
