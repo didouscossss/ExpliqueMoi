@@ -13,6 +13,7 @@
     "test:analysis-quality": "node scripts/test-analysis-quality.mjs",
     "test:didou": "node scripts/test-didou-engine.mjs",
     "test:didou-ocr": "node scripts/test-didou-ocr.mjs",
+    "test:pdf-mixed-pages": "node scripts/test-pdf-mixed-pages.mjs",
     "test:upload-payload": "node scripts/test-upload-payload.mjs"
   },
   "dependencies": {

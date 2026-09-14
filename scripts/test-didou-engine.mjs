@@ -8,6 +8,7 @@ import {
   runDidouPipeline
 } from "../lib/didou/index.js";
 import { buildDidoutorContext } from "../lib/didoutor/index.js";
+import { extractActionPhrases } from "../lib/didou/extract/actions.js";
 import {
   QUITTANCE_LOYER,
   LIASSE_FISCALE_2031,
@@ -135,10 +136,57 @@ try {
       pastedText: QUITTANCE_LOYER
     });
     const ctx = buildDidoutorContext(didou);
-    assert.equal(ctx.sourceEngine, "didou");
-    assert.ok(ctx.userSummary);
+    assert.equal(ctx.didouHints.sourceEngine, "didou");
+    assert.ok(ctx.didouHints.userSummary);
     assert.ok(!("extraction" in ctx));
+    assert.ok(!("extraction" in ctx.didouHints));
     pass("DIDOUTOR_CONTEXT", "frontière propre sans extraction brute");
+  }
+
+  // G — Contexte de phrase préservé pour les actions (non-régression)
+  //
+  // Régression réelle observée : le regex d'extraction capture la
+  // phrase à partir du verbe et perd le sujet/modal qui précède
+  // ("Vous pouvez", "Vous êtes invité à"...). Sans ce contexte,
+  // Semantic Relevance ne peut pas déterminer la cible réelle et
+  // rejette l'action -> actions = [] alors qu'une vraie action
+  // existe. Testé ici indépendamment de tout document précis
+  // (copropriété ou non) pour rester générique.
+  {
+    const genericAdminLetter = `
+Vous êtes invité à signer le formulaire ci-joint avant le 10/05/2026.
+`.trim();
+
+    const phrases = extractActionPhrases(genericAdminLetter);
+    const signAction = phrases.find((item) => /^signer/i.test(item.phrase));
+
+    assert.ok(signAction, "le verbe d'action doit être détecté");
+    assert.ok(
+      signAction.sentence && signAction.sentence !== signAction.phrase,
+      "la phrase englobante doit être distincte du fragment capturé"
+    );
+    assert.match(
+      signAction.sentence,
+      /vous êtes invité/i,
+      "le sujet/modal qui précède le verbe doit rester dans le contexte"
+    );
+
+    const agPhrases = extractActionPhrases(CONVOCATION_AG);
+    const participateAction = agPhrases.find((item) =>
+      /^participer/i.test(item.phrase)
+    );
+
+    assert.ok(participateAction);
+    assert.match(
+      participateAction.sentence,
+      /vous pouvez/i,
+      "le contexte AG doit lui aussi conserver le sujet précédent"
+    );
+
+    pass(
+      "ACTION_SENTENCE_CONTEXT",
+      `"${signAction.phrase}" ⊂ "${signAction.sentence}"`
+    );
   }
 
   assert.equal(fetchCalls, 0);
