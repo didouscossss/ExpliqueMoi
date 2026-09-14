@@ -31,7 +31,8 @@ import {
   AVIS_CONTRAVENTION,
   CARTE_GRISE,
   AVIS_ECHEANCE_ENERGIE,
-  ATTESTATION_EMPLOYEUR_FRANCE_TRAVAIL
+  ATTESTATION_EMPLOYEUR_FRANCE_TRAVAIL,
+  SINISTRE_ASSURANCE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -551,6 +552,29 @@ try {
       "l'obligation de transmission au féminin (\"doit être transmise\") doit être reconnue comme action"
     );
     pass("ATTESTATION_EMPLOYEUR", `actions=${didou.actions.length}`);
+  }
+
+  // D19 — Déclaration de sinistre assurance : le mot "devis" mentionné
+  // en passant ("transmettre les devis de réparation") ne doit pas
+  // faire gagner la fiche Knowledge "Devis" (facture) via son seul
+  // signal "type" au détriment de la vraie famille "assurance".
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: SINISTRE_ASSURANCE
+    });
+    assert.equal(didou.family, "assurance");
+    assert.notEqual(
+      didou.documentType,
+      "Devis",
+      "une mention en passant de \"devis\" ne doit pas faire classer tout le document comme un devis"
+    );
+    assert.ok(didou.mainAmount, "le montant d'indemnisation doit être retenu");
+    assert.match(didou.mainAmount.value, /3[\s  ]200,00[\s  ]€/);
+    assert.ok(didou.actions.length >= 1, "la demande de devis de réparation doit rester une action");
+    pass(
+      "SINISTRE_ASSURANCE",
+      `${didou.family} | ${didou.documentType} | ${didou.mainAmount.value}`
+    );
   }
 
   // E — Texte vide → partiel, pas d’invention
