@@ -22,7 +22,8 @@ import {
   DECOMPTE_CPAM,
   AVIS_IMPOT_REVENU,
   AVIS_ECHEANCE_ASSURANCE,
-  CONFIRMATION_RESILIATION
+  CONFIRMATION_RESILIATION,
+  AVIS_PASSAGE_COLIS
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -295,6 +296,42 @@ try {
     pass(
       "CONFIRMATION_RESILIATION",
       `${didou.documentType} | ${didou.actions.length} action(s)`
+    );
+  }
+
+  // D10 — Avis de passage colis : aucune fiche Knowledge, échéance
+  // coupée par un retour à la ligne dans le texte source
+  //
+  // Régression réelle (introduite par mon propre correctif de
+  // contamination de contexte entre dates) : "avant le\n26/06/2026"
+  // — un simple retour à la ligne dû à l'habillage du texte —
+  // était traité comme une fin de phrase, coupant "avant le" de sa
+  // propre date. Résultat : mainDate = null et un fragment
+  // d'action tronqué et absurde ("avant le" tout seul), alors que
+  // "Document non compris" était affiché malgré une échéance
+  // parfaitement claire dans le texte.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: AVIS_PASSAGE_COLIS
+    });
+    assert.ok(
+      didou.mainDate?.date,
+      "l'échéance de retrait doit être trouvée malgré le retour à la ligne dans le texte source"
+    );
+    assert.match(didou.mainDate.date, /26\/06\/2026/);
+    assert.equal(didou.mainDate.role, "deadline");
+    assert.ok(
+      !didou.actions.some((a) => a.action.trim() === "avant le"),
+      "aucun fragment d'action tronqué et absurde ne doit apparaître"
+    );
+    assert.notEqual(
+      didou.userSummary?.document_label,
+      "Document non compris",
+      "un fait concret et fiable (l'échéance) suffit à ne pas déclarer forfait"
+    );
+    pass(
+      "AVIS_PASSAGE_COLIS",
+      `mainDate=${didou.mainDate.date} | label="${didou.userSummary?.document_label}"`
     );
   }
 
