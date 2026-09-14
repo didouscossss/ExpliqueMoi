@@ -377,9 +377,13 @@ try {
     );
     assert.ok(didou.mainDate?.date, "l'échéance de transmission doit être trouvée");
     assert.match(didou.mainDate.date, /20\/05\/2026/);
+    assert.ok(
+      didou.actions.length >= 1,
+      "l'obligation de transmission formulée à la voix passive doit devenir une action visible"
+    );
     pass(
       "LIASSE_2032",
-      `${didou.documentType} | ${didou.mainAmount.value} | ${didou.mainDate.date}`
+      `${didou.documentType} | ${didou.mainAmount.value} | ${didou.mainDate.date} | actions=${didou.actions.length}`
     );
   }
 
