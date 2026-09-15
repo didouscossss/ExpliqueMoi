@@ -47,7 +47,8 @@ import {
   RUPTURE_CONVENTIONNELLE,
   CONGE_POUR_VENTE,
   AVIS_TIERS_DETENTEUR,
-  REJET_PRISE_EN_CHARGE
+  REJET_PRISE_EN_CHARGE,
+  CONVOCATION_TRIBUNAL
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -373,6 +374,47 @@ try {
     );
   }
 
+  // C8 — Convocation devant le tribunal (non-régression, enjeu élevé)
+  //
+  // Document à haut risque (procédure d'expulsion) qui ressortait
+  // quasiment vide : mainDate=null malgré "L'audience se tiendra le
+  // [date] à [heure]" (le rôle "meetingDate" existait bien à
+  // l'extraction, mais interpret/roles.js ne reconnaissait pas
+  // "se tiendra"/"audience" comme un signal de rendez-vous — seuls
+  // "assemblée"/"convocation"/"réunion" l'étaient). mainAmount=null
+  // malgré "4 380,00 €" ("s'élève à"/"réclamés", pas "à payer").
+  // Aucun lieu ni heure non plus (nouvelle capacité générale de
+  // détection heure/lieu pour tout rendez-vous, pas seulement une AG
+  // de copropriété — voir aussi CONVOCATION_MEDICALE ci-dessus).
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONVOCATION_TRIBUNAL
+    });
+    assert.equal(didou.family, "juridique");
+    assert.match(
+      didou.mainDate?.date || "",
+      /^26\/05\/2026$/,
+      "la date d'audience doit être trouvée (mainDate était null)"
+    );
+    assert.equal(
+      didou.mainDate.time,
+      "09:00"
+    );
+    assert.match(
+      didou.mainDate.place || "",
+      /Tribunal judiciaire de Poitiers/i
+    );
+    assert.match(
+      didou.mainAmount?.value || "",
+      /4\s?380,00\s?€/,
+      "le montant réclamé (\"s'élève à\") doit être détecté"
+    );
+    pass(
+      "CONVOCATION_TRIBUNAL",
+      `${didou.mainDate.date} ${didou.mainDate.time} | ${didou.mainDate.place} | ${didou.mainAmount?.value}`
+    );
+  }
+
   // D — Facture (non-régression)
   {
     const { didou } = analyzeDocumentWithDidou({
@@ -670,9 +712,23 @@ try {
       didou.actions.length >= 1,
       "une échéance vérifiée doit se traduire par une action visible pour l'utilisateur"
     );
+    // L'heure/le lieu d'un rendez-vous hors copropriété (jusqu'ici
+    // seule l'AG en bénéficiait) doivent désormais aussi être
+    // détectés à partir du contexte déjà disponible autour de la
+    // date, sans logique spécifique au médical.
+    assert.equal(
+      didou.mainDate.time,
+      "10:00",
+      "l'heure du rendez-vous médical doit être détectée (pas seulement pour une AG)"
+    );
+    assert.match(
+      didou.mainDate.place || "",
+      /centre d'expertise médicale/i,
+      "le lieu du rendez-vous médical doit être détecté (pas seulement pour une AG)"
+    );
     pass(
       "CONVOCATION_MEDICALE",
-      `${didou.mainDate.date} (${didou.mainDate.role}) | actions=${didou.actions.length}`
+      `${didou.mainDate.date} ${didou.mainDate.time} | ${didou.mainDate.place} | actions=${didou.actions.length}`
     );
   }
 
