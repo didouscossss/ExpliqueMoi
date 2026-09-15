@@ -46,7 +46,8 @@ import {
   CONVOCATION_AG_SANS_LIEU_LABEL,
   RUPTURE_CONVENTIONNELLE,
   CONGE_POUR_VENTE,
-  AVIS_TIERS_DETENTEUR
+  AVIS_TIERS_DETENTEUR,
+  REJET_PRISE_EN_CHARGE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -334,6 +335,41 @@ try {
     pass(
       "AVIS_TIERS_DETENTEUR",
       `${didou.documentType} | ${didou.mainAmount?.value}`
+    );
+  }
+
+  // C7 — Rejet de prise en charge (non-régression)
+  //
+  // Absent du catalogue, tombait sur un label générique "Contrat
+  // d'assurance" avec le résumé passe-partout "définit ou confirme
+  // une relation contractuelle" — aucun rapport avec un refus de
+  // remboursement. Le montant (1 850,00 €, "pour un montant de X")
+  // ressortait également absent : ni "à payer" (ce n'est pas dû),
+  // ni un remboursement (justement refusé) — nouveau rôle
+  // "claimAmount" dédié au montant d'une demande, acceptée ou non.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: REJET_PRISE_EN_CHARGE
+    });
+    assert.equal(didou.family, "assurance");
+    assert.match(
+      String(didou.documentType),
+      /rejet|refus/i,
+      "ne doit pas être classé comme un simple \"Contrat d'assurance\""
+    );
+    assert.match(
+      didou.mainAmount?.value || "",
+      /1\s?850,00\s?€/,
+      "le montant de la demande rejetée doit être détecté"
+    );
+    assert.match(
+      didou.mainDate?.date || "",
+      /^08\/06\/2026$/,
+      "le délai de contestation doit être la date principale"
+    );
+    pass(
+      "REJET_PRISE_EN_CHARGE",
+      `${didou.documentType} | ${didou.mainAmount?.value} | ${didou.mainDate?.date}`
     );
   }
 
