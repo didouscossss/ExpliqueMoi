@@ -48,7 +48,9 @@ import {
   CONGE_POUR_VENTE,
   AVIS_TIERS_DETENTEUR,
   REJET_PRISE_EN_CHARGE,
-  CONVOCATION_TRIBUNAL
+  CONVOCATION_TRIBUNAL,
+  DEVIS_TRAVAUX,
+  AVIS_EVOLUTION_TARIFAIRE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -415,6 +417,79 @@ try {
     );
   }
 
+  // C9 — Devis (non-régression, distinct d'une facture)
+  //
+  // Un devis (proposition de prix, rien n'est dû tant qu'il n'est
+  // pas accepté) tombait sur "Facture" : structuré comme une
+  // facture (lignes désignation/prix unitaire/TVA/total), il
+  // n'avait pas de "sections" déclarées dans sa fiche catalogue,
+  // contrairement à "Facture" — 4 en-têtes de tableau génériques
+  // communs aux deux valaient donc, à eux seuls, plus de points
+  // que le nom exact du type et deux phrases distinctives réunis.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: DEVIS_TRAVAUX
+    });
+    assert.equal(didou.family, "facture");
+    assert.equal(
+      didou.documentType,
+      "Devis",
+      "ne doit pas être confondu avec une facture"
+    );
+    assert.match(
+      didou.mainAmount?.value || "",
+      /1\s?353,00\s?€/
+    );
+    pass(
+      "DEVIS_TRAVAUX",
+      `${didou.documentType} | ${didou.mainAmount?.value}`
+    );
+  }
+
+  // C10 — Avis d'évolution tarifaire (non-régression, deux bugs)
+  //
+  // (a) Absent du catalogue, tombait sur un label générique
+  //     "Document de facturation" et un résumé qui ne dit rien du
+  //     contenu réel (hausse de tarif, délai de résiliation...).
+  // (b) Bug plus profond, affectant TOUT document avec des prix
+  //     unitaires précis (kWh, forfait...) : la regex d'extraction
+  //     des montants n'acceptait que 1-2 décimales. "0,2062 €" ne
+  //     correspondait donc à AUCUNE des deux alternatives, et le
+  //     moteur retombait sur les 3 DERNIERS chiffres seuls ("062"),
+  //     lus comme un montant entier — "62,00 €", une valeur fausse
+  //     sans rapport avec le vrai prix. La chaîne de test-didou-engine
+  //     entière couvre implicitement la non-régression de cette
+  //     correction (aucun montant classique à 2 décimales n'a
+  //     changé), ce test vérifie explicitement le cas à 4 décimales.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: AVIS_EVOLUTION_TARIFAIRE
+    });
+    assert.equal(didou.family, "facture");
+    assert.match(
+      String(didou.documentType),
+      /évolution tarifaire|evolution tarifaire/i,
+      "ne doit pas rester non classé (\"Document de facturation\" générique)"
+    );
+    const kwhAmounts = didou.extraction?.amounts
+      ?.map((a) => a.value)
+      .filter((v) => /^0,2\d{3}\s?€$|^0,1\d{3}\s?€$/.test(v));
+    assert.deepEqual(
+      new Set(kwhAmounts),
+      new Set(["0,2062 €", "0,2146 €", "0,1580 €", "0,1642 €"]),
+      "un prix unitaire à 4 décimales (\"0,2062 €\") ne doit jamais être tronqué en un montant entier faux (\"62,00 €\")"
+    );
+    assert.match(
+      didou.mainAmount?.value || "",
+      /68,00\s?€/,
+      "l'impact chiffré estimé doit être le montant principal, pas un prix unitaire isolé"
+    );
+    pass(
+      "AVIS_EVOLUTION_TARIFAIRE",
+      `${didou.documentType} | ${didou.mainAmount?.value} | kwh=${kwhAmounts.join(",")}`
+    );
+  }
+
   // D — Facture (non-régression)
   {
     const { didou } = analyzeDocumentWithDidou({
@@ -455,9 +530,20 @@ try {
     assert.match(String(didou.documentType), /rejet.*pr[ée]l|pr[ée]l.*rejet/i);
     assert.equal(didou.brain?.decision?.actionRequired, true);
     assert.ok(didou.actions.length >= 1);
+    // Le montant rejeté (89,90 €) doit ressortir comme montant
+    // principal, pas les frais de rejet secondaires (8,00 €) ni
+    // aucun montant : "un prélèvement de X ... a fait l'objet d'un
+    // rejet" ne correspondait à aucun rôle de montant (ni "déjà
+    // prélevé" : ça ne l'a justement pas été ; ni "prélèvement
+    // automatique futur" : ce n'en est pas un).
+    assert.match(
+      didou.mainAmount?.value || "",
+      /89,90\s?€/,
+      "le montant du prélèvement rejeté doit être le montant principal"
+    );
     pass(
       "REJET_PRELEVEMENT",
-      `${didou.family} | ${didou.documentType} | actions=${didou.actions.length}`
+      `${didou.family} | ${didou.documentType} | ${didou.mainAmount?.value} | actions=${didou.actions.length}`
     );
   }
 
