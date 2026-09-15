@@ -42,7 +42,8 @@ import {
   RELANCE_FACTURE_IMPAYEE,
   VISITE_MEDECINE_TRAVAIL,
   CONVOCATION_AG_VOTE_EXPRIME,
-  PV_AG_ORDINAIRE
+  PV_AG_ORDINAIRE,
+  CONVOCATION_AG_SANS_LIEU_LABEL
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -178,6 +179,42 @@ try {
     );
     pass(
       "PV_AG_ORDINAIRE",
+      `${didou.mainDate.date} ${didou.mainDate.time} | ${didou.mainDate.place}`
+    );
+  }
+
+  // C3 — Convocation AG sans "Lieu :" ni "se tiendra" (non-régression)
+  //
+  // Cas réaliste construit pour stress-tester la détection : date
+  // au format verbal ("14 octobre 2026", pas de forme chiffrée
+  // disponible), heure et lieu donnés sans préposition/label
+  // introductifs (juste des lignes qui suivent), et plusieurs dates
+  // de résolutions (exercices comptables, mandat de syndic) qui
+  // auraient pu happer la date de réunion. Trois bugs trouvés et
+  // corrigés en même temps : la date verbale n'était pas convertie
+  // au format chiffré habituel ; le lieu capturait "18h30," au lieu
+  // de s'arrêter avant ; et il continuait sur le paragraphe suivant
+  // ("... 86000 Poitiers, L'" — début de "L'ordre du jour...").
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONVOCATION_AG_SANS_LIEU_LABEL
+    });
+    assert.match(
+      didou.mainDate?.date || "",
+      /^14\/10\/2026$/,
+      "une date verbale (\"14 octobre 2026\") doit être convertie au format chiffré habituel"
+    );
+    assert.equal(
+      didou.mainDate.time,
+      "18:30"
+    );
+    assert.equal(
+      didou.mainDate.place,
+      "Salle des fêtes, 2 rue de la Mairie, 86000 Poitiers",
+      "le lieu ne doit ni inclure l'heure ni déborder sur le paragraphe suivant"
+    );
+    pass(
+      "CONVOCATION_SANS_LIEU_LABEL",
       `${didou.mainDate.date} ${didou.mainDate.time} | ${didou.mainDate.place}`
     );
   }
