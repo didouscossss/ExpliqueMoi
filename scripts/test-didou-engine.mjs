@@ -44,7 +44,8 @@ import {
   CONVOCATION_AG_VOTE_EXPRIME,
   PV_AG_ORDINAIRE,
   CONVOCATION_AG_SANS_LIEU_LABEL,
-  RUPTURE_CONVENTIONNELLE
+  RUPTURE_CONVENTIONNELLE,
+  CONGE_POUR_VENTE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -255,6 +256,46 @@ try {
     pass(
       "RUPTURE_CONVENTIONNELLE",
       `${didou.documentType} | ${didou.userSummary.one_sentence}`
+    );
+  }
+
+  // C5 — Congé pour vente (non-régression, faux positif dangereux)
+  //
+  // Deux bugs graves trouvés sur ce document, potentiellement
+  // nuisibles pour un vrai locataire :
+  // (a) classé comme "Contrat de location" (un simple bail !) au
+  //     lieu d'un préavis de départ — le catalogue "Congé du bail"
+  //     existait mais son vocabulaire était trop étroit pour
+  //     reconnaître les vraies formulations d'un congé pour vente
+  //     ("ne sera pas reconduit", "droit de préemption",
+  //     "libération des lieux"...).
+  // (b) date principale = 01/04/2020 (la signature du bail
+  //     D'ORIGINE, déjà passée) étiquetée "Date limite" au lieu du
+  //     31/03/2026 (la vraie échéance) — le mot "échéance", qui
+  //     décrit en réalité la date SUIVANTE dans la même phrase
+  //     ("signé le 01/04/2020, arrivant à échéance le 31/03/2026"),
+  //     déteignait sur la date qui le précède. Root cause trouvée
+  //     dans TROIS endroits différents du code qui réimplémentaient
+  //     chacun la même détection sans le même garde-fou
+  //     (extract/dates.js, interpret/roles.js).
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONGE_POUR_VENTE
+    });
+    assert.equal(didou.family, "logement");
+    assert.match(
+      String(didou.documentType),
+      /congé/i,
+      "ne doit pas être classé comme \"Contrat de location\""
+    );
+    assert.match(
+      didou.mainDate?.date || "",
+      /^31\/03\/2026$/,
+      "la vraie échéance (2026) doit gagner sur la date de signature du bail d'origine (2020, déjà passée)"
+    );
+    pass(
+      "CONGE_POUR_VENTE",
+      `${didou.documentType} | ${didou.mainDate.date}`
     );
   }
 
