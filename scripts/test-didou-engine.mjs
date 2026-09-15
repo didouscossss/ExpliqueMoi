@@ -41,7 +41,8 @@ import {
   RADIATION_FRANCE_TRAVAIL,
   RELANCE_FACTURE_IMPAYEE,
   VISITE_MEDECINE_TRAVAIL,
-  CONVOCATION_AG_VOTE_EXPRIME
+  CONVOCATION_AG_VOTE_EXPRIME,
+  PV_AG_ORDINAIRE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -134,6 +135,50 @@ try {
     pass(
       "AG",
       `${didou.documentType} | ${didou.mainDate.date} | actions=${didou.actions.length}`
+    );
+  }
+
+  // C2 — Procès-verbal d'AG (non-régression, cas réel signalé)
+  //
+  // Contrairement à une convocation, un PV est rédigé APRÈS la
+  // réunion : phrase d'ouverture au format légal ("L'an deux mille
+  // vingt-six, le vingt juillet à 17h00... se sont réunis..."),
+  // titre "ASSEMBLÉE GÉNÉRALE ORDINAIRE DU" (qualificatif entre
+  // "générale" et "du"), et lieu introduit par "réunis... à" (pas
+  // "se tiendra"/"Lieu :"). Un vrai document de ce type faisait
+  // ressortir une date de budget (01/01/2027, présente près du mot
+  // "convocation" et de "l'Assemblée Générale approuve...", répété
+  // devant chaque résolution d'un PV) au lieu de la vraie date de
+  // réunion, et ne détectait aucun lieu.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: PV_AG_ORDINAIRE
+    });
+    assert.equal(didou.family, "copropriete");
+    assert.ok(didou.mainDate?.date);
+    assert.match(
+      didou.mainDate.date,
+      /20\/07\/2026/,
+      "la vraie date de réunion doit gagner sur la date de budget (01/01/2027)"
+    );
+    assert.equal(
+      didou.mainDate.time,
+      "17:00",
+      "l'heure de la phrase d'ouverture doit être détectée"
+    );
+    assert.match(
+      didou.mainDate.place || "",
+      /^Agence Square Habitat/,
+      "le lieu réel (après \"réunis... à\") doit être détecté"
+    );
+    assert.doesNotMatch(
+      didou.mainDate.place || "",
+      /initialement|ACROPOLYA/i,
+      "le lieu initialement prévu (entre parenthèses) ne doit pas polluer le lieu réel"
+    );
+    pass(
+      "PV_AG_ORDINAIRE",
+      `${didou.mainDate.date} ${didou.mainDate.time} | ${didou.mainDate.place}`
     );
   }
 
