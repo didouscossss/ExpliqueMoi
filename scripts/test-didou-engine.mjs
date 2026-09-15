@@ -40,7 +40,8 @@ import {
   AVIS_TAXE_HABITATION,
   RADIATION_FRANCE_TRAVAIL,
   RELANCE_FACTURE_IMPAYEE,
-  VISITE_MEDECINE_TRAVAIL
+  VISITE_MEDECINE_TRAVAIL,
+  CONVOCATION_AG_VOTE_EXPRIME
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -806,6 +807,19 @@ try {
       "un rendez-vous médical doit être nommé comme tel, avec l'accord masculin correct"
     );
 
+    // (e) Même bug \b-après-accent, trouvé lors de l'audit : dans
+    // cleanMeetingPlace, l'alternative "vote exprimé" ne pouvait
+    // jamais déclencher la troncature du lieu, qui restait pollué
+    // par la suite du texte du document.
+    const agVoteExprime = analyzeDocumentWithDidou({
+      pastedText: CONVOCATION_AG_VOTE_EXPRIME
+    }).didou;
+    assert.doesNotMatch(
+      agVoteExprime.userSummary?.one_sentence || "",
+      /vote exprim/i,
+      "le lieu de réunion ne doit pas inclure le texte de filtrage \"vote exprimé\""
+    );
+
     pass("RESPONSE_CLARITY", "actions et phrases complètes, accordées, sans faute");
   }
 
@@ -874,6 +888,38 @@ Vous êtes invité à signer le formulaire ci-joint avant le 10/05/2026.
     pass(
       "ACTION_SENTENCE_CONTEXT",
       `"${signAction.phrase}" ⊂ "${signAction.sentence}"`
+    );
+  }
+
+  // G2 — Même bug \b/accent que plus haut, mais en tête de motif
+  // cette fois (trouvé lors de l'audit demandé après la
+  // clarification de la réponse) : `\b(?:à retourner|a retourner|...)`
+  // ne peut jamais matcher "à retourner"/"à payer" (la forme
+  // réellement écrite en français) car "à" n'est pas un caractère
+  // de mot pour `\b` — seule la variante sans accent, quasi absente
+  // d'un vrai document, passait.
+  {
+    const accentedOnly = extractActionPhrases(
+      "Montant à payer : 45,90 €. Merci de votre confiance."
+    );
+
+    assert.ok(
+      accentedOnly.some((item) => /^à payer/i.test(item.phrase)),
+      "\"à payer\" (accentué) doit être détecté comme action, pas seulement \"a payer\""
+    );
+
+    const accentedReturn = extractActionPhrases(
+      "Coupon à retourner sans délai."
+    );
+
+    assert.ok(
+      accentedReturn.some((item) => /^à retourner/i.test(item.phrase)),
+      "\"à retourner\" (accentué) doit être détecté comme action"
+    );
+
+    pass(
+      "ACTION_LEADING_BOUNDARY_ACCENT",
+      "\"à payer\"/\"à retourner\" accentués détectés"
     );
   }
 
