@@ -739,6 +739,76 @@ try {
     pass("VISITE_MEDECINE_TRAVAIL", `${didou.family} | ${didou.documentType}`);
   }
 
+  // D28 — Clarté de la réponse finale : plusieurs corrections de
+  // présentation regroupées, trouvées en auditant le texte affiché
+  // à l'utilisateur pour chaque type de document déjà couvert.
+  {
+    // (a) Une obligation passive sans sujet ("doit être transmis...")
+    // doit devenir une phrase complète avec sujet et accord correct
+    // à l'affichage, pas un fragment tronqué à la voix passive.
+    const controle = analyzeDocumentWithDidou({
+      pastedText: CONTROLE_TECHNIQUE
+    }).didou;
+    assert.match(
+      controle.actions[0]?.action || "",
+      /^Ce document doit être présenté/,
+      "l'action doit être une phrase complète avec sujet, pas un fragment"
+    );
+
+    const energie = analyzeDocumentWithDidou({
+      pastedText: AVIS_ECHEANCE_ENERGIE
+    }).didou;
+    assert.match(
+      energie.actions[0]?.action || "",
+      /^Ce document doit être réglé avant/,
+      "l'accord du participe doit rester correct (masculin avec \"Ce document\"), pas \"réglée\""
+    );
+
+    // (b) Une action déjà complète ("Nous vous mettons en demeure
+    // de...") ne doit pas être re-préfixée par "Ce document vous
+    // demande de..." — régression réelle trouvée en auditant :
+    // "Ce document vous demande de nous vous mettons en demeure de
+    // régler..." était grammaticalement absurde.
+    const mise = analyzeDocumentWithDidou({
+      pastedText: MISE_EN_DEMEURE
+    }).didou;
+    assert.doesNotMatch(
+      mise.userSummary?.one_sentence || "",
+      /vous demande de nous vous mettons/i,
+      "une phrase déjà complète ne doit pas être re-préfixée"
+    );
+    assert.match(
+      mise.userSummary?.one_sentence || "",
+      /^Nous vous mettons en demeure/,
+      "la phrase déjà complète doit être utilisée telle quelle"
+    );
+
+    // (c) Élision : "sert de attestation" est une faute, doit être
+    // "sert d'attestation".
+    const carteGrise = analyzeDocumentWithDidou({
+      pastedText: CARTE_GRISE
+    }).didou;
+    assert.doesNotMatch(
+      carteGrise.userSummary?.one_sentence || "",
+      /sert de [aeiouyh]/i,
+      "\"sert de\" doit s'élider en \"sert d'\" devant une voyelle"
+    );
+
+    // (d) Un rendez-vous médical n'est pas une "réunion" — et
+    // l'accord du participe doit suivre le genre du nom choisi
+    // ("Un rendez-vous... prévu", pas "prévue").
+    const convocMed = analyzeDocumentWithDidou({
+      pastedText: CONVOCATION_MEDICALE
+    }).didou;
+    assert.match(
+      convocMed.userSummary?.one_sentence || "",
+      /^Un rendez-vous médical est prévu\b/,
+      "un rendez-vous médical doit être nommé comme tel, avec l'accord masculin correct"
+    );
+
+    pass("RESPONSE_CLARITY", "actions et phrases complètes, accordées, sans faute");
+  }
+
   // E — Texte vide → partiel, pas d’invention
   {
     const didou = runDidouPipeline({ text: "" });
