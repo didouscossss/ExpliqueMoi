@@ -43,7 +43,8 @@ import {
   VISITE_MEDECINE_TRAVAIL,
   CONVOCATION_AG_VOTE_EXPRIME,
   PV_AG_ORDINAIRE,
-  CONVOCATION_AG_SANS_LIEU_LABEL
+  CONVOCATION_AG_SANS_LIEU_LABEL,
+  RUPTURE_CONVENTIONNELLE
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -216,6 +217,44 @@ try {
     pass(
       "CONVOCATION_SANS_LIEU_LABEL",
       `${didou.mainDate.date} ${didou.mainDate.time} | ${didou.mainDate.place}`
+    );
+  }
+
+  // C4 — Rupture conventionnelle (non-régression, faux positif grave)
+  //
+  // Absente du catalogue, ce document partageait du vocabulaire
+  // ("employeur", "salarié", "le contrat de travail prendra fin...")
+  // avec la fiche "Contrat de travail" et était classé comme tel —
+  // avec un résumé INVENTÉ ("définit le poste, la rémunération...")
+  // qui ne correspond à rien dans le document réel. Violation directe
+  // du principe "ne jamais inventer". Root cause secondaire trouvée
+  // en creusant : isGenericExplanation() rejetait TOUJOURS tout
+  // résumé de fiche catalogue commençant par "Ce document concerne"
+  // (RSA, prime d'activité, procédure judiciaire étaient déjà
+  // silencieusement affectés), au profit d'un residu bien plus vague.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: RUPTURE_CONVENTIONNELLE
+    });
+    assert.equal(didou.family, "emploi");
+    assert.match(
+      String(didou.documentType),
+      /rupture conventionnelle/i,
+      "ne doit pas être classé comme \"Contrat de travail\""
+    );
+    assert.match(
+      didou.userSummary?.one_sentence || "",
+      /rupture conventionnelle/i,
+      "le résumé doit refléter le contenu réel, pas un texte de contrat de travail inventé"
+    );
+    assert.doesNotMatch(
+      didou.userSummary?.one_sentence || "",
+      /rémunération|poste, la|durée du travail/i,
+      "le résumé ne doit pas inventer des clauses de contrat de travail absentes du document"
+    );
+    pass(
+      "RUPTURE_CONVENTIONNELLE",
+      `${didou.documentType} | ${didou.userSummary.one_sentence}`
     );
   }
 
