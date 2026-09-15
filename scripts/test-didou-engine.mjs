@@ -45,7 +45,8 @@ import {
   PV_AG_ORDINAIRE,
   CONVOCATION_AG_SANS_LIEU_LABEL,
   RUPTURE_CONVENTIONNELLE,
-  CONGE_POUR_VENTE
+  CONGE_POUR_VENTE,
+  AVIS_TIERS_DETENTEUR
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -296,6 +297,43 @@ try {
     pass(
       "CONGE_POUR_VENTE",
       `${didou.documentType} | ${didou.mainDate.date}`
+    );
+  }
+
+  // C6 — Avis à tiers détenteur (non-régression, ambiguïté de destinataire)
+  //
+  // Absent du catalogue, tombait sur "Mise en demeure fiscale" par
+  // recouvrement de vocabulaire ("payer", "recouvrement", "délai"),
+  // avec un résumé qui donne à croire au destinataire QU'IL doit la
+  // somme — alors qu'un avis à tiers détenteur s'adresse à un TIERS
+  // qui détient des fonds pour le compte du vrai débiteur (employeur,
+  // banque...), une confusion potentiellement dommageable dans les
+  // deux sens. Montant absent également : "la somme de X" (formule
+  // juridique/administrative très courante) n'était reconnu par
+  // aucun déclencheur de rôle "amountDue".
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: AVIS_TIERS_DETENTEUR
+    });
+    assert.equal(didou.family, "fiscal");
+    assert.match(
+      String(didou.documentType),
+      /tiers détenteur/i,
+      "ne doit pas être confondu avec une mise en demeure fiscale classique"
+    );
+    assert.match(
+      didou.mainAmount?.value || "",
+      /3\s?240,00\s?€/,
+      "le montant (\"la somme de X\") doit être détecté malgré l'absence de \"à payer\"/\"à régler\""
+    );
+    assert.match(
+      didou.userSummary?.one_sentence || "",
+      /pas le débiteur/i,
+      "le résumé doit clarifier que le destinataire n'est pas lui-même le débiteur"
+    );
+    pass(
+      "AVIS_TIERS_DETENTEUR",
+      `${didou.documentType} | ${didou.mainAmount?.value}`
     );
   }
 
