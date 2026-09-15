@@ -42,7 +42,13 @@ import {
   RELANCE_FACTURE_IMPAYEE,
   VISITE_MEDECINE_TRAVAIL,
   CONVOCATION_AG_VOTE_EXPRIME,
-  PV_AG_ORDINAIRE
+  PV_AG_ORDINAIRE,
+  CONVOCATION_AG_SANS_LIEU_LABEL,
+  RUPTURE_CONVENTIONNELLE,
+  CONGE_POUR_VENTE,
+  AVIS_TIERS_DETENTEUR,
+  REJET_PRISE_EN_CHARGE,
+  CONVOCATION_TRIBUNAL
 } from "../lib/didou/__fixtures__/referenceDocs.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -179,6 +185,233 @@ try {
     pass(
       "PV_AG_ORDINAIRE",
       `${didou.mainDate.date} ${didou.mainDate.time} | ${didou.mainDate.place}`
+    );
+  }
+
+  // C3 — Convocation AG sans "Lieu :" ni "se tiendra" (non-régression)
+  //
+  // Cas réaliste construit pour stress-tester la détection : date
+  // au format verbal ("14 octobre 2026", pas de forme chiffrée
+  // disponible), heure et lieu donnés sans préposition/label
+  // introductifs (juste des lignes qui suivent), et plusieurs dates
+  // de résolutions (exercices comptables, mandat de syndic) qui
+  // auraient pu happer la date de réunion. Trois bugs trouvés et
+  // corrigés en même temps : la date verbale n'était pas convertie
+  // au format chiffré habituel ; le lieu capturait "18h30," au lieu
+  // de s'arrêter avant ; et il continuait sur le paragraphe suivant
+  // ("... 86000 Poitiers, L'" — début de "L'ordre du jour...").
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONVOCATION_AG_SANS_LIEU_LABEL
+    });
+    assert.match(
+      didou.mainDate?.date || "",
+      /^14\/10\/2026$/,
+      "une date verbale (\"14 octobre 2026\") doit être convertie au format chiffré habituel"
+    );
+    assert.equal(
+      didou.mainDate.time,
+      "18:30"
+    );
+    assert.equal(
+      didou.mainDate.place,
+      "Salle des fêtes, 2 rue de la Mairie, 86000 Poitiers",
+      "le lieu ne doit ni inclure l'heure ni déborder sur le paragraphe suivant"
+    );
+    pass(
+      "CONVOCATION_SANS_LIEU_LABEL",
+      `${didou.mainDate.date} ${didou.mainDate.time} | ${didou.mainDate.place}`
+    );
+  }
+
+  // C4 — Rupture conventionnelle (non-régression, faux positif grave)
+  //
+  // Absente du catalogue, ce document partageait du vocabulaire
+  // ("employeur", "salarié", "le contrat de travail prendra fin...")
+  // avec la fiche "Contrat de travail" et était classé comme tel —
+  // avec un résumé INVENTÉ ("définit le poste, la rémunération...")
+  // qui ne correspond à rien dans le document réel. Violation directe
+  // du principe "ne jamais inventer". Root cause secondaire trouvée
+  // en creusant : isGenericExplanation() rejetait TOUJOURS tout
+  // résumé de fiche catalogue commençant par "Ce document concerne"
+  // (RSA, prime d'activité, procédure judiciaire étaient déjà
+  // silencieusement affectés), au profit d'un residu bien plus vague.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: RUPTURE_CONVENTIONNELLE
+    });
+    assert.equal(didou.family, "emploi");
+    assert.match(
+      String(didou.documentType),
+      /rupture conventionnelle/i,
+      "ne doit pas être classé comme \"Contrat de travail\""
+    );
+    assert.match(
+      didou.userSummary?.one_sentence || "",
+      /rupture conventionnelle/i,
+      "le résumé doit refléter le contenu réel, pas un texte de contrat de travail inventé"
+    );
+    assert.doesNotMatch(
+      didou.userSummary?.one_sentence || "",
+      /rémunération|poste, la|durée du travail/i,
+      "le résumé ne doit pas inventer des clauses de contrat de travail absentes du document"
+    );
+    pass(
+      "RUPTURE_CONVENTIONNELLE",
+      `${didou.documentType} | ${didou.userSummary.one_sentence}`
+    );
+  }
+
+  // C5 — Congé pour vente (non-régression, faux positif dangereux)
+  //
+  // Deux bugs graves trouvés sur ce document, potentiellement
+  // nuisibles pour un vrai locataire :
+  // (a) classé comme "Contrat de location" (un simple bail !) au
+  //     lieu d'un préavis de départ — le catalogue "Congé du bail"
+  //     existait mais son vocabulaire était trop étroit pour
+  //     reconnaître les vraies formulations d'un congé pour vente
+  //     ("ne sera pas reconduit", "droit de préemption",
+  //     "libération des lieux"...).
+  // (b) date principale = 01/04/2020 (la signature du bail
+  //     D'ORIGINE, déjà passée) étiquetée "Date limite" au lieu du
+  //     31/03/2026 (la vraie échéance) — le mot "échéance", qui
+  //     décrit en réalité la date SUIVANTE dans la même phrase
+  //     ("signé le 01/04/2020, arrivant à échéance le 31/03/2026"),
+  //     déteignait sur la date qui le précède. Root cause trouvée
+  //     dans TROIS endroits différents du code qui réimplémentaient
+  //     chacun la même détection sans le même garde-fou
+  //     (extract/dates.js, interpret/roles.js).
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONGE_POUR_VENTE
+    });
+    assert.equal(didou.family, "logement");
+    assert.match(
+      String(didou.documentType),
+      /congé/i,
+      "ne doit pas être classé comme \"Contrat de location\""
+    );
+    assert.match(
+      didou.mainDate?.date || "",
+      /^31\/03\/2026$/,
+      "la vraie échéance (2026) doit gagner sur la date de signature du bail d'origine (2020, déjà passée)"
+    );
+    pass(
+      "CONGE_POUR_VENTE",
+      `${didou.documentType} | ${didou.mainDate.date}`
+    );
+  }
+
+  // C6 — Avis à tiers détenteur (non-régression, ambiguïté de destinataire)
+  //
+  // Absent du catalogue, tombait sur "Mise en demeure fiscale" par
+  // recouvrement de vocabulaire ("payer", "recouvrement", "délai"),
+  // avec un résumé qui donne à croire au destinataire QU'IL doit la
+  // somme — alors qu'un avis à tiers détenteur s'adresse à un TIERS
+  // qui détient des fonds pour le compte du vrai débiteur (employeur,
+  // banque...), une confusion potentiellement dommageable dans les
+  // deux sens. Montant absent également : "la somme de X" (formule
+  // juridique/administrative très courante) n'était reconnu par
+  // aucun déclencheur de rôle "amountDue".
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: AVIS_TIERS_DETENTEUR
+    });
+    assert.equal(didou.family, "fiscal");
+    assert.match(
+      String(didou.documentType),
+      /tiers détenteur/i,
+      "ne doit pas être confondu avec une mise en demeure fiscale classique"
+    );
+    assert.match(
+      didou.mainAmount?.value || "",
+      /3\s?240,00\s?€/,
+      "le montant (\"la somme de X\") doit être détecté malgré l'absence de \"à payer\"/\"à régler\""
+    );
+    assert.match(
+      didou.userSummary?.one_sentence || "",
+      /pas le débiteur/i,
+      "le résumé doit clarifier que le destinataire n'est pas lui-même le débiteur"
+    );
+    pass(
+      "AVIS_TIERS_DETENTEUR",
+      `${didou.documentType} | ${didou.mainAmount?.value}`
+    );
+  }
+
+  // C7 — Rejet de prise en charge (non-régression)
+  //
+  // Absent du catalogue, tombait sur un label générique "Contrat
+  // d'assurance" avec le résumé passe-partout "définit ou confirme
+  // une relation contractuelle" — aucun rapport avec un refus de
+  // remboursement. Le montant (1 850,00 €, "pour un montant de X")
+  // ressortait également absent : ni "à payer" (ce n'est pas dû),
+  // ni un remboursement (justement refusé) — nouveau rôle
+  // "claimAmount" dédié au montant d'une demande, acceptée ou non.
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: REJET_PRISE_EN_CHARGE
+    });
+    assert.equal(didou.family, "assurance");
+    assert.match(
+      String(didou.documentType),
+      /rejet|refus/i,
+      "ne doit pas être classé comme un simple \"Contrat d'assurance\""
+    );
+    assert.match(
+      didou.mainAmount?.value || "",
+      /1\s?850,00\s?€/,
+      "le montant de la demande rejetée doit être détecté"
+    );
+    assert.match(
+      didou.mainDate?.date || "",
+      /^08\/06\/2026$/,
+      "le délai de contestation doit être la date principale"
+    );
+    pass(
+      "REJET_PRISE_EN_CHARGE",
+      `${didou.documentType} | ${didou.mainAmount?.value} | ${didou.mainDate?.date}`
+    );
+  }
+
+  // C8 — Convocation devant le tribunal (non-régression, enjeu élevé)
+  //
+  // Document à haut risque (procédure d'expulsion) qui ressortait
+  // quasiment vide : mainDate=null malgré "L'audience se tiendra le
+  // [date] à [heure]" (le rôle "meetingDate" existait bien à
+  // l'extraction, mais interpret/roles.js ne reconnaissait pas
+  // "se tiendra"/"audience" comme un signal de rendez-vous — seuls
+  // "assemblée"/"convocation"/"réunion" l'étaient). mainAmount=null
+  // malgré "4 380,00 €" ("s'élève à"/"réclamés", pas "à payer").
+  // Aucun lieu ni heure non plus (nouvelle capacité générale de
+  // détection heure/lieu pour tout rendez-vous, pas seulement une AG
+  // de copropriété — voir aussi CONVOCATION_MEDICALE ci-dessus).
+  {
+    const { didou } = analyzeDocumentWithDidou({
+      pastedText: CONVOCATION_TRIBUNAL
+    });
+    assert.equal(didou.family, "juridique");
+    assert.match(
+      didou.mainDate?.date || "",
+      /^26\/05\/2026$/,
+      "la date d'audience doit être trouvée (mainDate était null)"
+    );
+    assert.equal(
+      didou.mainDate.time,
+      "09:00"
+    );
+    assert.match(
+      didou.mainDate.place || "",
+      /Tribunal judiciaire de Poitiers/i
+    );
+    assert.match(
+      didou.mainAmount?.value || "",
+      /4\s?380,00\s?€/,
+      "le montant réclamé (\"s'élève à\") doit être détecté"
+    );
+    pass(
+      "CONVOCATION_TRIBUNAL",
+      `${didou.mainDate.date} ${didou.mainDate.time} | ${didou.mainDate.place} | ${didou.mainAmount?.value}`
     );
   }
 
@@ -479,9 +712,23 @@ try {
       didou.actions.length >= 1,
       "une échéance vérifiée doit se traduire par une action visible pour l'utilisateur"
     );
+    // L'heure/le lieu d'un rendez-vous hors copropriété (jusqu'ici
+    // seule l'AG en bénéficiait) doivent désormais aussi être
+    // détectés à partir du contexte déjà disponible autour de la
+    // date, sans logique spécifique au médical.
+    assert.equal(
+      didou.mainDate.time,
+      "10:00",
+      "l'heure du rendez-vous médical doit être détectée (pas seulement pour une AG)"
+    );
+    assert.match(
+      didou.mainDate.place || "",
+      /centre d'expertise médicale/i,
+      "le lieu du rendez-vous médical doit être détecté (pas seulement pour une AG)"
+    );
     pass(
       "CONVOCATION_MEDICALE",
-      `${didou.mainDate.date} (${didou.mainDate.role}) | actions=${didou.actions.length}`
+      `${didou.mainDate.date} ${didou.mainDate.time} | ${didou.mainDate.place} | actions=${didou.actions.length}`
     );
   }
 
